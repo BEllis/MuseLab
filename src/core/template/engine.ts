@@ -1,37 +1,43 @@
 import { evaluateExpression, type TemplateContext } from "./sandbox";
+import { isFormatTag, markupToHtml } from "./formatMarkup";
 import { sanitizeHtml } from "./sanitize";
 
 const EXPR_REGEX = /\{\{([^}]*)\}\}/g;
 const IF_REGEX = /\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
 
 /**
- * Process template string: replace {{ expr }} with evaluated result,
- * handle {{#if expr}}...{{/if}} blocks, then sanitize HTML.
+ * Process template string: {{#if}}, {{ expr }}, format calls ({{bold_start()}}), then HTML.
  */
 export function runTemplate(
   template: string,
   context: TemplateContext
 ): string {
-  let out = template;
+  const processed = processTemplateLogic(template, context);
+  return sanitizeHtml(markupToHtml(processed));
+}
 
-  // Handle {{#if expr}}...{{/if}} first (non-greedy match)
-  out = out.replace(IF_REGEX, (_, expr, body) => {
+/** Resolve conditionals and expressions; output is still markup, not HTML. */
+function processTemplateLogic(template: string, context: TemplateContext): string {
+  let out = processIfBlocks(template, context);
+  out = processExpressions(out, context);
+  return out;
+}
+
+function processIfBlocks(template: string, context: TemplateContext): string {
+  return template.replace(IF_REGEX, (_, expr, body) => {
     const value = evaluateExpression(expr.trim(), context);
     if (value) {
-      return processExpressions(body, context);
+      return processTemplateLogic(body, context);
     }
     return "";
   });
-
-  // Replace {{ expr }} with evaluated value
-  out = processExpressions(out, context);
-
-  return sanitizeHtml(out);
 }
 
 function processExpressions(str: string, context: TemplateContext): string {
-  return str.replace(EXPR_REGEX, (_, expr) => {
-    const value = evaluateExpression(expr, context);
+  return str.replace(EXPR_REGEX, (full, expr) => {
+    const trimmed = expr.trim();
+    if (!trimmed || isFormatTag(trimmed)) return full;
+    const value = evaluateExpression(trimmed, context);
     if (value === undefined || value === null) return "";
     return String(value);
   });

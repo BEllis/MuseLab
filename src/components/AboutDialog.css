@@ -1,0 +1,85 @@
+.about-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-overlay);
+}
+
+.about-dialog {
+  width: min(440px, 92vw);
+  background: var(--app-surface);
+  color: var(--app-text);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px var(--app-shadow);
+  padding: 28px 28px 22px;
+  text-align: center;
+}
+
+.about-dialog-logo {
+  width: 96px;
+  height: auto;
+  display: block;
+  margin: 0 auto 16px;
+}
+
+.about-dialog-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.about-dialog-tagline {
+  margin: 4px 0 16px;
+  font-size: 14px;
+  color: var(--app-text-muted);
+  font-style: italic;
+}
+
+.about-dialog-description {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--app-text-muted);
+  text-align: left;
+}
+
+.about-dialog-meta {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--app-text-subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.about-dialog-meta-separator {
+  margin: 0 0.45em;
+}
+
+.about-dialog-link-row {
+  margin: 0 0 16px;
+}
+
+.about-dialog-link {
+  color: var(--app-accent);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.about-dialog-link:hover {
+  text-decoration: underline;
+}
+
+.about-dialog-copyright {
+  margin: 0 0 20px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-text-subtle);
+}
+
+.about-dialog-actions {
+  display: flex;
+  justify-content: center;
+}

@@ -2,14 +2,15 @@ import { useProjectStore } from "@/store/projectStore";
 import { CloseButton } from "../CloseButton";
 
 export function EdgeEditorPanel() {
-  const selectedEdgeId = useProjectStore((s) => s.selectedEdgeId);
+  const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
   const project = useProjectStore((s) => s.project);
-  const setSelectedEdgeId = useProjectStore((s) => s.setSelectedEdgeId);
+  const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateEdge = useProjectStore((s) => s.updateEdge);
 
-  const edge = selectedEdgeId
-    ? project.edges.find((e) => e.id === selectedEdgeId)
-    : null;
+  const edge =
+    selectedEdgeIds.length === 1
+      ? project.edges.find((e) => e.id === selectedEdgeIds[0])
+      : null;
 
   if (!edge) return null;
 
@@ -19,25 +20,19 @@ export function EdgeEditorPanel() {
   return (
     <div
       style={{
-        position: "fixed",
-        bottom: "16px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "12px 16px",
-        minWidth: "320px",
-        maxWidth: "90vw",
-        background: "#fff",
-        border: "1px solid #ccc",
-        borderRadius: "8px",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-        zIndex: 10,
+        width: "320px",
+        borderLeft: "1px solid var(--app-border)",
+        padding: "12px",
+        background: "var(--app-surface-muted)",
+        overflowY: "auto",
+        maxHeight: "100vh",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
         <strong>Link</strong>
-        <CloseButton onClick={() => setSelectedEdgeId(null)} />
+        <CloseButton onClick={() => clearSelection()} />
       </div>
-      <p style={{ margin: "0 0 12px", fontSize: "12px", color: "#666" }}>
+      <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--app-text-muted)" }}>
         {sourceLabel} → {targetLabel}
       </p>
       <label style={{ display: "block", marginBottom: "8px" }}>

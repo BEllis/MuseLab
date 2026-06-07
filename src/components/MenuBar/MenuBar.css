@@ -1,0 +1,180 @@
+.menubar {
+  --menubar-height: 28px;
+  --menubar-font: "Segoe UI", system-ui, sans-serif;
+  --menubar-font-size: 12px;
+  --menubar-label-radius: 0;
+  --menubar-label-padding: 0 10px;
+  --menubar-padding-x: 4px;
+
+  height: var(--menubar-height);
+  display: flex;
+  align-items: stretch;
+  padding: 0 var(--menubar-padding-x);
+  background: var(--menubar-bg);
+  border-bottom: 1px solid var(--menubar-border);
+  font-family: var(--menubar-font);
+  font-size: var(--menubar-font-size);
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--menubar-label-color);
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 100;
+  -webkit-font-smoothing: antialiased;
+}
+
+.menubar[data-platform="mac"] {
+  --menubar-height: 26px;
+  --menubar-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --menubar-font-size: 13px;
+  --menubar-label-radius: 4px;
+  --menubar-label-padding: 1px 9px;
+  --menubar-padding-x: 6px;
+}
+
+[data-theme="light"] .menubar[data-platform="mac"] {
+  --menubar-bg: linear-gradient(
+    180deg,
+    #fafafa 0%,
+    #f2f2f2 50%,
+    #ececec 100%
+  );
+  --menubar-border: rgba(0, 0, 0, 0.14);
+  --menubar-label-color: rgba(0, 0, 0, 0.88);
+  --menubar-label-hover-bg: rgba(0, 0, 0, 0.06);
+  --menubar-label-active-bg: rgba(0, 0, 0, 0.11);
+}
+
+[data-theme="dark"] .menubar[data-platform="mac"] {
+  --menubar-bg: #1e1e1e;
+  --menubar-border: #333333;
+  --menubar-label-color: #e8e8e8;
+  --menubar-label-hover-bg: rgba(255, 255, 255, 0.08);
+  --menubar-label-active-bg: rgba(255, 255, 255, 0.12);
+}
+
+.menubar-brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 6px 0 2px;
+}
+
+.menubar-logo {
+  display: block;
+  height: 20px;
+  width: auto;
+  object-fit: contain;
+}
+
+.menubar[data-platform="mac"] .menubar-brand {
+  padding-left: 4px;
+}
+
+.menubar[data-platform="mac"] .menubar-logo {
+  height: 18px;
+}
+
+.menubar-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.menubar-label {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  padding: var(--menubar-label-padding);
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  line-height: 1;
+  cursor: default;
+  border-radius: var(--menubar-label-radius);
+  white-space: nowrap;
+  transition: background-color 0.08s ease;
+}
+
+.menubar-label:hover:not(:disabled) {
+  background: var(--menubar-label-hover-bg);
+}
+
+.menubar-label.is-open {
+  background: var(--menubar-label-active-bg);
+}
+
+.menubar-label:focus-visible {
+  outline: 2px solid var(--app-focus-ring);
+  outline-offset: -2px;
+}
+
+.menubar[data-platform="mac"] .menubar-label.is-open {
+  font-weight: 500;
+}
+
+.menubar-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  background: var(--app-dropdown-bg);
+  border: 1px solid var(--app-dropdown-border);
+  box-shadow: 0 4px 12px var(--app-shadow);
+  padding: 4px 0;
+  z-index: 200;
+}
+
+.menubar-dropdown-item {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 24px 4px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--app-text);
+  cursor: default;
+}
+
+.menubar-dropdown-check {
+  width: 16px;
+  text-align: center;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.menubar-dropdown-item:disabled {
+  opacity: 0.45;
+}
+
+.menubar-dropdown-item:not(:disabled):hover {
+  background: var(--app-dropdown-hover-bg);
+  color: var(--app-dropdown-hover-text);
+}
+
+.menubar-dropdown-separator {
+  height: 1px;
+  background: var(--app-dropdown-separator);
+  margin: 4px 0;
+}
+
+.menubar-dropdown-shortcut {
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.menubar-dropdown-item:not(:disabled):hover .menubar-dropdown-shortcut {
+  opacity: 0.9;
+}

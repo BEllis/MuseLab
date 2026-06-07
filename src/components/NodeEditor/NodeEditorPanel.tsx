@@ -2,10 +2,12 @@ import { useCallback, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import type { Project, SoundConfig, StoryNode } from "@/core/model/types";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
+import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
+import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
-import { RichTextEditor } from "./RichTextEditor";
+import { TemplateTextEditor } from "./TemplateTextEditor";
 
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
@@ -24,11 +26,11 @@ function SoundConfigRow({
   return (
     <div
       style={{
-        border: "1px solid #ddd",
+        border: "1px solid var(--app-border-subtle)",
         borderRadius: "6px",
         padding: "8px",
         marginBottom: "8px",
-        background: "#fff",
+        background: "var(--app-surface)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
@@ -176,7 +178,7 @@ function ActorRow({
         fontSize: "12px",
         padding: "4px 6px",
         borderRadius: "6px",
-        background: isDropTarget ? "#e0e8ff" : "transparent",
+        background: isDropTarget ? "var(--app-accent-soft)" : "transparent",
         cursor: "grab",
       }}
     >
@@ -187,7 +189,7 @@ function ActorRow({
           flexShrink: 0,
           borderRadius: "4px",
           overflow: "hidden",
-          background: "#ddd",
+          background: "var(--app-border-subtle)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -205,7 +207,7 @@ function ActorRow({
             }}
           />
         ) : (
-          <span style={{ fontSize: "10px", color: "#888" }}>…</span>
+          <span style={{ fontSize: "10px", color: "var(--app-text-subtle)" }}>…</span>
         )}
       </div>
       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={name}>
@@ -217,20 +219,21 @@ function ActorRow({
 }
 
 export function NodeEditorPanel() {
-  const selectedNodeId = useProjectStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const project = useProjectStore((s) => s.project);
-  const setSelectedNodeId = useProjectStore((s) => s.setSelectedNodeId);
+  const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateNode = useProjectStore((s) => s.updateNode);
 
-  const node = selectedNodeId
-    ? project.nodes.find((n) => n.id === selectedNodeId)
-    : null;
+  const node =
+    selectedNodeIds.length === 1
+      ? project.nodes.find((n) => n.id === selectedNodeIds[0])
+      : null;
 
   const backdrops = project.assets.filter((a) => a.type === "backdrop");
   const actors = project.assets.filter((a) => a.type === "actor");
   const sounds = project.assets.filter((a) => a.type === "sound");
 
-  const backdropUrl = useAssetUrl(project, node?.backdropId ?? null);
+  const backdropUrl = useAssetUrl(project, node?.backdropId ?? DEFAULT_BACKDROP_ID);
 
   const update = useCallback(
     (patch: Partial<Omit<StoryNode, "id">>) => {
@@ -260,7 +263,10 @@ export function NodeEditorPanel() {
       e.preventDefault();
       setBackdropDropActive(false);
       const data = getAssetDragData(e.dataTransfer);
-      if (data?.type === "backdrop" && node) update({ backdropId: data.assetId });
+      if (data?.type === "backdrop" && node) {
+        const patch = patchNodeForAssetDrop(node, data);
+        if (patch) update(patch);
+      }
     },
     [node, update]
   );
@@ -283,8 +289,8 @@ export function NodeEditorPanel() {
       setActorsDropActive(false);
       const data = getAssetDragData(e.dataTransfer);
       if (data?.type === "actor" && node) {
-        const actorIds = node.actorIds ?? [];
-        if (!actorIds.includes(data.assetId)) update({ actorIds: [...actorIds, data.assetId] });
+        const patch = patchNodeForAssetDrop(node, data);
+        if (patch) update(patch);
       }
     },
     [node, update]
@@ -303,22 +309,7 @@ export function NodeEditorPanel() {
     [node, update]
   );
 
-  if (!node) {
-    return (
-      <div
-        style={{
-          width: "320px",
-          borderLeft: "1px solid #ccc",
-          padding: "12px",
-          background: "#f8f8f8",
-          fontSize: "14px",
-          color: "#666",
-        }}
-      >
-        Select a node to edit
-      </div>
-    );
-  }
+  if (!node) return null;
 
   const addSoundConfig = () => {
     const soundConfigs = [...(node.soundConfigs || [])];
@@ -346,15 +337,17 @@ export function NodeEditorPanel() {
     update({ actorIds: (node.actorIds ?? []).filter((id) => id !== actorId) });
   };
 
-  const currentBackdrop = node.backdropId ? backdrops.find((a) => a.id === node.backdropId) : null;
+  const currentBackdrop =
+    backdrops.find((a) => a.id === node.backdropId) ??
+    backdrops.find((a) => a.id === DEFAULT_BACKDROP_ID);
 
   return (
     <div
       style={{
         width: "320px",
-        borderLeft: "1px solid #ccc",
+        borderLeft: "1px solid var(--app-border)",
         padding: "12px",
-        background: "#f8f8f8",
+        background: "var(--app-surface-muted)",
         overflowY: "auto",
         maxHeight: "100vh",
       }}
@@ -368,7 +361,7 @@ export function NodeEditorPanel() {
         }}
       >
         <strong>Scene</strong>
-        <CloseButton onClick={() => setSelectedNodeId(null)} />
+        <CloseButton onClick={() => clearSelection()} />
       </div>
 
       <label style={{ display: "block", marginBottom: "8px" }}>
@@ -391,16 +384,16 @@ export function NodeEditorPanel() {
           style={{
             marginTop: "4px",
             minHeight: "56px",
-            border: `2px dashed ${backdropDropActive ? "#4a9eff" : "#ccc"}`,
+            border: `2px dashed ${backdropDropActive ? "var(--app-accent-border)" : "var(--app-border)"}`,
             borderRadius: "8px",
-            background: backdropDropActive ? "#e8f2ff" : "#fafafa",
+            background: backdropDropActive ? "var(--app-accent-soft-bg)" : "var(--app-surface-muted)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
           }}
         >
-          {node.backdropId && currentBackdrop ? (
+          {currentBackdrop ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "8px" }}>
               {backdropUrl ? (
                 <img
@@ -419,7 +412,7 @@ export function NodeEditorPanel() {
                   style={{
                     width: "48px",
                     height: "48px",
-                    background: "#ddd",
+                    background: "var(--app-border-subtle)",
                     borderRadius: "4px",
                     flexShrink: 0,
                   }}
@@ -428,10 +421,26 @@ export function NodeEditorPanel() {
               <span style={{ flex: 1, fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {currentBackdrop.name}
               </span>
-              <CloseButton onClick={() => update({ backdropId: null })} title="Remove backdrop" />
+              {node.backdropId !== DEFAULT_BACKDROP_ID && (
+                <button
+                  type="button"
+                  onClick={() => update({ backdropId: DEFAULT_BACKDROP_ID })}
+                  title="Use default backdrop"
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: "11px",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "4px",
+                    background: "var(--app-surface)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Reset
+                </button>
+              )}
             </div>
           ) : (
-            <span style={{ fontSize: "12px", color: "#888" }}>
+            <span style={{ fontSize: "12px", color: "var(--app-text-subtle)" }}>
               {backdropDropActive ? "Drop here" : "Drop backdrop from Assets"}
             </span>
           )}
@@ -446,9 +455,9 @@ export function NodeEditorPanel() {
           onDrop={onActorsDrop}
           style={{
             minHeight: "48px",
-            border: `2px dashed ${actorsDropActive ? "#4a9eff" : "#ccc"}`,
+            border: `2px dashed ${actorsDropActive ? "var(--app-accent-border)" : "var(--app-border)"}`,
             borderRadius: "8px",
-            background: actorsDropActive ? "#e8f2ff" : "#fafafa",
+            background: actorsDropActive ? "var(--app-accent-soft-bg)" : "var(--app-surface-muted)",
             padding: "8px",
           }}
         >
@@ -476,12 +485,12 @@ export function NodeEditorPanel() {
                   />
                 );
               })}
-              <span style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: "var(--app-text-subtle)", marginTop: "4px" }}>
                 Drag to reorder · Drop another actor from Assets
               </span>
             </div>
           ) : (
-            <span style={{ fontSize: "12px", color: "#888", display: "block", textAlign: "center" }}>
+            <span style={{ fontSize: "12px", color: "var(--app-text-subtle)", display: "block", textAlign: "center" }}>
               {actorsDropActive ? "Drop here" : "Drop actors from Assets"}
             </span>
           )}
@@ -506,13 +515,15 @@ export function NodeEditorPanel() {
 
       <label style={{ display: "block", marginBottom: "8px" }}>
         <div style={{ marginBottom: "4px" }}>
-          Text template (HTML + <code>{`{{ }}`}</code> for logic)
+          Text template (<code>{`{{bold_start()}}`}</code>,{" "}
+          <code>{`{{color_start(#AA00FF)}}`}</code>, <code>{`{{shakechars_start()}}`}</code>,{" "}
+          <code>{`{{ state.x }}`}</code>)
         </div>
-        <RichTextEditor
+        <TemplateTextEditor
           value={node.textTemplate}
-          onChange={(html) => update({ textTemplate: html })}
+          onChange={(markup) => update({ textTemplate: markup })}
           syncKey={node.id}
-          placeholder="Hello world… Use Bold, Italic, Color above. Use {{ state.x }} for logic."
+          placeholder="Hello world… Use the toolbar for style tags, or {{ state.x }} for logic."
           style={{ marginTop: "4px", width: "100%" }}
         />
       </label>

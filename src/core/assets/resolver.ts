@@ -1,8 +1,15 @@
 import type { Project, Asset } from "../model/types";
+import { actorImageDataUrl } from "./actorImageSerialization";
+import { getWebAssetObjectUrl } from "./webAssetStorage";
+import { isElectron } from "@/utils/isElectron";
+
+function isPersistableWebUrl(url: string): boolean {
+  return url.startsWith("data:") || url.startsWith("http:") || url.startsWith("https:");
+}
 
 /**
  * Resolve an asset to a URL the renderer can use for <img> or <audio>.
- * - Web: uses asset.url (blob or data URL).
+ * - Web: uses asset.url (data URL) or IndexedDB blob storage.
  * - Electron: uses asset.url if set, else asks main process for file URL (async).
  */
 export async function getAssetUrlAsync(
@@ -12,7 +19,15 @@ export async function getAssetUrlAsync(
   const asset = project.assets.find((a) => a.id === assetId);
   if (!asset) return "";
 
-  if (asset.url) return asset.url;
+  const embeddedActorUrl = actorImageDataUrl(asset);
+  if (embeddedActorUrl) return embeddedActorUrl;
+
+  if (asset.url && isPersistableWebUrl(asset.url)) return asset.url;
+
+  if (!isElectron()) {
+    const webUrl = await getWebAssetObjectUrl(assetId);
+    if (webUrl) return webUrl;
+  }
 
   if (typeof window !== "undefined" && window.electronAPI?.resolveAssetUrl && asset.path) {
     return window.electronAPI.resolveAssetUrl(asset.path);
@@ -29,7 +44,11 @@ export async function getAssetUrlAsync(
 export function getAssetUrlSync(project: Project, assetId: string): string {
   const asset = project.assets.find((a) => a.id === assetId);
   if (!asset) return "";
-  if (asset.url) return asset.url;
+
+  const embeddedActorUrl = actorImageDataUrl(asset);
+  if (embeddedActorUrl) return embeddedActorUrl;
+
+  if (asset.url && isPersistableWebUrl(asset.url)) return asset.url;
   // Only use path when it's clearly a web URL; filesystem paths (e.g. /home/..., C:\...) must be resolved async (e.g. asset:// in Electron)
   if (asset.path && (asset.path.startsWith("http:") || asset.path.startsWith("https:")))
     return asset.path;

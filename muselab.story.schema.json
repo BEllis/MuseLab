@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://muselab.dev/schemas/story.schema.json",
+  "title": "MuseLab Story Project",
+  "description": "Serializable MuseLab designer project (scenes, links, and assets). Saved via File > Save or browser localStorage. Actor images are embedded as base64 in imageData when persisted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "assets", "nodes", "edges", "globalState"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable project title."
+    },
+    "assets": {
+      "type": "array",
+      "description": "Backdrops, actor sprites, and sounds referenced by scenes.",
+      "items": { "$ref": "#/$defs/asset" }
+    },
+    "nodes": {
+      "type": "array",
+      "description": "Scenes in the story graph.",
+      "items": { "$ref": "#/$defs/storyNode" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Directed links between scenes (player choices or auto-advance).",
+      "items": { "$ref": "#/$defs/storyEdge" }
+    },
+    "globalState": {
+      "type": "object",
+      "description": "Initial runtime variables and flags (key/value JSON).",
+      "additionalProperties": true
+    },
+    "entryNodeId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional explicit starting scene id. If omitted, play mode uses the sole scene with no incoming links."
+    }
+  },
+  "$defs": {
+    "assetType": {
+      "type": "string",
+      "enum": ["backdrop", "actor", "sound"]
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable asset identifier referenced by nodes and sound configs."
+        },
+        "type": { "$ref": "#/$defs/assetType" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the assets panel."
+        },
+        "path": {
+          "type": "string",
+          "description": "Filesystem path when running in Electron."
+        },
+        "url": {
+          "type": "string",
+          "description": "Persistable URL for the asset, typically a data: URL for backdrops. Ephemeral blob: URLs are stripped on load."
+        },
+        "imageData": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64-encoded image bytes for actor assets. Embedded when saving project JSON."
+        },
+        "imageMimeType": {
+          "type": "string",
+          "pattern": "^image/",
+          "description": "MIME type for imageData (e.g. image/png, image/jpeg)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "actor" } },
+            "required": ["type"]
+          },
+          "then": {
+            "description": "Actor sprites may embed image bytes or reference an external path/url."
+          }
+        }
+      ]
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "soundConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId"],
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Id of a sound asset."
+        },
+        "startOnLoad": {
+          "type": "boolean",
+          "description": "Start playback when the scene loads."
+        },
+        "stopOnLoad": {
+          "type": "boolean",
+          "description": "Stop other sounds when the scene loads."
+        },
+        "loop": {
+          "type": "boolean",
+          "description": "Loop playback."
+        },
+        "startTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Playback start offset in seconds."
+        },
+        "endTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Playback end offset in seconds."
+        }
+      }
+    },
+    "storyNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "position", "backdropId", "actorIds", "soundConfigs", "textTemplate"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable scene identifier."
+        },
+        "position": { "$ref": "#/$defs/point" },
+        "label": {
+          "type": "string",
+          "description": "Optional scene title shown in the designer."
+        },
+        "backdropId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Backdrop asset id. Projects always include muselab-default-backdrop as a built-in fallback."
+        },
+        "actorIds": {
+          "type": "array",
+          "description": "Ordered list of actor asset ids displayed on this scene.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "soundConfigs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/soundConfig" }
+        },
+        "textTemplate": {
+          "type": "string",
+          "description": "Scene dialogue/narration template (HTML subset in the designer)."
+        }
+      }
+    },
+    "storyEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourceNodeId", "targetNodeId"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable link identifier."
+        },
+        "sourceNodeId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Outgoing scene id."
+        },
+        "targetNodeId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Incoming scene id."
+        },
+        "sourcePortId": {
+          "type": "string",
+          "pattern": "^(out-[A-Za-z0-9_-]+|__free_out__)$",
+          "description": "Designer out-port id. Persisted edges use out-{edgeId}."
+        },
+        "targetPortId": {
+          "type": "string",
+          "const": "__free_in__",
+          "description": "Designer in-port id. All incoming links share __free_in__."
+        },
+        "optionText": {
+          "type": "string",
+          "description": "Player-facing choice label. Omit or leave empty for auto-advance."
+        },
+        "condition": {
+          "type": "string",
+          "description": "TypeScript expression; link is offered only when this evaluates truthy."
+        },
+        "vertices": {
+          "type": "array",
+          "description": "Manual bend points for the link path in the designer.",
+          "items": { "$ref": "#/$defs/point" }
+        },
+        "manualRoute": {
+          "type": "boolean",
+          "description": "True when the user has manually shaped this link."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "name": "Untitled",
+      "assets": [
+        {
+          "id": "muselab-default-backdrop",
+          "type": "backdrop",
+          "name": "default",
+          "url": "data:image/png;base64,..."
+        },
+        {
+          "id": "hero1",
+          "type": "actor",
+          "name": "Hero",
+          "imageMimeType": "image/png",
+          "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        }
+      ],
+      "nodes": [
+        {
+          "id": "scene1",
+          "position": { "x": 100, "y": 100 },
+          "label": "Opening",
+          "backdropId": "muselab-default-backdrop",
+          "actorIds": ["hero1"],
+          "soundConfigs": [],
+          "textTemplate": "Hello, world."
+        }
+      ],
+      "edges": [],
+      "globalState": {}
+    }
+  ]
+}

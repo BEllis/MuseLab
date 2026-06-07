@@ -12,17 +12,19 @@
     "electron:build": "vite build --mode electron && electron-builder"
   },
   "dependencies": {
+    "@antv/x6": "^3.1.7",
+    "@antv/x6-react-shape": "^3.0.1",
+    "dompurify": "^3.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "reactflow": "^11.11.4",
-    "zustand": "^5.0.1",
     "react-router-dom": "^6.28.0",
-    "dompurify": "^3.2.2"
+    "tslib": "^2.8.1",
+    "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/dompurify": "^3.0.5",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.2.0",
     "typescript": "~5.6.2",

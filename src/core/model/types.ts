@@ -8,8 +8,14 @@ export interface Asset {
   name: string;
   /** File path (Electron) or relative path in project */
   path?: string;
-  /** Data URL or blob URL (web) */
+  /** Data URL (web, legacy) or blob URL (web, ephemeral — prefer file for persistence) */
   url?: string;
+  /** Base64 image bytes for actors; embedded in saved project JSON. */
+  imageData?: string;
+  /** MIME type for imageData, e.g. image/png */
+  imageMimeType?: string;
+  /** Web: binary media is stored in IndexedDB under this asset id. */
+  blobStored?: boolean;
 }
 
 /** Sound config per node: which sound and how it behaves when the node loads */
@@ -27,7 +33,7 @@ export interface StoryNode {
   id: string;
   position: { x: number; y: number };
   label?: string;
-  backdropId: string | null;
+  backdropId: string;
   actorIds: string[];
   soundConfigs: SoundConfig[];
   textTemplate: string;
@@ -38,10 +44,14 @@ export interface StoryEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
-  sourceHandle?: string;
-  targetHandle?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
   optionText?: string;
   condition?: string;
+  /** User-defined bend points; when present the edge stops auto-routing. */
+  vertices?: { x: number; y: number }[];
+  /** True once the user has manually shaped this edge. */
+  manualRoute?: boolean;
 }
 
 /** Full project: serializable to JSON */

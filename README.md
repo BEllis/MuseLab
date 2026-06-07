@@ -1,4 +1,10 @@
-# MuseLab
+<p align="center">
+  <img src="docs/images/logo.png" alt="MuseLab logo" width="240">
+</p>
+
+<h1 align="center">MuseLab</h1>
+
+<p align="center"><em>Visual Novel Designer</em></p>
 
 A **visual novel / interactive story** designer and player. Build branching narratives in a node-based editor, then play them in the browser or on desktop.
 

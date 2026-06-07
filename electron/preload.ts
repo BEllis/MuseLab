@@ -27,4 +27,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("show-before-new-dialog") as Promise<0 | 1 | 2>,
   setWindowSize: (width: number, height: number) =>
     ipcRenderer.invoke("set-window-size", width, height),
+  syncTheme: (theme: "light" | "dark") => ipcRenderer.send("sync-theme", theme),
+  onSetTheme: (callback: (theme: "light" | "dark") => void) => {
+    const handler = (_: unknown, theme: "light" | "dark") => callback(theme);
+    ipcRenderer.on("set-theme", handler);
+    return () => ipcRenderer.removeListener("set-theme", handler);
+  },
+  onShowAbout: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("show-about", handler);
+    return () => ipcRenderer.removeListener("show-about", handler);
+  },
 });

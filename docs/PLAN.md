@@ -58,7 +58,7 @@ Define in `src/core/model/` (or similar) and use from both designer and player.
   - `soundConfigs: Array<{ assetId, startOnLoad?, stopOnLoad?, loop?, startTime?, endTime? }>`.
   - `textTemplate: string` (see below).
 - **Edge (link)**:
-  - `sourceNodeId`, `targetNodeId`, `sourceHandle` (if multiple out-links per node).
+  - `sourceNodeId`, `targetNodeId`.
   - `optionText?: string` (if set, shown as player choice).
   - `condition?: string` (TypeScript expression, evaluated at runtime; if falsy, option hidden or link disabled).
 - **Assets**: `id`, `type` (`backdrop` | `actor` | `sound`), `name`, `path` or `url` (and/or blob ref for web). Store in `project.assets`; designer and player resolve by `id`.
@@ -69,12 +69,12 @@ Keep the model serializable (plain JSON) so you can save/load projects and later
 
 ## 3. Flow editor (designer UI)
 
-- **Library**: **React Flow** (reactflow.dev) – draggable nodes, connectable edges, minimap, controls. Fits "elements linked to each other" and "links with labels and conditions" (edge labels + data).
-- **Custom node**: One (or two) node types for "story element". Node body shows: short label, maybe first line of text; a small panel or side drawer for backdrop/actors/sounds and full text template.
-- **Custom edge**: Support edge label (option text) and store `condition` in edge data. React Flow allows edge labels and data; use a custom edge component to show "option" vs "auto" (no option text).
-- **State**: Hold `nodes` and `edges` in React state (or Zustand/Jotai), synced with the core model (e.g. on add/remove/change). Persist to project JSON (and later to file in Electron).
+- **Library**: **AntV X6** (x6.antv.antgroup.com) – draggable nodes, connectable edges, minimap, pan/zoom. Fits "elements linked to each other" and "links with labels and conditions" (edge labels + data).
+- **Custom node**: One node type for "story element" via `@antv/x6-react-shape`. Node body shows: short label, maybe first line of text; editor panel for backdrop/actors/sounds and full text template.
+- **Edges**: Native X6 edges with boundary connection points, smooth connector, and built-in labels for option text. Store `condition` in edge data in the project model.
+- **State**: Zustand project store is the source of truth; `FlowCanvas` syncs project nodes/edges to the X6 graph imperatively.
 
-You'll need a clear mapping: **React Flow node/edge** ↔ **core model node/edge**. Keep IDs consistent; position lives on the node in the model for persistence.
+You'll need a clear mapping: **X6 cell** ↔ **core model node/edge**. Keep IDs consistent; position lives on the node in the model for persistence.
 
 ---
 
@@ -127,7 +127,7 @@ You can implement the player as a separate route or view in the same app (e.g. `
 
 1. **Scaffold**: Vite + React + TypeScript; add Electron with one window loading the app. No flow yet.
 2. **Core model**: Types and in-memory project (nodes, edges, assets). Save/load JSON (e.g. from localStorage for web; from dialog in Electron).
-3. **React Flow**: Integrate React Flow; custom node/edge that read/write the core model. Persist positions.
+3. **AntV X6**: Integrate X6 graph; custom React node shape that read/write the core model. Persist positions.
 4. **Node editor**: Per-node form for backdrop, actors, sounds (dropdowns by asset id), and text template (textarea). Wire sound options (start/stop/loop/startTime/endTime).
 5. **Edge editor**: Option text and condition (textarea or inline). Show option text on edge label in the graph.
 6. **Template engine**: Sandbox (or DSL) + small API (`state`, `setState`, `emit`, `call`). Sanitized HTML output. Use in a simple "preview" first (single node).
@@ -144,7 +144,7 @@ You can implement the player as a separate route or view in the same app (e.g. `
 | Core model  | `src/core/model/project.ts`, `types.ts`                                          |
 | Template    | `src/core/template/engine.ts`, `sandbox.ts` (or `dsl.ts`)                        |
 | Assets      | `src/core/assets/resolver.ts`, `registry.ts`                                     |
-| Flow editor | `src/components/FlowCanvas.tsx`, `StoryNode.tsx`, `StoryEdge.tsx`                |
+| Flow editor | `src/components/FlowCanvas.tsx`, `StoryNode.tsx`, `src/x6/` |
 | Node form   | `src/components/NodeEditor/BackdropActorSoundForm.tsx`, `TextTemplateEditor.tsx` |
 | Player      | `src/views/PlayerView.tsx`, `src/core/runtime/runner.ts`                         |
 | Electron    | `electron/main.ts`, preload if needed for file dialogs                           |
@@ -162,7 +162,7 @@ You can implement the player as a separate route or view in the same app (e.g. `
 ## Summary
 
 - One **Node.js/TypeScript** app: **React** UI + **Vite** for Web and Electron renderer; **shared core** for model, template engine, assets, and runtime.
-- **Designer**: **React Flow** for draggable, linkable elements; per-node backdrop/actors/sounds and **text template** with TS-like logic and basic HTML; edges with **option text** and **conditions**.
+- **Designer**: **AntV X6** for draggable, linkable elements; per-node backdrop/actors/sounds and **text template** with TS-like logic and basic HTML; edges with **option text** and **conditions**.
 - **Text**: Template engine with **sandboxed** TS (or DSL), exposing **state**, **setState**, **call**, **emit**; render **sanitized** HTML.
 - **Assets**: Unified **asset registry**; Web = file input/upload + URL or blob in project; Electron = file dialog + project folder and **asset resolver**.
 - **Player**: Same app; run from project JSON with state, template evaluation, and conditional options; sounds from node config and from template.

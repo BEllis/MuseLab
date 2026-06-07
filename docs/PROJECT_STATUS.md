@@ -10,7 +10,7 @@ Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) 
 |------|-----------|--------|------|
 | 1 | Scaffold: Vite + React + TS, Electron | Done | Single package, `npm run dev` (web), `npm run electron:dev` (desktop) |
 | 2 | Core model: types, project, save/load JSON | Done | `src/core/model/`, Zustand store with localStorage |
-| 3 | React Flow: custom node/edge, persist positions | Done | `FlowCanvas`, `StoryNode`, `StoryEdge`; project is source of truth |
+| 3 | AntV X6: custom node, native edges, persist positions | Done | `FlowCanvas`, `StoryNode`, `src/x6/`; project is source of truth |
 | 4 | Node editor: backdrop, actors, sounds, template | Done | `NodeEditorPanel` with sound config (start/stop/loop/start/end time) |
 | 5 | Edge editor: option text and condition | Done | `EdgeEditorPanel`; option text on edge label |
 | 6 | Template engine: sandbox, API, sanitized HTML | Done | `src/core/template/` – `{{ expr }}`, `{{#if}}`, DOMPurify allowlist |
@@ -47,9 +47,12 @@ MuseLab/
 │   │       └── sanitize.ts   # DOMPurify allowlist (b,i,p,div,br,span)
 │   ├── components/
 │   │   ├── AssetsPanel.tsx   # Add/remove assets; drag-drop (web); file picker
-│   │   ├── FlowCanvas.tsx    # React Flow, project sync, add node, connect
-│   │   ├── StoryNode.tsx     # Custom node (label, preview)
-│   │   ├── StoryEdge.tsx     # Custom edge with option text label
+│   │   ├── FlowCanvas.tsx    # AntV X6 graph, project sync, add node, connect
+│   │   ├── StoryNode.tsx     # X6 React shape (label, preview, backdrop)
+│   │   ├── x6/
+│   │   │   ├── registerShapes.ts
+│   │   │   ├── graphOptions.ts
+│   │   │   └── syncProjectToGraph.ts
 │   │   ├── NodeEditor/
 │   │   │   └── NodeEditorPanel.tsx  # Label, backdrop, actors, sounds, template
 │   │   └── EdgeEditor/

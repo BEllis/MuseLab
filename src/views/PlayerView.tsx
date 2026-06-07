@@ -1,29 +1,11 @@
 import { useRef, useState, useMemo, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useProjectStore } from "@/store/projectStore";
+import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import { createRunner } from "@/core/runtime/runner";
+import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
-import type { Project } from "@/core/model/types";
-
-const vnBoxStyle: React.CSSProperties = {
-  background: "#c5dff0",
-  border: "2px solid #1e5a8a",
-  borderRadius: "12px",
-  padding: "16px 20px",
-  color: "#0f172a",
-  boxShadow: "0 4px 16px rgba(30, 90, 138, 0.25)",
-};
-const vnButtonStyle: React.CSSProperties = {
-  ...vnBoxStyle,
-  cursor: "pointer",
-  fontSize: "16px",
-  textAlign: "left",
-  width: "100%",
-  fontFamily: "inherit",
-};
-
-/** Fixed height of the bottom dialogue panel (dialogue box ~5 lines + padding). */
-const DIALOGUE_PANEL_HEIGHT = "220px";
+import type { Project, StoryEdge, StoryNode } from "@/core/model/types";
 
 const STANDARD_RESOLUTIONS: { key: string; width: number; height: number; label: string }[] = [
   { key: "1920x1080", width: 1920, height: 1080, label: "1920 × 1080 (16:9)" },
@@ -41,10 +23,22 @@ const CUSTOM_RESOLUTION_KEY = "custom";
 
 export default function PlayerView() {
   const project = useProjectStore((s) => s.project);
-  const entryId = useMemo(
-    () => (project.nodes[0]?.id ?? null),
-    [project]
-  );
+  const playValidation = useMemo(() => validatePlayEntry(project), [project]);
+
+  if (!playValidation.ok) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <PlayerViewInner project={project} entryId={playValidation.entryNodeId} />;
+}
+
+function PlayerViewInner({
+  project,
+  entryId,
+}: {
+  project: Project;
+  entryId: string;
+}) {
 
   const runnerRef = useRef<ReturnType<typeof createRunner> | null>(null);
   if (!runnerRef.current) {
@@ -94,7 +88,7 @@ export default function PlayerView() {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>No nodes in the project. Add nodes in the designer.</p>
-        <Link to="/">Back to Designer</Link>
+        <Link to="/">Back to designer</Link>
       </div>
     );
   }
@@ -103,7 +97,7 @@ export default function PlayerView() {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>No entry node.</p>
-        <Link to="/">Back to Designer</Link>
+        <Link to="/">Back to designer</Link>
       </div>
     );
   }
@@ -231,7 +225,7 @@ export default function PlayerView() {
             </>
           )}
         </div>
-        <Link to="/" style={{ color: "#7fdbff" }}>Designer</Link>
+        <Link to="/" style={{ color: "#7fdbff" }}>Back to designer</Link>
       </header>
 
       <div
@@ -284,12 +278,6 @@ export default function PlayerView() {
   );
 }
 
-function actorRowJustifyContent(count: number): React.CSSProperties["justifyContent"] {
-  if (count <= 1) return "center";
-  if (count === 2 || count === 3) return "space-between";
-  return "space-evenly";
-}
-
 function PlayerStage({
   project,
   node,
@@ -299,203 +287,24 @@ function PlayerStage({
   onRestart,
 }: {
   project: Project;
-  node: { id: string; backdropId: string | null; actorIds: string[] };
-  runtime: { currentHtml: string; choices: Array<{ edge: { id: string; optionText?: string }; targetNode: { id: string; label?: string } }> };
+  node: { id: string; backdropId: string; actorIds: string[]; textTemplate: string };
+  runtime: { currentHtml: string; choices: Array<{ edge: StoryEdge; targetNode: StoryNode }> };
   singleChoice: boolean;
   handleChoice: (targetId: string) => void;
   onRestart?: () => void;
 }) {
-  const backdropUrl = useAssetUrl(project, node.backdropId);
-  const actorCount = node.actorIds.length;
-
   return (
-    <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-      {backdropUrl && (
-        <img
-          src={backdropUrl}
-          alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      )}
-
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          display: "flex",
-          alignItems: "stretch",
-          justifyContent: actorRowJustifyContent(actorCount),
-          padding: "24px 32px 0",
-        }}
-      >
-        {node.actorIds.map((actorId) => (
-          <ActorImage key={actorId} project={project} assetId={actorId} />
-        ))}
-      </div>
-
-      {runtime.choices.length > 0 && !singleChoice && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: DIALOGUE_PANEL_HEIGHT,
-            zIndex: 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "24px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              maxWidth: "80%",
-              width: "max-content",
-            }}
-          >
-            {runtime.choices.map(({ edge, targetNode }) => (
-              <button
-                key={edge.id}
-                type="button"
-                onClick={() => handleChoice(targetNode.id)}
-                style={vnButtonStyle}
-              >
-                {edge.optionText || `Go to ${targetNode.label ?? targetNode.id}`}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: DIALOGUE_PANEL_HEIGHT,
-          zIndex: 1,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-end",
-          padding: "16px 24px 24px",
-          background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)",
-        }}
-      >
-        <div
-          style={{
-            ...vnBoxStyle,
-            position: "relative",
-            height: "8em",
-            minHeight: "8em",
-            overflowY: "auto",
-            ...(singleChoice && {
-              cursor: "pointer",
-              userSelect: "none",
-            }),
-          }}
-          {...(singleChoice && {
-            onClick: () => handleChoice(runtime.choices[0].targetNode.id),
-            role: "button",
-            tabIndex: 0,
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleChoice(runtime.choices[0].targetNode.id);
-              }
-            },
-          })}
-        >
-          <div
-            dangerouslySetInnerHTML={{ __html: runtime.currentHtml }}
-            style={{ lineHeight: 1.6 }}
-          />
-          {singleChoice && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleChoice(runtime.choices[0].targetNode.id);
-              }}
-              style={{
-                position: "absolute",
-                bottom: "8px",
-                right: "12px",
-                background: "transparent",
-                border: "none",
-                color: "#0f172a",
-                fontSize: "18px",
-                cursor: "pointer",
-                padding: "4px 8px",
-                lineHeight: 1,
-                fontFamily: "inherit",
-              }}
-              aria-label="Continue"
-            >
-              Continue &gt;&gt;
-            </button>
-          )}
-        </div>
-
-        {runtime.choices.length === 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <p style={{ margin: 0, padding: "8px 0", color: "#334155", fontSize: "14px" }}>End of story.</p>
-            {onRestart && (
-              <button
-                type="button"
-                onClick={onRestart}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  background: "#1e5a8a",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  boxShadow: "0 2px 8px rgba(30, 90, 138, 0.3)",
-                }}
-              >
-                Restart
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ActorImage({ project, assetId }: { project: Project; assetId: string }) {
-  const url = useAssetUrl(project, assetId);
-  if (!url) return null;
-  return (
-    <div
-      style={{
-        height: "100%",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-      }}
-    >
-      <img
-        src={url}
-        alt=""
-        style={{
-          maxHeight: "100%",
-          width: "auto",
-          height: "auto",
-          objectFit: "contain",
-          objectPosition: "bottom",
-          display: "block",
-        }}
-      />
-    </div>
+    <SceneStagePreview
+      project={project}
+      node={node}
+      variant="full"
+      dialogueHtml={runtime.currentHtml}
+      choices={runtime.choices}
+      singleChoice={singleChoice}
+      onChoice={handleChoice}
+      onRestart={onRestart}
+      style={{ flex: 1 }}
+    />
   );
 }
 

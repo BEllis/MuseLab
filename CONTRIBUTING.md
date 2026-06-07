@@ -9,7 +9,7 @@ This document is for developers who want to work on the MuseLab codebase.
 
 ## Tech stack
 
-- **Frontend:** React 18, React Router, Zustand, React Flow
+- **Frontend:** React 18, React Router, Zustand, AntV X6
 - **Build:** Vite 6, TypeScript
 - **Desktop:** Electron (main + preload; file dialogs, asset protocol)
 
@@ -39,7 +39,8 @@ npm install
 ```
 MuseLab/
 ├── src/
-│   ├── components/     # FlowCanvas, StoryNode, StoryEdge, panels, etc.
+│   ├── components/     # FlowCanvas, StoryNode, panels, etc.
+│   ├── x6/             # X6 graph config, shape registration, project sync
 │   ├── views/          # DesignerView, PlayerView
 │   ├── store/          # projectStore (Zustand)
 │   ├── core/           # Model, template engine, runtime, assets (no DOM)
