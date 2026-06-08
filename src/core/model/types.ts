@@ -116,6 +116,32 @@ export interface AspectRatio {
   height: number;
 }
 
+/** Cito primitive type for service method signatures. */
+export type CitoType = "void" | "string" | "bool" | "int" | "double";
+
+export interface ServiceMethodParam {
+  name: string;
+  type: CitoType;
+}
+
+export interface ServiceMethod {
+  name: string;
+  parameters: ServiceMethodParam[];
+  returnType: CitoType;
+}
+
+/** User-defined service interface for Cito templates and future export targets. */
+export interface ServiceInterface {
+  id: string;
+  /** Export name, e.g. IGameSave */
+  name: string;
+  /** Cito/JS binding, e.g. gameSave */
+  bindingName: string;
+  methods: ServiceMethod[];
+  /** Optional TS implementation for preview/player */
+  typescriptSource?: string;
+}
+
 /** Full project: serializable to JSON */
 export interface Project {
   name: string;
@@ -123,10 +149,14 @@ export interface Project {
   stories: Story[];
   /** Supported locale tags; first entry is the default */
   locales: string[];
+  /** Custom service interfaces available in Cito code */
+  services: ServiceInterface[];
   /** Scene thumbnail aspect ratio in the designer canvas */
   thumbnailAspectRatio?: AspectRatio;
   /** Target resolution for play mode (logical pixels) */
   playerResolution?: AspectRatio;
+  /** Optional TypeScript override for IMuseLabPromptRenderer in preview/player */
+  promptRendererTypescriptSource?: string;
 }
 
 /** Slice passed to runtime and play validation for one story. */

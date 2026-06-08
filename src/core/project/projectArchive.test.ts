@@ -37,7 +37,7 @@ describe("projectArchive localization", () => {
     const archive = await packProjectArchive({ project, promptsByLocale });
     const unpacked = unpackProjectArchive(archive);
     expect(unpacked.metadata).toMatchObject({
-      formatVersion: 3,
+      formatVersion: 4,
       schema: "https://muselab.dev/schemas/mlvn.schema.json",
       manifest: "project.json",
     });

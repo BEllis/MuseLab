@@ -100,7 +100,7 @@ export function SceneStagePreview({
       promptsByLocale,
       node.id,
       locale,
-      { disableShake }
+      { project, disableShake }
     ).then((next) => {
       if (!cancelled) setPreviewHtml(next);
     });
@@ -122,7 +122,7 @@ export function SceneStagePreview({
       promptsByLocale,
       node.id,
       locale,
-      { disableShake }
+      { project, disableShake }
     ).then((next) => {
       if (!cancelled) setPreviewSpeaker(next);
     });

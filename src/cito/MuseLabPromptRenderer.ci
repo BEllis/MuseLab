@@ -1,0 +1,19 @@
+public class MuseLabPromptRenderer
+{
+    public void AddLiteral(string text)
+    {
+    }
+
+    public void AppendResult(string value)
+    {
+    }
+
+    public void ApplyFormat(IFormatMarker marker)
+    {
+    }
+
+    public string Render()
+    {
+        return "";
+    }
+}

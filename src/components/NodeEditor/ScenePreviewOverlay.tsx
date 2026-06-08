@@ -42,13 +42,13 @@ export function ScenePreviewOverlay() {
       return;
     }
     let cancelled = false;
-    void renderNodePreviewHtml(draftTemplate, story.globalState).then((html) => {
+    void renderNodePreviewHtml(draftTemplate, story.globalState, { project }).then((html) => {
       if (!cancelled) setDialogueHtml(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [draftTemplate, story.globalState]);
+  }, [draftTemplate, story.globalState, project]);
 
   useEffect(() => {
     if (!open) {

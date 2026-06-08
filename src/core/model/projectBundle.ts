@@ -13,6 +13,7 @@ import {
   createEmptyProject,
   finalizeProjectNodes,
   getFirstStoryId,
+  normalizeProjectServices,
   parseProject,
   serializeProject,
 } from "./project";
@@ -43,6 +44,7 @@ export function cloneProjectBundle(bundle: ProjectBundle): ProjectBundle {
 }
 
 export function migrateProjectBundle(project: Project, promptsByLocale?: PromptsByLocale): ProjectBundle {
+  normalizeProjectServices(project);
   project.locales = normalizeLocales(project.locales);
   const defaultStoryId = project.stories[0]?.id;
   const basePrompts =

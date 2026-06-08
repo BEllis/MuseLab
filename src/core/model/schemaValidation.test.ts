@@ -41,10 +41,51 @@ describe("MuseLab JSON schemas", () => {
         },
       ],
       locales: ["en"],
+      services: [],
     });
 
     expect(result.valid).toBe(true);
     expect(result.warnings).toEqual([]);
+  });
+
+  it("validates project services", () => {
+    const result = validateStoryManifest({
+      name: "Services",
+      assets: [
+        {
+          id: "muselab-default-backdrop",
+          type: "backdrop",
+          name: "default",
+          url: "data:image/png;base64,...",
+        },
+      ],
+      stories: [
+        {
+          id: "main",
+          name: "Main",
+          nodes: [],
+          edges: [],
+          globalState: {},
+        },
+      ],
+      locales: ["en"],
+      services: [
+        {
+          id: "svc1",
+          name: "IGameSave",
+          bindingName: "gameSave",
+          methods: [
+            {
+              name: "Save",
+              parameters: [{ name: "slotId", type: "int" }],
+              returnType: "void",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.valid).toBe(true);
   });
 
   it("validates assets with web blob storage flags", () => {

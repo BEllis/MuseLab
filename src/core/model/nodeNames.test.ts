@@ -63,6 +63,7 @@ describe("nodeNames", () => {
       name: "Test",
       assets: [],
       locales: ["en"],
+      services: [],
       stories: [
         {
           id: "story-a",

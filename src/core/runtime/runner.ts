@@ -140,7 +140,7 @@ export function createRunner(
     const edges = getOutEdges();
     const choices: RuntimeChoice[] = [];
     for (const edge of edges) {
-      if (!(await evaluateCondition(edge.condition, { state }))) continue;
+      if (!(await evaluateCondition(edge.condition, { state }, project))) continue;
       const targetNode = activeStory.nodes.find((n) => n.id === edge.targetNodeId);
       if (!targetNode) continue;
 
@@ -189,7 +189,7 @@ export function createRunner(
       activeStoryId,
       currentNodeId
     );
-    return runTemplate(textTemplate, context);
+    return runTemplate(textTemplate, context, { project });
   }
 
   async function renderCurrentSpeaker(): Promise<string> {
@@ -203,7 +203,7 @@ export function createRunner(
       currentNodeId
     );
     if (!speaker) return "";
-    return runTemplate(speaker, context);
+    return runTemplate(speaker, context, { project });
   }
 
   async function getRuntimeState(): Promise<RuntimeState> {

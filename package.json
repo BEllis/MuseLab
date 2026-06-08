@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build:cito-wasm && tsc -b && vite build",
+    "build:web-deploy": "bash scripts/build-web-deploy.sh",
+    "deploy": "wrangler deploy",
     "test": "vitest run",
     "build:cito": "bash scripts/build-cito.sh",
     "build:cito-wasm": "bash scripts/build-cito-wasm.sh",
@@ -80,6 +82,7 @@
     "vite": "^6.0.1",
     "vite-plugin-electron": "^0.28.4",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "wrangler": "^4.98.0"
   }
 }

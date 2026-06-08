@@ -84,6 +84,7 @@ describe("getExpressionUsage", () => {
       name: "Test",
       assets: [],
       locales: ["en"],
+      services: [],
       stories: [
         {
           id: "s1",

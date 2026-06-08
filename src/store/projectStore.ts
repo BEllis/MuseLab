@@ -31,11 +31,21 @@ import {
   addStory as addStoryInProject,
   removeStory as removeStoryInProject,
   updateStory as updateStoryInProject,
+  addService as addServiceInProject,
+  removeService as removeServiceInProject,
+  updateService as updateServiceInProject,
   getStory,
   getFirstStoryId,
 } from "@/core/model/project";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
-import type { StoryNode, StoryEdge, Asset, StoryNodeType, ActorExpression } from "@/core/model/types";
+import type {
+  StoryNode,
+  StoryEdge,
+  Asset,
+  StoryNodeType,
+  ActorExpression,
+  ServiceInterface,
+} from "@/core/model/types";
 import { expressionBlobKey } from "@/core/assets/actorExpressions";
 import { hydrateLegacyEmbeddedAssets, hydrateProjectAssets } from "@/core/assets/assetHydration";
 import {
@@ -251,6 +261,7 @@ interface ProjectState {
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
+  selectedServiceId: string | null;
   highlightedRootNodeIds: string[];
   loadWarnings: string[];
   /** Bumped on undo/redo so the graph canvas can force a full resync. */
@@ -261,7 +272,14 @@ interface ProjectState {
   setProject: (project: Project) => void;
   updateProject: (
     patch: Partial<
-      Pick<Project, "name" | "thumbnailAspectRatio" | "playerResolution" | "locales">
+      Pick<
+        Project,
+        | "name"
+        | "thumbnailAspectRatio"
+        | "playerResolution"
+        | "locales"
+        | "promptRendererTypescriptSource"
+      >
     >,
     options?: MutationOptions
   ) => void;
@@ -275,6 +293,14 @@ interface ProjectState {
   ) => void;
   setSelection: (nodeIds: string[], edgeIds: string[]) => void;
   setSelectedAssetId: (assetId: string | null) => void;
+  setSelectedServiceId: (serviceId: string | null) => void;
+  addService: (name?: string) => ServiceInterface;
+  removeService: (serviceId: string) => void;
+  updateService: (
+    serviceId: string,
+    patch: Partial<Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">>,
+    options?: MutationOptions
+  ) => void;
   clearSelection: () => void;
   setHighlightedRootNodeIds: (ids: string[]) => void;
   clearPlayValidationHighlight: () => void;
@@ -486,6 +512,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedNodeIds: [],
   selectedEdgeIds: [],
   selectedAssetId: null,
+  selectedServiceId: null,
   highlightedRootNodeIds: [],
   loadWarnings: initialState.loadWarnings,
   graphRevision: 0,
@@ -522,6 +549,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
+      selectedServiceId: null,
       highlightedRootNodeIds: [],
       graphRevision: get().graphRevision + 1,
     });
@@ -538,6 +566,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
+      selectedServiceId: null,
       graphRevision: get().graphRevision + 1,
     });
     return story;
@@ -574,11 +603,55 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   setSelection: (nodeIds, edgeIds) =>
-    set({ selectedNodeIds: nodeIds, selectedEdgeIds: edgeIds, selectedAssetId: null }),
+    set({
+      selectedNodeIds: nodeIds,
+      selectedEdgeIds: edgeIds,
+      selectedAssetId: null,
+      selectedServiceId: null,
+    }),
   setSelectedAssetId: (assetId) =>
-    set({ selectedAssetId: assetId, selectedNodeIds: [], selectedEdgeIds: [] }),
+    set({
+      selectedAssetId: assetId,
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      selectedServiceId: null,
+    }),
+  setSelectedServiceId: (serviceId) =>
+    set({
+      selectedServiceId: serviceId,
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      selectedAssetId: null,
+    }),
+  addService: (name) => {
+    let service!: ServiceInterface;
+    mutateBundle(get, set, (bundle) => {
+      service = addServiceInProject(bundle.project, name);
+    });
+    set({ selectedServiceId: service.id });
+    return service;
+  },
+  removeService: (serviceId) => {
+    mutateBundle(get, set, (bundle) => removeServiceInProject(bundle.project, serviceId));
+    if (get().selectedServiceId === serviceId) {
+      set({ selectedServiceId: null });
+    }
+  },
+  updateService: (serviceId, patch, options) => {
+    mutateBundle(
+      get,
+      set,
+      (bundle) => updateServiceInProject(bundle.project, serviceId, patch),
+      options
+    );
+  },
   clearSelection: () =>
-    set({ selectedNodeIds: [], selectedEdgeIds: [], selectedAssetId: null }),
+    set({
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      selectedAssetId: null,
+      selectedServiceId: null,
+    }),
   setHighlightedRootNodeIds: (ids) => set({ highlightedRootNodeIds: ids }),
   clearPlayValidationHighlight: () => set({ highlightedRootNodeIds: [] }),
 

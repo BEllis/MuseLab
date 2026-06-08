@@ -1,5 +1,7 @@
+import type { Project } from "../model/types";
 import { hashId } from "./hashId";
-import { formatCi, museLabRuntimeCi } from "../../cito/ciSources";
+import { buildCiPreamble, buildRenderParameterList } from "../services/generateServiceCi";
+import { isFormatExpression, normalizeFormatExpression } from "../services/builtInServices";
 
 const IF_REGEX = /\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
 const EXPR_REGEX = /\{\{([^}]*)\}\}/g;
@@ -33,30 +35,17 @@ function isStatementExpression(expr: string): boolean {
 
 function updateShakeMode(expr: string, mode: ShakeMode): ShakeMode {
   const trimmed = expr.trim();
-  if (trimmed === "Format.ShakeCharsStart()") return "chars";
-  if (trimmed === "Format.ShakeCharsEnd()") return "none";
-  if (trimmed === "Format.ShakePhraseStart()") return "phrase";
-  if (trimmed === "Format.ShakePhraseEnd()") return "none";
+  const normalized = normalizeFormatExpression(trimmed);
+  if (normalized === "format.ShakeCharsStart()") return "chars";
+  if (normalized === "format.ShakeCharsEnd()") return "none";
+  if (normalized === "format.ShakePhraseStart()") return "phrase";
+  if (normalized === "format.ShakePhraseEnd()") return "none";
   return mode;
 }
 
-function literalSegment(value: string, shakeMode: ShakeMode): Segment {
+function literalSegment(value: string, _shakeMode: ShakeMode): Segment {
   if (!value) {
     return { kind: "literal", value: "" };
-  }
-  if (shakeMode === "chars") {
-    return {
-      kind: "expr",
-      value: `Format.ShakeCharsText("${escapeCiString(value)}")`,
-      isStatement: false,
-    };
-  }
-  if (shakeMode === "phrase") {
-    return {
-      kind: "expr",
-      value: `Format.ShakePhraseText("${escapeCiString(value)}")`,
-      isStatement: false,
-    };
   }
   return { kind: "literal", value };
 }
@@ -121,53 +110,52 @@ function parseSegments(template: string, shakeMode: ShakeMode = "none"): Segment
   return segments;
 }
 
-function segmentsToReturnExpr(segments: Segment[]): string {
-  const parts: string[] = [];
+function emitExprStatement(expr: string): string {
+  const normalized = normalizeFormatExpression(expr);
+  if (isFormatExpression(expr)) {
+    return `prompter.ApplyFormat(${normalized});`;
+  }
+  return `prompter.AppendResult((${normalized}));`;
+}
+
+function segmentsToPrompterLines(segments: Segment[], lines: string[]): void {
   for (const segment of segments) {
     if (segment.kind === "literal") {
-      if (segment.value) parts.push(`"${escapeCiString(segment.value)}"`);
+      if (segment.value) {
+        lines.push(`prompter.AddLiteral("${escapeCiString(segment.value)}");`);
+      }
       continue;
     }
     if (segment.kind === "expr") {
-      if (!segment.isStatement) parts.push(`(${segment.value})`);
+      if (segment.isStatement) {
+        lines.push(`${normalizeFormatExpression(segment.value)};`);
+      } else {
+        lines.push(emitExprStatement(segment.value));
+      }
       continue;
     }
-    const body = segmentsToReturnExpr(segment.body);
-    parts.push(`((${segment.condition}) ? (${body || '""'}) : (""))`);
-  }
-  if (parts.length === 0) return '""';
-  return parts.join(" + ");
-}
-
-function collectStatements(segments: Segment[], out: string[]): void {
-  for (const segment of segments) {
-    if (segment.kind === "literal") continue;
-    if (segment.kind === "expr" && segment.isStatement) {
-      out.push(`${segment.value};`);
-      continue;
-    }
-    if (segment.kind === "if") {
-      collectStatements(segment.body, out);
-    }
+    lines.push(`if (${normalizeFormatExpression(segment.condition)}) {`);
+    segmentsToPrompterLines(segment.body, lines);
+    lines.push("}");
   }
 }
 
 function buildRenderMethod(segments: Segment[]): string {
-  const statements: string[] = [];
-  collectStatements(segments, statements);
-  const returnExpr = segmentsToReturnExpr(segments);
-  const lines = [...statements, `return ${returnExpr};`];
+  const lines: string[] = [];
+  segmentsToPrompterLines(segments, lines);
+  lines.push("return prompter.Render();");
   return lines.join("\n        ");
 }
 
-export function compileTemplate(template: string): CompiledTemplate {
+export function compileTemplate(template: string, project: Project): CompiledTemplate {
   const segments = parseSegments(template);
   const className = hashId(template, "Template");
   const renderBody = buildRenderMethod(segments);
+  const params = buildRenderParameterList(project);
   const generated = `
 public static class ${className}
 {
-    public static string Render(MuseLabRuntime rt)
+    public static string Render(${params})
     {
         ${renderBody}
     }
@@ -176,6 +164,10 @@ public static class ${className}
 
   return {
     className,
-    ciSource: `${museLabRuntimeCi.trim()}\n\n${formatCi.trim()}\n\n${generated.trim()}\n`,
+    ciSource: `${buildCiPreamble(project)}${generated.trim()}\n`,
   };
+}
+
+export function getTemplateBindingNames(project: Project): string[] {
+  return ["rt", "prompter", "format", ...project.services.map((service) => service.bindingName)];
 }

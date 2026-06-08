@@ -56,9 +56,11 @@ async function bootstrap() {
     splashRoot.unmount();
   }
 
+  const routerBasename = import.meta.env.VITE_ROUTER_BASENAME?.replace(/\/$/, "") || undefined;
+
   createRoot(rootEl).render(
     <StrictMode>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <App />
       </BrowserRouter>
     </StrictMode>

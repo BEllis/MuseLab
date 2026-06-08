@@ -1,0 +1,62 @@
+public class MuseLabFormat
+{
+    public IFormatMarker BoldStart()
+    {
+        return null;
+    }
+
+    public IFormatMarker BoldEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker ItalicStart()
+    {
+        return null;
+    }
+
+    public IFormatMarker ItalicEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker ColorStart(string colorHex)
+    {
+        return null;
+    }
+
+    public IFormatMarker ColorEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker ShakeCharsStart()
+    {
+        return null;
+    }
+
+    public IFormatMarker ShakeCharsEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker ShakePhraseStart()
+    {
+        return null;
+    }
+
+    public IFormatMarker ShakePhraseEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker ShakeCharsText(string text)
+    {
+        return null;
+    }
+
+    public IFormatMarker ShakePhraseText(string text)
+    {
+        return null;
+    }
+}

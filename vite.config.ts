@@ -57,9 +57,14 @@ function versionJsonPlugin(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const isElectron = mode === "electron";
+  const isWebDeploy = mode === "web-deploy";
   const define: Record<string, string> = {
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(getAppVersion()),
   };
+
+  if (isWebDeploy) {
+    define["import.meta.env.VITE_ROUTER_BASENAME"] = JSON.stringify("/app");
+  }
 
   if (isElectron) {
     define["import.meta.env.VITE_GIT_DESCRIBE"] = JSON.stringify(getGitDescribe());
@@ -86,6 +91,6 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { "@": path.resolve(__dirname, "src") },
     },
-    base: "./",
+    base: isWebDeploy ? "/app/" : "./",
   };
 });

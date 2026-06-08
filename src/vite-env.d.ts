@@ -1,6 +1,14 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_ROUTER_BASENAME?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
+interface ImportMetaEnv {
   readonly VITE_APP_VERSION: string;
   readonly VITE_GIT_DESCRIBE?: string;
 }

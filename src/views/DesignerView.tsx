@@ -3,19 +3,25 @@ import { FlowCanvas } from "@/components/FlowCanvas";
 import { AssetEditorPanel } from "@/components/AssetEditor/AssetEditorPanel";
 import { NodeEditorPanel } from "@/components/NodeEditor/NodeEditorPanel";
 import { EdgeEditorPanel } from "@/components/EdgeEditor/EdgeEditorPanel";
+import { ServiceEditorPanel } from "@/components/ServiceEditor/ServiceEditorPanel";
 import { LeftPanel } from "@/components/LeftPanel";
 import { useProjectStore } from "@/store/projectStore";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 
 function useSingleSelectionInspector():
   | { kind: "asset" }
+  | { kind: "service" }
   | { kind: "node" }
   | { kind: "edge" }
   | null {
   const selectedAssetId = useProjectStore((s) => s.selectedAssetId);
+  const selectedServiceId = useProjectStore((s) => s.selectedServiceId);
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
 
+  if (selectedServiceId) {
+    return { kind: "service" };
+  }
   if (selectedAssetId) {
     return { kind: "asset" };
   }
@@ -44,6 +50,7 @@ export default function DesignerView() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <FlowCanvas />
       </div>
+      {inspector?.kind === "service" && <ServiceEditorPanel />}
       {inspector?.kind === "asset" && <AssetEditorPanel />}
       {inspector?.kind === "node" && <NodeEditorPanel />}
       {inspector?.kind === "edge" && <EdgeEditorPanel />}

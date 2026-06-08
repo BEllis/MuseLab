@@ -1,16 +1,15 @@
-import { compileCondition } from "../cito/compileCondition";
-import { compileTemplate } from "../cito/compileTemplate";
-import {
-  createMuseLabRuntimeBridge,
-  type TemplateContext,
-} from "../cito/runtimeBridge";
+import type { Project } from "../model/types";
+import { compileCondition, getConditionBindingNames } from "../cito/compileCondition";
+import { compileTemplate, getTemplateBindingNames } from "../cito/compileTemplate";
+import type { TemplateContext } from "../cito/runtimeBridge";
 import { runTranspiledMethod, transpileCiToJs } from "../cito/transpile";
-import { createFormatRuntime } from "../cito/formatRuntime";
+import { createServiceBindings } from "../services/serviceRuntime";
 import { sanitizeHtml } from "./sanitize";
 
 export type { TemplateContext } from "../cito/runtimeBridge";
 
 export type RunTemplateOptions = {
+  project: Project;
   disableShake?: boolean;
 };
 
@@ -20,15 +19,23 @@ export type RunTemplateOptions = {
 export async function runTemplate(
   template: string,
   context: TemplateContext,
-  options: RunTemplateOptions = {}
+  options: RunTemplateOptions
 ): Promise<string> {
   if (!template.trim()) return "";
 
-  const compiled = compileTemplate(template);
+  const compiled = compileTemplate(template, options.project);
   const js = await transpileCiToJs(compiled.ciSource);
-  const rt = createMuseLabRuntimeBridge(context);
-  const format = createFormatRuntime({ disableShake: options.disableShake });
-  const result = runTranspiledMethod(js, compiled.className, "render", rt, format);
+  const bindings = createServiceBindings(options.project, context, {
+    disableShake: options.disableShake,
+  });
+  const paramNames = getTemplateBindingNames(options.project);
+  const result = runTranspiledMethod(
+    js,
+    compiled.className,
+    "render",
+    bindings,
+    paramNames
+  );
 
   if (result === undefined || result === null) return "";
   return sanitizeHtml(String(result));
@@ -39,21 +46,29 @@ export async function runTemplate(
  */
 export async function evaluateCondition(
   condition: string | undefined,
-  context: Pick<TemplateContext, "state">
+  context: Pick<TemplateContext, "state">,
+  project: Project
 ): Promise<boolean> {
   if (!condition || !condition.trim()) return true;
 
   try {
-    const compiled = compileCondition(condition);
+    const compiled = compileCondition(condition, project);
     const js = await transpileCiToJs(compiled.ciSource);
-    const rt = createMuseLabRuntimeBridge({
+    const bindings = createServiceBindings(project, {
       ...context,
       setState: () => {},
       emit: () => {},
       call: () => undefined,
       playSound: () => {},
     });
-    const result = runTranspiledMethod(js, compiled.className, "eval", rt);
+    const paramNames = getConditionBindingNames(project);
+    const result = runTranspiledMethod(
+      js,
+      compiled.className,
+      "eval",
+      bindings,
+      paramNames
+    );
     return Boolean(result);
   } catch {
     return false;

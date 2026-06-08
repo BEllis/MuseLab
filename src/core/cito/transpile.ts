@@ -1,4 +1,3 @@
-import { createFormatRuntime, type FormatRuntime } from "./formatRuntime";
 import type { MuseLabRuntimeBridge } from "./runtimeBridge";
 import { isElectron } from "@/utils/isElectron";
 import { transpileCiSourceWithWasm } from "./citoWasmLoader";
@@ -53,28 +52,34 @@ export function runTranspiledMethod(
   js: string,
   className: string,
   methodName: "render" | "eval",
-  rt: MuseLabRuntimeBridge,
-  format: FormatRuntime = createFormatRuntime()
+  bindings: Record<string, unknown>,
+  paramNames: string[]
 ): unknown {
+  const bindingValues = paramNames.map((name) => bindings[name]);
+
   const fn = new Function(
-    "rt",
-    "__format",
+    ...paramNames,
     `
     ${js}
-    if (typeof Format !== "undefined") {
-      for (const key of Object.keys(__format)) {
-        Format[key] = __format[key];
-      }
-    }
     const target = ${className};
     if (!target || typeof target.${methodName} !== "function") {
       throw new Error("Missing transpiled method ${className}.${methodName}");
     }
-    return target.${methodName}(rt);
+    return target.${methodName}(${paramNames.join(", ")});
   `
-  ) as (rt: MuseLabRuntimeBridge, format: FormatRuntime) => unknown;
+  ) as (...args: unknown[]) => unknown;
 
-  return fn(rt, format);
+  return fn(...bindingValues);
+}
+
+/** @deprecated Use bindings record overload */
+export function runTranspiledMethodLegacy(
+  js: string,
+  className: string,
+  methodName: "render" | "eval",
+  rt: MuseLabRuntimeBridge
+): unknown {
+  return runTranspiledMethod(js, className, methodName, { rt }, ["rt"]);
 }
 
 export function clearTranspileCache(): void {

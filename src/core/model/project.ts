@@ -1,4 +1,14 @@
-import type { Project, Story, StoryNode, StoryEdge, Asset, StoryNodeType, ActorExpression } from "./types";
+import type {
+  Project,
+  Story,
+  StoryNode,
+  StoryEdge,
+  Asset,
+  StoryNodeType,
+  ActorExpression,
+  ServiceInterface,
+  CitoType,
+} from "./types";
 import { getPlayEntryNodeId } from "./graphHierarchy";
 import {
   DEFAULT_BACKDROP_ID,
@@ -69,10 +79,116 @@ export function createEmptyProject(name: string = "Untitled"): Project {
       },
     ],
     locales: [...normalizeLocales(undefined)],
+    services: [],
   };
   ensureDefaultBackdrop(project);
   return project;
 }
+
+const RESERVED_BINDING_NAMES = new Set(["rt", "format", "prompter"]);
+
+export function validateBindingName(
+  project: Project,
+  bindingName: string,
+  excludeServiceId?: string
+): void {
+  const trimmed = bindingName.trim();
+  if (!/^[a-z][a-zA-Z0-9]*$/.test(trimmed)) {
+    throw new Error(
+      `Binding name "${bindingName}" must be camelCase starting with a lowercase letter`
+    );
+  }
+  if (RESERVED_BINDING_NAMES.has(trimmed)) {
+    throw new Error(`Binding name "${trimmed}" is reserved`);
+  }
+  const duplicate = project.services.find(
+    (service) => service.bindingName === trimmed && service.id !== excludeServiceId
+  );
+  if (duplicate) {
+    throw new Error(`Binding name "${trimmed}" is already used by ${duplicate.name}`);
+  }
+}
+
+function citoTypeDefaultValue(type: CitoType): string {
+  switch (type) {
+    case "void":
+      return "";
+    case "string":
+      return '""';
+    case "bool":
+      return "false";
+    case "int":
+      return "0";
+    case "double":
+      return "0.0";
+    default:
+      return "null";
+  }
+}
+
+export function createDefaultService(name?: string, index?: number): ServiceInterface {
+  const suffix = index ?? 1;
+  const binding = `service${suffix}`;
+  return {
+    id: generateId(),
+    name: name ?? `IService${suffix}`,
+    bindingName: binding,
+    methods: [
+      {
+        name: "DoSomething",
+        parameters: [],
+        returnType: "void",
+      },
+    ],
+  };
+}
+
+export function addService(project: Project, name?: string): ServiceInterface {
+  const bindingIndex = project.services.length + 1;
+  let service = createDefaultService(name, bindingIndex);
+  let attempt = bindingIndex;
+  while (project.services.some((entry) => entry.bindingName === service.bindingName)) {
+    attempt += 1;
+    service = createDefaultService(name, attempt);
+  }
+  validateBindingName(project, service.bindingName);
+  project.services.push(service);
+  return service;
+}
+
+export function removeService(project: Project, serviceId: string): void {
+  project.services = project.services.filter((service) => service.id !== serviceId);
+}
+
+export function updateService(
+  project: Project,
+  serviceId: string,
+  patch: Partial<Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">>
+): void {
+  const service = project.services.find((entry) => entry.id === serviceId);
+  if (!service) {
+    throw new Error(`Service "${serviceId}" not found`);
+  }
+  if (patch.name !== undefined) {
+    service.name = patch.name.trim() || service.name;
+  }
+  if (patch.bindingName !== undefined) {
+    validateBindingName(project, patch.bindingName, serviceId);
+    service.bindingName = patch.bindingName.trim();
+  }
+  if (patch.methods !== undefined) {
+    service.methods = patch.methods;
+  }
+  if (patch.typescriptSource !== undefined) {
+    service.typescriptSource = patch.typescriptSource;
+  }
+}
+
+export function normalizeProjectServices(project: Project): void {
+  project.services = Array.isArray(project.services) ? project.services : [];
+}
+
+export { citoTypeDefaultValue };
 
 /** Blank slate for File → New: default backdrop asset and one Start node. */
 export function createStarterProject(name: string = "Untitled"): Project {
@@ -561,7 +677,14 @@ export function getEntryNodeId(project: Project, storyId: string): string | null
 export function updateProject(
   project: Project,
   patch: Partial<
-    Pick<Project, "name" | "thumbnailAspectRatio" | "playerResolution" | "locales">
+    Pick<
+      Project,
+      | "name"
+      | "thumbnailAspectRatio"
+      | "playerResolution"
+      | "locales"
+      | "promptRendererTypescriptSource"
+    >
   >
 ): void {
   if (patch.name !== undefined) {
@@ -575,6 +698,9 @@ export function updateProject(
   }
   if (patch.locales !== undefined) {
     project.locales = normalizeLocales(patch.locales);
+  }
+  if (patch.promptRendererTypescriptSource !== undefined) {
+    project.promptRendererTypescriptSource = patch.promptRendererTypescriptSource;
   }
 }
 
@@ -620,8 +746,10 @@ function toManifestProject(project: Project): Project {
     assets: project.assets,
     stories: project.stories.map(toManifestStory),
     locales: normalizeLocales(project.locales),
+    services: project.services ?? [],
     thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
+    promptRendererTypescriptSource: project.promptRendererTypescriptSource,
   };
 }
 
@@ -645,7 +773,9 @@ export function serializeProjectForSave(project: Project): string {
 
 function migrateLegacyProjectData(data: LegacyProjectJson): Project {
   if (Array.isArray(data.stories) && data.stories.length > 0) {
-    return data as Project;
+    const project = data as Project;
+    normalizeProjectServices(project);
+    return project;
   }
 
   const storyId = generateId();
@@ -663,8 +793,10 @@ function migrateLegacyProjectData(data: LegacyProjectJson): Project {
     assets: data.assets ?? [],
     stories: [story],
     locales: data.locales ?? [...normalizeLocales(undefined)],
+    services: data.services ?? [],
     thumbnailAspectRatio: data.thumbnailAspectRatio,
     playerResolution: data.playerResolution,
+    promptRendererTypescriptSource: data.promptRendererTypescriptSource,
   };
 }
 
@@ -684,6 +816,7 @@ export function parseProject(json: string): Project {
     story.globalState = story.globalState ?? {};
     normalizeStoryEdgeTargetPorts(story);
   }
+  normalizeProjectServices(project);
   ensureDefaultBackdrop(project);
   return project;
 }

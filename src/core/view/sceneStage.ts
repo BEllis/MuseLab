@@ -28,7 +28,7 @@ export async function getNodeChoices(
 
   for (const edge of story.edges) {
     if (edge.sourceNodeId !== nodeId) continue;
-    if (!(await evaluateCondition(edge.condition, { state: story.globalState }))) continue;
+    if (!(await evaluateCondition(edge.condition, { state: story.globalState }, project))) continue;
 
     const targetNode = story.nodes.find((node) => node.id === edge.targetNodeId);
     if (targetNode) {
@@ -59,6 +59,11 @@ function previewTemplateContext(globalState: Story["globalState"]): TemplateCont
 }
 
 export type RenderNodePreviewOptions = {
+  project: Project;
+  disableShake?: boolean;
+};
+
+export type RenderNodePreviewLocaleOptions = {
   disableShake?: boolean;
 };
 
@@ -71,7 +76,7 @@ export function hasVisibleRichText(html: string): boolean {
 export async function renderNodePreviewHtml(
   textTemplate: string,
   globalState: Story["globalState"],
-  options: RenderNodePreviewOptions = {}
+  options: RenderNodePreviewOptions
 ): Promise<string> {
   return runTemplate(textTemplate, previewTemplateContext(globalState), options);
 }
@@ -83,7 +88,7 @@ export async function renderNodePreviewHtmlForLocale(
   promptsByLocale: PromptsByLocale,
   nodeId: string,
   locale?: string,
-  options: RenderNodePreviewOptions = {}
+  options: RenderNodePreviewLocaleOptions = {}
 ): Promise<string> {
   const activeLocale = locale ?? getDefaultLocale(project);
   const textTemplate = getNodeTextTemplateForLocale(
@@ -92,7 +97,7 @@ export async function renderNodePreviewHtmlForLocale(
     storyId,
     nodeId
   );
-  return renderNodePreviewHtml(textTemplate, story.globalState, options);
+  return renderNodePreviewHtml(textTemplate, story.globalState, { ...options, project });
 }
 
 export async function renderNodeSpeakerForLocale(
@@ -102,10 +107,10 @@ export async function renderNodeSpeakerForLocale(
   promptsByLocale: PromptsByLocale,
   nodeId: string,
   locale?: string,
-  options: RenderNodePreviewOptions = {}
+  options: RenderNodePreviewLocaleOptions = {}
 ): Promise<string> {
   const activeLocale = locale ?? getDefaultLocale(project);
   const speaker = getNodeSpeakerForLocale(promptsByLocale, activeLocale, storyId, nodeId);
   if (!speaker) return "";
-  return renderNodePreviewHtml(speaker, story.globalState, options);
+  return renderNodePreviewHtml(speaker, story.globalState, { ...options, project });
 }
