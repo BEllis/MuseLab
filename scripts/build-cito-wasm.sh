@@ -5,6 +5,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT="$ROOT/wasm/cito/cito-wasm.csproj"
 OUT="$ROOT/public/cito-wasm"
 
+if [ "${FORCE_CITO_WASM_BUILD:-}" != "1" ] && [ -f "$OUT/main.js" ] && [ -d "$OUT/_framework" ]; then
+  echo "Using existing cito WASM bundle at $OUT (set FORCE_CITO_WASM_BUILD=1 to rebuild)"
+  exit 0
+fi
+
 if [ ! -d "$ROOT/third_party/cito" ]; then
   echo "Missing third_party/cito. Clone Marco012/cito into third_party/cito first." >&2
   exit 1
