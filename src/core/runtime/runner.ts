@@ -26,7 +26,9 @@ export interface RuntimeState {
   currentSpeaker: string;
   /** Out-edges from current node that pass their condition */
   choices: RuntimeChoice[];
-  /** True when the story has reached a natural ending */
+  /** True when on a scene with no continuation (player should confirm to finish) */
+  isTerminalScene: boolean;
+  /** True when the player has finished the story */
   isEnded: boolean;
 }
 
@@ -212,12 +214,11 @@ export function createRunner(
       getChoices(),
     ]);
 
-    const ended =
-      isEnded ||
-      (node != null &&
-        isSceneNode(node) &&
-        choices.length === 0 &&
-        !sceneHasOutgoingContinuation(activeStory, node.id));
+    const isTerminalScene =
+      node != null &&
+      isSceneNode(node) &&
+      choices.length === 0 &&
+      !sceneHasOutgoingContinuation(activeStory, node.id);
 
     return {
       currentNodeId,
@@ -226,8 +227,13 @@ export function createRunner(
       currentHtml: html,
       currentSpeaker: speaker,
       choices,
-      isEnded: ended,
+      isTerminalScene,
+      isEnded,
     };
+  }
+
+  function finishStory(): void {
+    isEnded = true;
   }
 
   function goToNode(nodeId: string): void {
@@ -275,6 +281,7 @@ export function createRunner(
     getCurrentNode,
     getRuntimeState,
     goToNode,
+    finishStory,
     getChoices,
     getSoundConfigsForCurrentNode,
     context,

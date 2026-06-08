@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, useEffect, useCallback } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useProjectStore, selectActiveStory } from "@/store/projectStore";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import { createRunner, type RuntimeChoice, type RuntimeState } from "@/core/runtime/runner";
@@ -10,6 +10,7 @@ import {
 } from "@/core/locale/playerLocalePreference";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
+import { BackToDesignerButton } from "@/components/BackToDesignerButton";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import type { Project, Story, StoryNode } from "@/core/model/types";
 import {
@@ -135,6 +136,11 @@ function PlayerViewInner({
     setTick((t) => t + 1);
   };
 
+  const handleContinue = () => {
+    runner.finishStory();
+    setTick((t) => t + 1);
+  };
+
   const handleRestart = useMemo(
     () =>
       entryId
@@ -167,7 +173,7 @@ function PlayerViewInner({
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>No scenes in this story. Add scenes in the designer.</p>
-        <Link to="/">Back to designer</Link>
+        <BackToDesignerButton variant="overlay" />
       </div>
     );
   }
@@ -176,7 +182,7 @@ function PlayerViewInner({
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>Template error: {runtimeError}</p>
-        <Link to="/">Back to designer</Link>
+        <BackToDesignerButton variant="overlay" />
       </div>
     );
   }
@@ -193,7 +199,7 @@ function PlayerViewInner({
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>No entry node.</p>
-        <Link to="/">Back to designer</Link>
+        <BackToDesignerButton variant="overlay" />
       </div>
     );
   }
@@ -205,35 +211,11 @@ function PlayerViewInner({
 
   if (runtime.isEnded) {
     return (
-      <div
-        style={{
-          height: "100%",
-          background: "#0a0a12",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#eee",
-          gap: "16px",
-        }}
-      >
-        <h2 style={{ margin: 0, fontWeight: 500 }}>The End</h2>
-        <Link to="/" style={{ color: "#7fdbff" }}>
-          Back to designer
-        </Link>
+      <div className="app-player-end-screen">
+        <h2 className="app-player-end-screen__title">The End</h2>
+        <BackToDesignerButton variant="overlay" />
         {handleRestart && (
-          <button
-            type="button"
-            onClick={handleRestart}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "4px",
-              border: "1px solid #444",
-              background: "#1a1a2e",
-              color: "#eee",
-              cursor: "pointer",
-            }}
-          >
+          <button type="button" onClick={handleRestart} className="app-player-restart-button">
             Play again
           </button>
         )}
@@ -302,7 +284,7 @@ function PlayerViewInner({
           flexWrap: "wrap",
         }}
       >
-        <span style={{ color: "#eee" }}>{project.name}</span>
+        <BackToDesignerButton variant="player" />
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <label style={{ color: "#aaa", fontSize: "14px" }}>
             Locale
@@ -397,7 +379,6 @@ function PlayerViewInner({
             </>
           )}
         </div>
-        <Link to="/" style={{ color: "#7fdbff" }}>Back to designer</Link>
       </header>
 
       <div
@@ -443,6 +424,7 @@ function PlayerViewInner({
               runtime={runtime}
               singleChoice={singleChoice}
               handleChoice={handleChoice}
+              handleContinue={handleContinue}
               onRestart={handleRestart}
             />
           </div>
@@ -464,6 +446,7 @@ function PlayerStage({
   runtime,
   singleChoice,
   handleChoice,
+  handleContinue,
   onRestart,
 }: {
   project: Project;
@@ -472,9 +455,15 @@ function PlayerStage({
   promptsByLocale: PromptsByLocale;
   locale: string;
   node: Pick<StoryNode, "id" | "backdropId" | "actorConfigs">;
-  runtime: { currentHtml: string; currentSpeaker: string; choices: RuntimeChoice[] };
+  runtime: {
+    currentHtml: string;
+    currentSpeaker: string;
+    choices: RuntimeChoice[];
+    isTerminalScene: boolean;
+  };
   singleChoice: boolean;
   handleChoice: (targetId: string) => void;
+  handleContinue: () => void;
   onRestart?: () => void;
 }) {
   return (
@@ -490,7 +479,9 @@ function PlayerStage({
       dialogueSpeaker={runtime.currentSpeaker}
       choices={runtime.choices}
       singleChoice={singleChoice}
+      showContinue={runtime.isTerminalScene}
       onChoice={handleChoice}
+      onContinue={handleContinue}
       onRestart={onRestart}
       style={{ flex: 1 }}
     />

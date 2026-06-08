@@ -31,6 +31,14 @@ export function graphPointFromEdgeDrop(
   return graph.clientToLocal(clientX, clientY);
 }
 
+export function viewportCenterGraphPoint(
+  graph: Graph,
+  container: HTMLElement
+): { x: number; y: number } {
+  const rect = container.getBoundingClientRect();
+  return graph.clientToLocal(rect.left + rect.width / 2, rect.top + rect.height / 2);
+}
+
 export function proposedNodePositionAtPoint(
   graphPoint: { x: number; y: number },
   existingNodes: NodeWithPosition[]
@@ -40,6 +48,14 @@ export function proposedNodePositionAtPoint(
     y: graphPoint.y - DEFAULT_NODE_HEIGHT / 2,
   };
   return findNonOverlappingPosition("__draft__", raw, existingNodes);
+}
+
+export function proposedNodePositionAtViewportCenter(
+  graph: Graph,
+  container: HTMLElement,
+  existingNodes: NodeWithPosition[]
+): { x: number; y: number } {
+  return proposedNodePositionAtPoint(viewportCenterGraphPoint(graph, container), existingNodes);
 }
 
 export function canSourceStartConnection(source: StoryNode | undefined): source is StoryNode {

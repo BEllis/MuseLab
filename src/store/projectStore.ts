@@ -706,8 +706,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   loadFromArchive: async (data, mlvnPath = null) => {
-    const { manifest, files, prompts, metadata } = unpackProjectArchive(data);
-    const loadWarnings = validateUnpackedArchive({ manifest, files, prompts, metadata });
+    const unpacked = unpackProjectArchive(data);
+    const { manifest, files, prompts, metadata } = unpacked;
+    const loadWarnings = validateUnpackedArchive(unpacked);
     const project = parseProject(manifest);
     assertArchivePromptLocales(project.locales, prompts);
     const promptsByLocale: PromptsByLocale = {};

@@ -4,6 +4,7 @@ import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { ActorRow } from "@/components/ActorImage";
 import {
   getNodeChoices,
+  hasVisibleRichText,
   renderNodePreviewHtmlForLocale,
   renderNodeSpeakerForLocale,
   type SceneStageChoice,
@@ -37,7 +38,9 @@ type SceneStagePreviewProps = {
   dialogueSpeaker?: string;
   choices?: SceneStageChoice[];
   singleChoice?: boolean;
+  showContinue?: boolean;
   onChoice?: (targetNodeId: string) => void;
+  onContinue?: () => void;
   onRestart?: () => void;
   thumbnailAspectRatio?: AspectRatio;
   /** Canvas thumbnails: skip shake animation markup for a static preview. */
@@ -57,7 +60,9 @@ export function SceneStagePreview({
   dialogueSpeaker,
   choices: choicesProp,
   singleChoice: singleChoiceProp,
+  showContinue = false,
   onChoice,
+  onContinue,
   onRestart,
   thumbnailAspectRatio = DEFAULT_THUMBNAIL_ASPECT_RATIO,
   disableShake = false,
@@ -129,10 +134,21 @@ export function SceneStagePreview({
   const html = dialogueHtml ?? previewHtml;
   const speakerHtml = dialogueSpeaker ?? previewSpeaker;
   const choices = choicesProp ?? previewChoices;
-  const hasSpeaker = !!speakerHtml;
+  const hasDialogueContent = hasVisibleRichText(html) || hasVisibleRichText(speakerHtml);
+  const hasSpeaker = hasVisibleRichText(speakerHtml);
   const hasOptions = choices.some((choice) => choice.optionText);
-  const singleChoice = singleChoiceProp ?? (choices.length === 1 && !hasOptions);
   const compact = variant === "compact";
+  const singleChoice = singleChoiceProp ?? (choices.length === 1 && !hasOptions);
+  const continueOnClick = showContinue && !compact;
+  const showCaptionPanel = hasDialogueContent;
+  const choiceAreaBottom =
+    showCaptionPanel && choices.length > 0 && !singleChoice
+      ? compact
+        ? `${DIALOGUE_PANEL_FRACTION * 100}%`
+        : DIALOGUE_PANEL_HEIGHT
+      : 0;
+  const needsStageContinue =
+    !compact && !hasDialogueContent && (singleChoice || continueOnClick);
 
   const boxStyle = compact ? compactVnBoxStyle : vnBoxStyle;
   const buttonStyle = compact ? compactVnButtonStyle : vnButtonStyle;
@@ -178,7 +194,7 @@ export function SceneStagePreview({
             top: 0,
             left: 0,
             right: 0,
-            bottom: compact ? `${DIALOGUE_PANEL_FRACTION * 100}%` : DIALOGUE_PANEL_HEIGHT,
+            bottom: choiceAreaBottom,
             zIndex: 2,
             display: "flex",
             alignItems: "center",
@@ -215,6 +231,44 @@ export function SceneStagePreview({
         </div>
       )}
 
+      {needsStageContinue && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            cursor: "pointer",
+          }}
+          onClick={() =>
+            singleChoice ? onChoice?.(choices[0].targetNode.id) : onContinue?.()
+          }
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              singleChoice ? onChoice?.(choices[0].targetNode.id) : onContinue?.();
+            }
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              bottom: "24px",
+              right: "24px",
+              color: "#fff",
+              fontSize: "18px",
+              lineHeight: 1,
+              fontFamily: "inherit",
+              textShadow: "0 1px 6px rgba(0, 0, 0, 0.8)",
+            }}
+          >
+            Continue &gt;&gt;
+          </span>
+        </div>
+      )}
+
+      {showCaptionPanel && (
       <div
         style={{
           position: "absolute",
@@ -239,7 +293,7 @@ export function SceneStagePreview({
             height: compact ? "3.6em" : "8em",
             minHeight: compact ? "3.6em" : "8em",
             overflow: compact ? "hidden" : "auto",
-            ...(singleChoice &&
+            ...((singleChoice || continueOnClick) &&
               !compact && {
                 cursor: "pointer",
                 userSelect: "none",
@@ -257,6 +311,17 @@ export function SceneStagePreview({
                 }
               },
             })}
+          {...(continueOnClick && {
+            onClick: () => onContinue?.(),
+            role: "button",
+            tabIndex: 0,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onContinue?.();
+              }
+            },
+          })}
         >
           {hasSpeaker && (
             <div
@@ -273,7 +338,7 @@ export function SceneStagePreview({
               }),
             }}
           />
-          {singleChoice && (
+          {(singleChoice || continueOnClick) && (
             <span
               style={{
                 position: "absolute",
@@ -290,7 +355,7 @@ export function SceneStagePreview({
           )}
         </div>
 
-        {!compact && choices.length === 0 && (
+        {!compact && choices.length === 0 && !showContinue && (
           <div
             style={{
               display: "flex",
@@ -324,6 +389,7 @@ export function SceneStagePreview({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

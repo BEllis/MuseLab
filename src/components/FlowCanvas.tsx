@@ -22,6 +22,7 @@ import {
   canSourceStartConnection,
   connectionDropMenuOptions,
   proposedNodePositionAtPoint,
+  proposedNodePositionAtViewportCenter,
 } from "@/x6/connectionDrop";
 import { bindGraphAssetDrop } from "@/x6/graphAssetDrop";
 import { ensureShapesRegistered } from "@/x6/registerShapes";
@@ -268,14 +269,26 @@ export function FlowCanvas() {
 
   const onAddNode = useCallback((type: StoryNodeType) => {
     const store = useProjectStore.getState();
+    const story = selectActiveStory(store.project, store.activeStoryId);
+    const graph = graphRef.current;
+    const container = containerRef.current;
+    const initialPosition =
+      graph && container
+        ? proposedNodePositionAtViewportCenter(
+            graph,
+            container,
+            story.nodes as NodeWithPosition[]
+          )
+        : { x: 100, y: 100 };
+
     store.beginHistoryTransaction();
     try {
-      const newNode = store.addNode({ x: 100, y: 100 }, { type });
-      const story = selectActiveStory(store.project, store.activeStoryId);
+      const newNode = store.addNode(initialPosition, { type });
+      const nextStory = selectActiveStory(store.project, store.activeStoryId);
       const resolved = findNonOverlappingPosition(
         newNode.id,
         newNode.position,
-        story.nodes as NodeWithPosition[]
+        nextStory.nodes as NodeWithPosition[]
       );
       if (
         resolved.x !== newNode.position.x ||
@@ -495,61 +508,65 @@ export function FlowCanvas() {
       style={{
         width: "100%",
         height: "100%",
-        display: "flex",
-        flexDirection: "column",
+        position: "relative",
       }}
     >
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      <ScenePreviewOverlay />
+      <AddNodeMenu onAdd={onAddNode} variant="overlay" />
       <div
         style={{
-          padding: "8px",
-          display: "flex",
-          gap: "8px",
-          alignItems: "center",
-          justifyContent: "space-between",
+          position: "absolute",
+          top: 12,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 6,
         }}
       >
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <AddNodeMenu onAdd={onAddNode} />
-          <PlayButton onClick={onPlay} title="Play" />
-        </div>
-        <ThumbnailAspectRatioControl />
+        <ThumbnailAspectRatioControl variant="overlay" />
       </div>
-      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
-        <ScenePreviewOverlay />
-        <div
-          style={{
-            position: "absolute",
-            bottom: 8,
-            left: 8,
-            display: "flex",
-            gap: 4,
-            zIndex: 5,
-          }}
-        >
-          <button type="button" className="app-toolbar-button" onClick={() => runZoom(0.1)}>
-            +
-          </button>
-          <button type="button" className="app-toolbar-button" onClick={() => runZoom(-0.1)}>
-            −
-          </button>
-          <button type="button" className="app-toolbar-button" onClick={runZoomToFit}>
-            Fit
-          </button>
-        </div>
-        <div
-          ref={minimapRef}
-          style={{
-            position: "absolute",
-            bottom: 8,
-            right: 8,
-            border: "1px solid var(--app-border)",
-            borderRadius: 4,
-            overflow: "hidden",
-            zIndex: 5,
-          }}
-        />
+      <div
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 12,
+          zIndex: 6,
+        }}
+      >
+        <PlayButton onClick={onPlay} title="Play" variant="overlay" />
       </div>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 8,
+          left: 8,
+          display: "flex",
+          gap: 4,
+          zIndex: 5,
+        }}
+      >
+        <button type="button" className="app-toolbar-button" onClick={() => runZoom(0.1)}>
+          +
+        </button>
+        <button type="button" className="app-toolbar-button" onClick={() => runZoom(-0.1)}>
+          −
+        </button>
+        <button type="button" className="app-toolbar-button" onClick={runZoomToFit}>
+          Fit
+        </button>
+      </div>
+      <div
+        ref={minimapRef}
+        style={{
+          position: "absolute",
+          bottom: 8,
+          right: 8,
+          border: "1px solid var(--app-border)",
+          borderRadius: 4,
+          overflow: "hidden",
+          zIndex: 5,
+        }}
+      />
       {playValidationMessage && (
         <PlayValidationDialog
           message={playValidationMessage}

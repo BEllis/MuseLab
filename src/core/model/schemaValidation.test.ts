@@ -47,6 +47,35 @@ describe("MuseLab JSON schemas", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("validates assets with web blob storage flags", () => {
+    const result = validateStoryManifest({
+      name: "Web",
+      assets: [
+        {
+          id: "backdrop1",
+          type: "backdrop",
+          name: "City",
+          blobStored: true,
+        },
+      ],
+      stories: [
+        {
+          id: "main",
+          name: "Main",
+          nodes: [],
+          edges: [],
+          globalState: {},
+        },
+      ],
+      locales: ["en"],
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.warnings.filter((warning) => warning.includes("additional properties"))).toEqual(
+      []
+    );
+  });
+
   it("validates a versioned bundle payload", () => {
     const result = validateBundlePayload({
       formatVersion: MUSELAB_FORMAT_VERSION,

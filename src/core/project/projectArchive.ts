@@ -246,6 +246,8 @@ export interface UnpackedProjectArchive {
   metadata: Record<string, unknown> | null;
   files: Map<string, Uint8Array>;
   prompts: Map<string, LocalePrompts>;
+  /** Raw prompts.<locale>.json contents for schema validation on load. */
+  promptSources: Map<string, string>;
 }
 
 export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
@@ -257,6 +259,7 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
 
   const files = new Map<string, Uint8Array>();
   const prompts = new Map<string, LocalePrompts>();
+  const promptSources = new Map<string, string>();
   let metadata: Record<string, unknown> | null = null;
 
   const manifest = strFromU8(manifestBytes);
@@ -272,7 +275,9 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
 
     const locale = parseLocaleFromPromptsFileName(name);
     if (locale) {
-      prompts.set(locale, parseLocalePrompts(strFromU8(bytes), defaultStoryId));
+      const promptJson = strFromU8(bytes);
+      promptSources.set(locale, promptJson);
+      prompts.set(locale, parseLocalePrompts(promptJson, defaultStoryId));
       continue;
     }
 
@@ -286,6 +291,7 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
     metadata,
     files,
     prompts,
+    promptSources,
   };
 }
 

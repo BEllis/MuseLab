@@ -18,7 +18,14 @@ function parseCustomRatio(width: string, height: string): AspectRatio | null {
   return { width: Math.round(w), height: Math.round(h) };
 }
 
-export function ThumbnailAspectRatioControl() {
+type ThumbnailAspectRatioControlProps = {
+  variant?: "toolbar" | "overlay";
+};
+
+export function ThumbnailAspectRatioControl({
+  variant = "toolbar",
+}: ThumbnailAspectRatioControlProps) {
+  const overlay = variant === "overlay";
   const project = useProjectStore((s) => s.project);
   const updateProject = useProjectStore((s) => s.updateProject);
   const ratio = getProjectThumbnailAspectRatio(project);
@@ -35,13 +42,18 @@ export function ThumbnailAspectRatioControl() {
 
   return (
     <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        fontSize: "12px",
-        color: "var(--app-text-muted)",
-      }}
+      className={overlay ? "app-canvas-controls-panel" : undefined}
+      style={
+        overlay
+          ? undefined
+          : {
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "12px",
+              color: "var(--app-text-muted)",
+            }
+      }
     >
       <label htmlFor="thumbnail-aspect-ratio" style={{ whiteSpace: "nowrap" }}>
         Thumbnail ratio

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { validateStoredProjectJson } from "./loadValidation";
+import { createEmptyLocalePrompts } from "../locale/prompts";
+import { createStarterProject } from "../model/project";
+import { packProjectArchive, unpackProjectArchive } from "./projectArchive";
+import { validateStoredProjectJson, validateUnpackedArchive } from "./loadValidation";
 
 describe("loadValidation", () => {
   it("reports legacy warnings for old bundle payloads", () => {
@@ -30,5 +33,16 @@ describe("loadValidation", () => {
     );
 
     expect(warnings.some((warning) => warning.includes("Missing formatVersion"))).toBe(true);
+  });
+
+  it("does not warn about formatVersion for freshly saved mlvn archives", async () => {
+    const project = createStarterProject("Round trip");
+    const archive = await packProjectArchive({
+      project,
+      promptsByLocale: { en: createEmptyLocalePrompts() },
+    });
+    const unpacked = unpackProjectArchive(archive);
+
+    expect(validateUnpackedArchive(unpacked)).toEqual([]);
   });
 });

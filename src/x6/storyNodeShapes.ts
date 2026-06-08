@@ -22,8 +22,9 @@ export const CIRCLE_NODE_SIZE = 52;
 const INVALID_STROKE = "#dc2626";
 
 const START_PALETTE = {
-  fill: "#31d0c6",
+  fill: "#cce88a",
   stroke: "#237804",
+  labelFill: "#237804",
 };
 
 const JUMP_PALETTE = {
@@ -124,9 +125,10 @@ const arrowLabelAttrs = {
 function applyArrowStyle(
   node: Node,
   label: string,
-  palette: { fill: string; stroke: string },
+  palette: { fill: string; stroke: string; labelFill?: string },
   options: { selected: boolean; invalidRoot?: boolean }
 ): void {
+  const labelColor = palette.labelFill ?? "#ffffff";
   node.attr({
     body: {
       refD: ARROW_PATH_REF_D,
@@ -137,13 +139,13 @@ function applyArrowStyle(
     },
     text: {
       text: label,
-      fill: "#ffffff",
+      fill: labelColor,
       fontSize: ARROW_LABEL_FONT_SIZE,
       ...arrowLabelAttrs,
     },
     label: {
       text: label,
-      fill: "#ffffff",
+      fill: labelColor,
       fontSize: ARROW_LABEL_FONT_SIZE,
       ...arrowLabelAttrs,
     },

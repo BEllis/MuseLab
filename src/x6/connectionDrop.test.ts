@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { connectionDropMenuOptions, isPreviewConnectionEdge } from "./connectionDrop";
+import {
+  connectionDropMenuOptions,
+  isPreviewConnectionEdge,
+  proposedNodePositionAtViewportCenter,
+} from "./connectionDrop";
 import type { StoryNode } from "@/core/model/types";
 
 const sceneNode: StoryNode = {
@@ -38,5 +42,31 @@ describe("connectionDropMenuOptions", () => {
     expect(isPreviewConnectionEdge("edge-2", projectEdgeIds)).toBe(true);
     expect(isPreviewConnectionEdge("edge-1", projectEdgeIds)).toBe(false);
     expect(isPreviewConnectionEdge("end:edge:scene-1", projectEdgeIds)).toBe(false);
+  });
+
+  it("centers a new node on the viewport", () => {
+    const graph = {
+      clientToLocal: (clientX: number, clientY: number) => ({
+        x: clientX - 100,
+        y: clientY - 50,
+      }),
+    };
+    const container = {
+      getBoundingClientRect: () => ({
+        left: 100,
+        top: 50,
+        width: 400,
+        height: 300,
+        right: 500,
+        bottom: 350,
+        x: 100,
+        y: 50,
+        toJSON: () => ({}),
+      }),
+    } as HTMLElement;
+
+    const position = proposedNodePositionAtViewportCenter(graph as never, container, []);
+
+    expect(position).toEqual({ x: 100, y: 110 });
   });
 });

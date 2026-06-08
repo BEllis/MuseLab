@@ -62,6 +62,12 @@ export type RenderNodePreviewOptions = {
   disableShake?: boolean;
 };
 
+/** True when rendered HTML contains visible text (ignores empty tags and whitespace). */
+export function hasVisibleRichText(html: string): boolean {
+  if (!html.trim()) return false;
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim().length > 0;
+}
+
 export async function renderNodePreviewHtml(
   textTemplate: string,
   globalState: Story["globalState"],

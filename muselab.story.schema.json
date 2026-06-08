@@ -182,6 +182,10 @@
           "pattern": "^image/",
           "description": "MIME type for imageData (e.g. image/png, image/jpeg)."
         },
+        "blobStored": {
+          "type": "boolean",
+          "description": "Web runtime only: media stored in IndexedDB under this asset id."
+        },
         "personality": {
           "type": "string",
           "description": "Actor only: personality notes for designers."
