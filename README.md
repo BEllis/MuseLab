@@ -1,12 +1,16 @@
-<p align="center">
-  <img src="docs/images/logo.png" alt="MuseLab logo" width="240">
-</p>
+![MuseLab logo](docs/images/logo.png)
 
-<h1 align="center">MuseLab</h1>
+# MuseLab
 
-<p align="center"><em>Visual Novel Designer</em></p>
+*Visual Novel Designer*
 
-A **visual novel / interactive story** designer and player. Build branching narratives in a node-based editor, then play them in the browser or on desktop.
+Design and play branching visual novels in a node-based editor. Build scenes with backdrops, actors, sounds, and dynamic text templates, then test your story in the player.
+
+Version 0.1
+
+[muselab.softweyr.co.uk/app/v1/](https://muselab.softweyr.co.uk/app/v1/)
+
+*Copyright © 2025 MuseLab. Licensed under the MIT License.*
 
 ## Screenshots
 
@@ -85,7 +89,7 @@ If a desktop release is provided for your platform, download and run the install
 
 ## License
 
-MIT License. Copyright (c) 2025 MuseLab. See [LICENSE](LICENSE) for the full text.
+Copyright © 2025 MuseLab. Licensed under the MIT License. See [LICENSE](LICENSE) for the full text.
 
 ## For developers
 
