@@ -1,4 +1,4 @@
-import type { Project, Story, StoryNode, StoryEdge, Asset } from "./types";
+import type { Project, Story, StoryNode, StoryEdge, Asset, StoryNodeType, ActorExpression } from "./types";
 import { getPlayEntryNodeId } from "./graphHierarchy";
 import {
   DEFAULT_BACKDROP_ID,
@@ -6,8 +6,27 @@ import {
   isDefaultBackdrop,
   resolveBackdropId,
 } from "../assets/defaultBackdrop";
+import {
+  createExpression,
+  DEFAULT_EXPRESSION_NAME,
+  ensureActorExpressions,
+  ensureAllActorExpressions,
+  findExpression,
+  getExpressionUsage,
+  isExpressionNameUnique,
+  migrateActorSceneReferences,
+  normalizeExpressionName,
+} from "../assets/actorExpressions";
 import { assertValidLocaleTag, normalizeLocales } from "../locale/localeTag";
 import { MUSELAB_FORMAT_VERSION, STORY_SCHEMA_ID } from "./formatVersion";
+import {
+  deriveUniqueNodeLabel,
+  getDefaultLabelForType,
+  getNodeDisplayName,
+  incrementCloneLabel,
+  migrateJumpNodeTargets,
+} from "./nodeNames";
+import { isJumpNode, isSceneNode, getStartNodes, migrateStoryNodes, normalizeStoryNode } from "./nodeTypes";
 
 /** Generate a unique id (simple nanoid-style) */
 export function generateId(): string {
@@ -55,11 +74,12 @@ export function createEmptyProject(name: string = "Untitled"): Project {
   return project;
 }
 
-/** Blank slate for File → New: default backdrop asset and one empty scene. */
+/** Blank slate for File → New: default backdrop asset and one Start node. */
 export function createStarterProject(name: string = "Untitled"): Project {
   const project = createEmptyProject(name);
   const storyId = getFirstStoryId(project);
-  addNode(project, storyId, { x: 100, y: 100 });
+  const start = addNode(project, storyId, { x: 100, y: 100 }, "start");
+  updateStory(project, storyId, { entryNodeId: start.id });
   return project;
 }
 
@@ -71,7 +91,8 @@ export function createStarterStory(name: string = "Untitled"): Story {
     edges: [],
     globalState: {},
   };
-  addNodeToStory(story, { x: 100, y: 100 });
+  const start = addNodeToStory(story, { x: 100, y: 100 }, "start");
+  story.entryNodeId = start.id;
   return story;
 }
 
@@ -105,27 +126,73 @@ export function updateStory(
   }
 }
 
-function addNodeToStory(story: Story, position?: { x: number; y: number }): StoryNode {
+function defaultJumpTarget(
+  story: Story,
+  storyId: string
+): Pick<StoryNode, "jumpTargetStoryId" | "jumpTargetStartNodeId"> {
+  const starts = getStartNodes(story);
+  const entryStart =
+    story.entryNodeId != null
+      ? starts.find((node) => node.id === story.entryNodeId)
+      : undefined;
+  const targetStart = entryStart ?? starts[0];
+  return {
+    jumpTargetStoryId: storyId,
+    jumpTargetStartNodeId: targetStart?.id,
+  };
+}
+
+function createNodeForType(
+  story: Story,
+  storyId: string,
+  type: StoryNodeType,
+  position: { x: number; y: number }
+): StoryNode {
   const id = generateId();
-  const node: StoryNode = {
+  const label = deriveUniqueNodeLabel(story, getDefaultLabelForType(type));
+
+  if (type === "start") {
+    return { id, type: "start", position, label };
+  }
+  if (type === "jump") {
+    return { id, type: "jump", position, ...defaultJumpTarget(story, storyId) };
+  }
+  return {
     id,
-    position: position ?? { x: 0, y: 0 },
+    type: "scene",
+    position,
+    label,
     backdropId: DEFAULT_BACKDROP_ID,
-    actorIds: [],
+    actorConfigs: [],
     soundConfigs: [],
   };
+}
+
+function addNodeToStory(
+  story: Story,
+  position?: { x: number; y: number },
+  type: StoryNodeType = "scene"
+): StoryNode {
+  const node = createNodeForType(story, story.id, type, position ?? { x: 0, y: 0 });
   story.nodes.push(node);
   return node;
 }
+
+export type AddNodeOptions = {
+  type?: StoryNodeType;
+};
 
 /** Add a node to a story; returns the new node */
 export function addNode(
   project: Project,
   storyId: string,
-  position?: { x: number; y: number }
+  position?: { x: number; y: number },
+  type: StoryNodeType = "scene"
 ): StoryNode {
-  ensureDefaultBackdrop(project);
-  return addNodeToStory(getStory(project, storyId), position);
+  if (type === "scene") {
+    ensureDefaultBackdrop(project);
+  }
+  return addNodeToStory(getStory(project, storyId), position, type);
 }
 
 /** Duplicate a node with a new id; does not copy edges. */
@@ -139,16 +206,41 @@ export function cloneNode(
   const source = story.nodes.find((n) => n.id === nodeId);
   if (!source) return null;
 
-  ensureDefaultBackdrop(project);
   const id = generateId();
-  const node: StoryNode = {
-    id,
-    position,
-    label: source.label,
-    backdropId: resolveBackdropId(project, source.backdropId),
-    actorIds: [...source.actorIds],
-    soundConfigs: source.soundConfigs.map((config) => ({ ...config })),
-  };
+  const clonedLabel = deriveUniqueNodeLabel(
+    story,
+    incrementCloneLabel(getNodeDisplayName(source))
+  );
+
+  let node: StoryNode;
+  if (isSceneNode(source)) {
+    ensureDefaultBackdrop(project);
+    node = {
+      id,
+      type: "scene",
+      position,
+      label: clonedLabel,
+      backdropId: resolveBackdropId(project, source.backdropId ?? DEFAULT_BACKDROP_ID),
+      actorConfigs: (source.actorConfigs ?? []).map((config) => ({ ...config })),
+      soundConfigs: (source.soundConfigs ?? []).map((config) => ({ ...config })),
+    };
+  } else if (isJumpNode(source)) {
+    node = {
+      id,
+      type: "jump",
+      position,
+      jumpTargetStoryId: source.jumpTargetStoryId,
+      jumpTargetStartNodeId: source.jumpTargetStartNodeId,
+    };
+  } else {
+    node = {
+      id,
+      type: "start",
+      position,
+      label: clonedLabel,
+    };
+  }
+
   story.nodes.push(node);
   return node;
 }
@@ -160,6 +252,9 @@ export function removeNode(project: Project, storyId: string, nodeId: string): v
   story.edges = story.edges.filter(
     (e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId
   );
+  if (story.entryNodeId === nodeId) {
+    story.entryNodeId = undefined;
+  }
 }
 
 /** Update node position (e.g. after drag) */
@@ -182,6 +277,13 @@ export function updateNode(
 ): void {
   const node = getStory(project, storyId).nodes.find((n) => n.id === nodeId);
   if (!node) return;
+  if (node.type === "jump") {
+    if ("label" in patch) {
+      const { label: _label, ...rest } = patch;
+      patch = rest;
+    }
+    delete node.label;
+  }
   if ("backdropId" in patch) {
     patch = { ...patch, backdropId: resolveBackdropId(project, patch.backdropId) };
   }
@@ -287,14 +389,126 @@ export function addAsset(
     url: options.url,
   };
   project.assets.push(asset);
+  if (type === "actor") {
+    ensureActorExpressions(asset);
+  }
   return asset;
 }
 
-/** Update an asset (e.g. rename) */
+/** Create a blank actor with a default placeholder expression. */
+export function addBlankActor(project: Project, name: string): Asset {
+  return addAsset(project, "actor", name, {});
+}
+
+/** Create an actor whose default expression uses imported media. */
+export function addActorFromImage(
+  project: Project,
+  name: string,
+  options: { path?: string; blobStored?: boolean }
+): Asset {
+  const asset: Asset = {
+    id: generateId(),
+    type: "actor",
+    name,
+    expressions: [
+      createExpression(DEFAULT_EXPRESSION_NAME, {
+        path: options.path,
+        blobStored: options.blobStored,
+      }),
+    ],
+  };
+  project.assets.push(asset);
+  return asset;
+}
+
+export function addActorExpression(project: Project, actorId: string, name: string): ActorExpression {
+  const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
+  if (!asset) {
+    throw new Error(`Actor "${actorId}" not found`);
+  }
+  ensureActorExpressions(asset);
+  const normalized = normalizeExpressionName(name);
+  if (!normalized || !isExpressionNameUnique(asset, normalized)) {
+    throw new Error(`Expression name "${name}" is not unique for this actor`);
+  }
+  const expression = createExpression(normalized);
+  asset.expressions = [...(asset.expressions ?? []), expression];
+  return expression;
+}
+
+export function updateActorExpression(
+  project: Project,
+  actorId: string,
+  expressionId: string,
+  patch: Partial<Pick<ActorExpression, "name">>
+): void {
+  const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
+  if (!asset) return;
+  const expression = findExpression(asset, expressionId);
+  if (!expression) return;
+
+  if (patch.name !== undefined) {
+    const normalized = normalizeExpressionName(patch.name);
+    if (!normalized || !isExpressionNameUnique(asset, normalized, expressionId)) {
+      throw new Error(`Expression name "${patch.name}" is not unique for this actor`);
+    }
+    expression.name = normalized;
+  }
+}
+
+export function replaceActorExpressionMedia(
+  project: Project,
+  actorId: string,
+  expressionId: string,
+  options: { path?: string; blobStored?: boolean }
+): void {
+  const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
+  if (!asset) return;
+  const expression = findExpression(asset, expressionId);
+  if (!expression) return;
+
+  delete expression.imageData;
+  delete expression.imageMimeType;
+  delete expression.url;
+
+  if (options.path) {
+    expression.path = options.path;
+    delete expression.blobStored;
+  } else {
+    delete expression.path;
+    if (options.blobStored) {
+      expression.blobStored = true;
+    } else {
+      delete expression.blobStored;
+    }
+  }
+}
+
+export function removeActorExpression(
+  project: Project,
+  actorId: string,
+  expressionId: string
+): void {
+  const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
+  if (!asset?.expressions) return;
+
+  if (asset.expressions.length <= 1) {
+    throw new Error("Cannot remove the last expression from an actor");
+  }
+  if (getExpressionUsage(project, actorId, expressionId) > 0) {
+    throw new Error("Cannot remove an expression that is used in scenes");
+  }
+
+  asset.expressions = asset.expressions.filter((expression) => expression.id !== expressionId);
+}
+
+/** Update an asset (e.g. rename or actor notes) */
 export function updateAsset(
   project: Project,
   assetId: string,
-  patch: Partial<Pick<Asset, "name">>
+  patch: Partial<
+    Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
+  >
 ): void {
   const asset = project.assets.find((a) => a.id === assetId);
   if (!asset) return;
@@ -384,14 +598,7 @@ function toManifestStory(story: Story): Story {
   return {
     id: story.id,
     name: story.name,
-    nodes: story.nodes.map((node) => ({
-      id: node.id,
-      position: node.position,
-      label: node.label,
-      backdropId: node.backdropId,
-      actorIds: node.actorIds,
-      soundConfigs: node.soundConfigs,
-    })),
+    nodes: story.nodes.map((node) => normalizeStoryNode(node)),
     edges: story.edges.map((edge) => ({
       id: edge.id,
       sourceNodeId: edge.sourceNodeId,
@@ -479,6 +686,19 @@ export function parseProject(json: string): Project {
   }
   ensureDefaultBackdrop(project);
   return project;
+}
+
+/** Apply node-type migration and strip legacy-only fields after prompts are extracted. */
+export function finalizeProjectNodes(project: Project): void {
+  ensureAllActorExpressions(project);
+  migrateActorSceneReferences(project);
+  migrateJumpNodeTargets(project);
+  for (const story of project.stories) {
+    migrateStoryNodes(story);
+    for (let i = 0; i < story.nodes.length; i++) {
+      story.nodes[i] = normalizeStoryNode(story.nodes[i]);
+    }
+  }
 }
 
 export function addLocaleToProject(project: Project, locale: string): void {

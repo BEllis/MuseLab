@@ -8,6 +8,7 @@ import {
   syncProjectEdge,
 } from "./syncEdges";
 import { removeStaleNodes, syncProjectNode } from "./syncNodes";
+import { syncEndNodes } from "./syncEndNodes";
 
 export type SyncGuard = { current: boolean };
 
@@ -66,6 +67,8 @@ export function syncProjectToGraph(
           promptsByLocale
         );
       }
+
+      syncEndNodes(graph, story);
 
       purgeDanglingEdges(graph, story);
       purgeFreeOutPreviews(graph, story);

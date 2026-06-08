@@ -28,10 +28,11 @@ describe("MuseLab JSON schemas", () => {
           nodes: [
             {
               id: "scene1",
+              type: "scene",
               position: { x: 100, y: 100 },
               label: "Opening",
               backdropId: "muselab-default-backdrop",
-              actorIds: ["hero1"],
+              actorConfigs: [],
               soundConfigs: [],
             },
           ],
@@ -69,10 +70,11 @@ describe("MuseLab JSON schemas", () => {
             nodes: [
               {
                 id: "scene-opening",
+                type: "scene",
                 position: { x: 100, y: 100 },
                 label: "Opening",
                 backdropId: "muselab-default-backdrop",
-                actorIds: [],
+                actorConfigs: [],
                 soundConfigs: [],
               },
             ],

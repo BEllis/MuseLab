@@ -1,12 +1,21 @@
 import type { Options, ValidateConnectionArgs } from "@antv/x6";
 import { Shape } from "@antv/x6";
+import { selectActiveStory, useProjectStore } from "@/store/projectStore";
+import { isJumpNode, isSceneNode, isStartNode } from "@/core/model/nodeTypes";
 import {
   FREE_IN_PORT,
   STORY_EDGE_SHAPE,
+  isEndNodeId,
   isOutPort,
   magnetPortId,
 } from "./constants";
 import { autoEdgeRouter, storyEdgeConnector } from "./edgeConfig";
+
+function getDomainNode(nodeId: string) {
+  const state = useProjectStore.getState();
+  const story = selectActiveStory(state.project, state.activeStoryId);
+  return story.nodes.find((node) => node.id === nodeId) ?? null;
+}
 
 export function createGraphOptions(container: HTMLElement): Options {
   return {
@@ -27,7 +36,7 @@ export function createGraphOptions(container: HTMLElement): Options {
     },
     connecting: {
       snap: { radius: 250 },
-      allowBlank: false,
+      allowBlank: true,
       allowLoop: false,
       allowNode: false,
       allowEdge: false,
@@ -55,16 +64,32 @@ export function createGraphOptions(container: HTMLElement): Options {
         sourceMagnet,
         targetMagnet,
       }: ValidateConnectionArgs) {
-        if (!sourceCell || !targetCell) return false;
-        if (sourceCell.id === targetCell.id) return false;
+        if (!sourceCell) return false;
 
         const resolvedSourcePort =
           sourcePort ?? (sourceMagnet ? magnetPortId(sourceMagnet) : null);
+        if (!isOutPort(resolvedSourcePort)) return false;
+
+        const sourceNode = getDomainNode(sourceCell.id);
+        if (!sourceNode || (!isStartNode(sourceNode) && !isSceneNode(sourceNode))) {
+          return false;
+        }
+
+        if (!targetCell) return true;
+
+        if (sourceCell.id === targetCell.id) return false;
+        if (isEndNodeId(sourceCell.id) || isEndNodeId(targetCell.id)) return false;
+
         const resolvedTargetPort =
           targetPort ?? (targetMagnet ? magnetPortId(targetMagnet) : null);
 
-        if (!isOutPort(resolvedSourcePort)) return false;
         if (resolvedTargetPort !== FREE_IN_PORT) return false;
+
+        const targetNode = getDomainNode(targetCell.id);
+        if (!targetNode) return false;
+
+        if (!isSceneNode(targetNode) && !isJumpNode(targetNode)) return false;
+
         return true;
       },
     },

@@ -15,7 +15,7 @@ if ! command -v dotnet >/dev/null 2>&1; then
     export DOTNET_ROOT="$HOME/.dotnet"
     export PATH="$DOTNET_ROOT:$PATH"
   else
-    echo "dotnet SDK 6+ required. Install from https://dotnet.microsoft.com/download" >&2
+    echo "dotnet SDK 8+ required. Install from https://dotnet.microsoft.com/download" >&2
     exit 1
   fi
 fi
@@ -25,7 +25,7 @@ if ! dotnet workload list 2>/dev/null | rg -q 'wasm-tools'; then
   dotnet workload install wasm-tools
 fi
 
-BUNDLE="$ROOT/wasm/cito/bin/Release/net6.0/browser-wasm/AppBundle"
+BUNDLE="$ROOT/wasm/cito/bin/Release/net8.0/browser-wasm/AppBundle"
 dotnet publish "$PROJECT" -c Release
 
 rm -rf "$OUT"

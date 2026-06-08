@@ -90,12 +90,12 @@ function PlayerViewInner({
 
   const runner = useMemo(
     () =>
-      createRunner(project, story, storyId, promptsByLocale, activeLocale, {
+      createRunner(project, storyId, entryId, promptsByLocale, activeLocale, {
         onPlaySound: (assetId, options) => {
           window.__playerPlaySound?.(assetId, options);
         },
       }),
-    [project, story, storyId, promptsByLocale, activeLocale]
+    [project, storyId, entryId, promptsByLocale, activeLocale]
   );
 
   useEffect(() => {
@@ -198,9 +198,48 @@ function PlayerViewInner({
     );
   }
 
-  const node = story.nodes.find((n) => n.id === runtime.currentNodeId)!;
+  const activeStory = runner.story;
+  const node = activeStory.nodes.find((n) => n.id === runtime.currentNodeId)!;
   const hasOptions = runtime.choices.some((c) => c.optionText);
   const singleChoice = runtime.choices.length === 1 && !hasOptions;
+
+  if (runtime.isEnded) {
+    return (
+      <div
+        style={{
+          height: "100%",
+          background: "#0a0a12",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#eee",
+          gap: "16px",
+        }}
+      >
+        <h2 style={{ margin: 0, fontWeight: 500 }}>The End</h2>
+        <Link to="/" style={{ color: "#7fdbff" }}>
+          Back to designer
+        </Link>
+        {handleRestart && (
+          <button
+            type="button"
+            onClick={handleRestart}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "4px",
+              border: "1px solid #444",
+              background: "#1a1a2e",
+              color: "#eee",
+              cursor: "pointer",
+            }}
+          >
+            Play again
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const handleLocaleChange = (locale: string) => {
     setActiveLocale(locale);
@@ -396,8 +435,8 @@ function PlayerViewInner({
           >
             <PlayerStage
               project={project}
-              story={story}
-              storyId={storyId}
+              story={activeStory}
+              storyId={runner.activeStoryId}
               promptsByLocale={promptsByLocale}
               locale={activeLocale}
               node={node}
@@ -432,7 +471,7 @@ function PlayerStage({
   storyId: string;
   promptsByLocale: PromptsByLocale;
   locale: string;
-  node: Pick<StoryNode, "id" | "backdropId" | "actorIds">;
+  node: Pick<StoryNode, "id" | "backdropId" | "actorConfigs">;
   runtime: { currentHtml: string; currentSpeaker: string; choices: RuntimeChoice[] };
   singleChoice: boolean;
   handleChoice: (targetId: string) => void;
@@ -467,7 +506,7 @@ function SoundManager({
   node: { id: string };
   runner: ReturnType<typeof createRunner>;
 }) {
-  const configs = runner.getSoundConfigsForCurrentNode();
+  const configs = runner.getSoundConfigsForCurrentNode() ?? [];
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const pendingPlays = useRef<Map<string, { startTime?: number; endTime?: number }>>(new Map());
   const activeNodeIdRef = useRef(node.id);

@@ -2,7 +2,8 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import type { AssetType } from "@/core/model/types";
 import type { Project } from "@/core/model/types";
-import { getAssetUrlAsync } from "@/core/assets/resolver";
+import { getAssetUrlAsync, getActorExpressionUrlAsync } from "@/core/assets/resolver";
+import { getActorThumbnailExpressionId } from "@/core/assets/actorExpressions";
 import { setAssetDragData, type AssetDragKind } from "@/utils/dragDrop";
 import { isElectron } from "@/utils/isElectron";
 import { canRemoveAsset } from "@/core/assets/defaultBackdrop";
@@ -52,6 +53,8 @@ function inferType(file: File): AssetType | null {
 export function AssetsPanel() {
   const project = useProjectStore((s) => s.project);
   const addAsset = useProjectStore((s) => s.addAsset);
+  const addBlankActor = useProjectStore((s) => s.addBlankActor);
+  const addActorFromImage = useProjectStore((s) => s.addActorFromImage);
   const removeAsset = useProjectStore((s) => s.removeAsset);
   const selectedAssetId = useProjectStore((s) => s.selectedAssetId);
   const setSelectedAssetId = useProjectStore((s) => s.setSelectedAssetId);
@@ -64,6 +67,33 @@ export function AssetsPanel() {
       if (!assetType) continue;
       await addAsset(assetType, file.name, { file });
     }
+  };
+
+  const triggerActorImageImport = () => {
+    if (isElectron() && window.electronAPI?.openFileDialog) {
+      window.electronAPI.openFileDialog({ type: "actor", multiple: false }).then((paths) => {
+        paths.forEach((filePath) => {
+          const name = filePath.split(/[/\\]/).pop() ?? "Actor";
+          void addActorFromImage(name, { path: filePath });
+        });
+      });
+    } else {
+      const input = fileInputRef.current;
+      if (!input) return;
+      input.accept = "image/png,image/jpeg,image/gif,image/webp";
+      input.multiple = false;
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (file) await addActorFromImage(file.name, { file });
+        input.value = "";
+      };
+      input.click();
+    }
+  };
+
+  const nextActorName = () => {
+    const existing = project.assets.filter((asset) => asset.type === "actor").length;
+    return existing === 0 ? "New actor" : `New actor ${existing + 1}`;
   };
 
   const triggerFileInput = (type: AssetType, multiple: boolean) => {
@@ -145,17 +175,14 @@ export function AssetsPanel() {
         onRemove={removeAsset}
         addLabel="Add backdrop"
       />
-      <Section
-        title="Actors"
+      <ActorsSection
         items={actors}
         project={project}
-        showThumbnails
-        draggableAssetType="actor"
         selectedAssetId={selectedAssetId}
         onSelectAsset={setSelectedAssetId}
-        onAdd={() => triggerFileInput("actor", false)}
         onRemove={removeAsset}
-        addLabel="Add actor"
+        onAddBlank={() => addBlankActor(nextActorName())}
+        onImportImage={triggerActorImageImport}
       />
       <Section
         title="Sounds"
@@ -201,7 +228,15 @@ function AssetThumbnailRow({
     setError(false);
     setThumbUrl(null);
     const proj = projectRef.current;
-    getAssetUrlAsync(proj, assetId)
+    const asset = proj.assets.find((entry) => entry.id === assetId);
+    const loadUrl = async () => {
+      if (asset?.type === "actor") {
+        const expressionId = getActorThumbnailExpressionId(asset);
+        return getActorExpressionUrlAsync(proj, assetId, expressionId);
+      }
+      return getAssetUrlAsync(proj, assetId);
+    };
+    loadUrl()
       .then((url) => {
         if (!cancelled && url) setThumbUrl(url);
         if (!cancelled && !url) setError(true);
@@ -347,6 +382,73 @@ function PlainAssetRow({
         </span>
       )}
     </li>
+  );
+}
+
+function ActorsSection({
+  items,
+  project,
+  selectedAssetId,
+  onSelectAsset,
+  onRemove,
+  onAddBlank,
+  onImportImage,
+}: {
+  items: { id: string; name: string }[];
+  project: Project;
+  selectedAssetId: string | null;
+  onSelectAsset: (assetId: string) => void;
+  onRemove: (id: string) => void;
+  onAddBlank: () => void;
+  onImportImage: () => void;
+}) {
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "6px",
+          gap: "8px",
+        }}
+      >
+        <strong style={{ fontSize: "12px" }}>Actors</strong>
+        <div style={{ display: "flex", gap: "4px" }}>
+          <AddButton onClick={onAddBlank} title="Add actor" />
+          <button
+            type="button"
+            onClick={onImportImage}
+            title="Import actor image…"
+            style={{
+              padding: "2px 8px",
+              fontSize: "11px",
+              border: "1px solid var(--app-border)",
+              borderRadius: "6px",
+              background: "var(--app-surface)",
+              cursor: "pointer",
+            }}
+          >
+            Import…
+          </button>
+        </div>
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", fontSize: "12px" }}>
+        {items.map((a) => (
+          <AssetThumbnailRow
+            key={a.id}
+            project={project}
+            assetId={a.id}
+            name={a.name}
+            selected={selectedAssetId === a.id}
+            onSelect={() => onSelectAsset(a.id)}
+            onRemove={() => onRemove(a.id)}
+            dragType="actor"
+            removable={canRemoveAsset(a.id)}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }
 

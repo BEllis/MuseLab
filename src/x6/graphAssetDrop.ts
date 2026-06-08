@@ -73,7 +73,7 @@ export function bindGraphAssetDrop(graph: Graph): () => void {
     const domainNode = story.nodes.find((node) => node.id === nodeId);
     if (!domainNode) return;
 
-    const patch = patchNodeForAssetDrop(domainNode, data);
+    const patch = patchNodeForAssetDrop(state.project, domainNode, data);
     if (!patch) return;
 
     state.updateNode(nodeId, patch);

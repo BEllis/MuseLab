@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices.JavaScript;
 
 namespace Foxoft.Ci
 {
-public static class TranspileLib
+public static partial class TranspileLib
 {
+	[JSExport]
 	public static string TranspileJs(string ciSource)
 	{
 		var parser = new CiParser();

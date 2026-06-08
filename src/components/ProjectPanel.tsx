@@ -3,12 +3,9 @@ import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
+import { getNodeDisplayName } from "@/core/model/nodeNames";
+import { getStartNodes } from "@/core/model/nodeTypes";
 import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
-import {
-  loadProject,
-  newProjectWithPrompt,
-  saveProject,
-} from "@/core/project/projectFileActions";
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
   return (
@@ -29,8 +26,9 @@ function StatRow({ label, value }: { label: string; value: number | string }) {
 
 export function ProjectPanel() {
   const project = useProjectStore((s) => s.project);
-  const { story } = useActiveStory();
+  const { story, storyId } = useActiveStory();
   const updateProject = useProjectStore((s) => s.updateProject);
+  const updateStory = useProjectStore((s) => s.updateStory);
   const addLocale = useProjectStore((s) => s.addLocale);
   const removeLocale = useProjectStore((s) => s.removeLocale);
 
@@ -51,11 +49,7 @@ export function ProjectPanel() {
   }, [name, project.name, updateProject]);
 
   const validation = validatePlayEntry(story);
-  const entryLabel =
-    validation.ok
-      ? story.nodes.find((node) => node.id === validation.entryNodeId)?.label ??
-        validation.entryNodeId
-      : null;
+  const startNodes = getStartNodes(story);
 
   const commitNewLocale = useCallback(() => {
     const normalized = normalizeLocaleTag(newLocale);
@@ -187,29 +181,39 @@ export function ProjectPanel() {
       </div>
 
       <div style={{ marginBottom: "16px" }}>
-        <strong style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>Play start</strong>
-        {validation.ok ? (
-          <p style={{ margin: 0, fontSize: "12px", color: "var(--app-text-muted)" }}>{entryLabel}</p>
-        ) : (
-          <p style={{ margin: 0, fontSize: "12px", color: "var(--app-node-invalid-border)" }}>
+        <label style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>
+          <strong>Start at</strong>
+          <select
+            value={story.entryNodeId ?? ""}
+            onChange={(e) =>
+              updateStory(storyId, { entryNodeId: e.target.value || undefined })
+            }
+            disabled={startNodes.length === 0}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: "4px",
+              padding: "6px",
+              fontSize: "12px",
+              border: "1px solid var(--app-border)",
+              borderRadius: "4px",
+              background: "var(--app-input-bg)",
+              color: "var(--app-text)",
+            }}
+          >
+            <option value="">— Select Start —</option>
+            {startNodes.map((node) => (
+              <option key={node.id} value={node.id}>
+                {getNodeDisplayName(node)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!validation.ok && (
+          <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--app-node-invalid-border)" }}>
             {getPlayValidationMessage(validation)}
           </p>
         )}
-      </div>
-
-      <div>
-        <strong style={{ display: "block", fontSize: "12px", marginBottom: "8px" }}>File</strong>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <button type="button" className="app-side-panel-button" onClick={() => void newProjectWithPrompt()}>
-            New project
-          </button>
-          <button type="button" className="app-side-panel-button" onClick={() => void saveProject()}>
-            Save project
-          </button>
-          <button type="button" className="app-side-panel-button" onClick={() => void loadProject()}>
-            Load project
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -5,7 +5,8 @@ import {
   getNodeSpeakerForLocale,
   getNodeTextTemplateForLocale,
 } from "../locale/prompts";
-import { getPlayEntryNodeId } from "../model/graphHierarchy";
+import { isJumpNode, isSceneNode, isStartNode } from "../model/nodeTypes";
+import { getStory } from "../model/project";
 import { runTemplate, evaluateCondition } from "../template/engine";
 import type { TemplateContext } from "../cito/runtimeBridge";
 
@@ -17,6 +18,7 @@ export interface RuntimeChoice {
 
 export interface RuntimeState {
   currentNodeId: string | null;
+  activeStoryId: string;
   state: Record<string, unknown>;
   /** Rendered HTML for current node */
   currentHtml: string;
@@ -24,6 +26,8 @@ export interface RuntimeState {
   currentSpeaker: string;
   /** Out-edges from current node that pass their condition */
   choices: RuntimeChoice[];
+  /** True when the story has reached a natural ending */
+  isEnded: boolean;
 }
 
 export type EventCallback = (eventName: string) => void;
@@ -33,10 +37,39 @@ export type PlaySoundHandler = (
   options?: { startTime?: number; endTime?: number }
 ) => void;
 
+function resolveJumpTarget(
+  project: Project,
+  node: StoryNode
+): { storyId: string; startNodeId: string } {
+  if (!isJumpNode(node)) {
+    throw new Error("resolveJumpTarget called on non-jump node");
+  }
+  if (!node.jumpTargetStoryId || !node.jumpTargetStartNodeId) {
+    throw new Error("Jump node is missing a target story or Start node");
+  }
+  const targetStory = getStory(project, node.jumpTargetStoryId);
+  const targetStart = targetStory.nodes.find((entry) => entry.id === node.jumpTargetStartNodeId);
+  if (!targetStart || !isStartNode(targetStart)) {
+    throw new Error("Jump target is not a valid Start node");
+  }
+  return {
+    storyId: node.jumpTargetStoryId,
+    startNodeId: node.jumpTargetStartNodeId,
+  };
+}
+
+function sceneHasOutgoingContinuation(story: Story, sceneId: string): boolean {
+  return story.edges.some((edge) => {
+    if (edge.sourceNodeId !== sceneId) return false;
+    const target = story.nodes.find((node) => node.id === edge.targetNodeId);
+    return target != null && (isSceneNode(target) || isJumpNode(target));
+  });
+}
+
 export function createRunner(
   project: Project,
-  story: Story,
-  storyId: string,
+  initialStoryId: string,
+  initialNodeId: string,
   promptsByLocale: PromptsByLocale,
   initialLocale: string,
   callbacks: {
@@ -46,8 +79,11 @@ export function createRunner(
   } = {}
 ) {
   let activeLocale = initialLocale;
-  const state: Record<string, unknown> = { ...story.globalState };
-  let currentNodeId: string | null = getPlayEntryNodeId(story);
+  let activeStoryId = initialStoryId;
+  let activeStory = getStory(project, activeStoryId);
+  const state: Record<string, unknown> = { ...activeStory.globalState };
+  let currentNodeId: string | null = initialNodeId;
+  let isEnded = false;
 
   function setActiveLocale(locale: string): void {
     activeLocale = locale;
@@ -77,32 +113,64 @@ export function createRunner(
     playSound,
   };
 
+  function switchStory(storyId: string, nodeId: string): void {
+    activeStoryId = storyId;
+    activeStory = getStory(project, storyId);
+    Object.assign(state, activeStory.globalState);
+    currentNodeId = nodeId;
+    isEnded = false;
+  }
+
   function getCurrentNode(): StoryNode | null {
     if (!currentNodeId) return null;
-    return story.nodes.find((n) => n.id === currentNodeId) ?? null;
+    return activeStory.nodes.find((n) => n.id === currentNodeId) ?? null;
   }
 
   function getOutEdges(): StoryEdge[] {
     if (!currentNodeId) return [];
-    return story.edges.filter((e) => e.sourceNodeId === currentNodeId);
+    return activeStory.edges.filter((e) => e.sourceNodeId === currentNodeId);
   }
 
   async function getChoices(): Promise<RuntimeChoice[]> {
+    const node = getCurrentNode();
+    if (!node || (!isSceneNode(node) && !isStartNode(node))) return [];
+
     const edges = getOutEdges();
     const choices: RuntimeChoice[] = [];
     for (const edge of edges) {
       if (!(await evaluateCondition(edge.condition, { state }))) continue;
-      const targetNode = story.nodes.find((n) => n.id === edge.targetNodeId);
-      if (targetNode) {
+      const targetNode = activeStory.nodes.find((n) => n.id === edge.targetNodeId);
+      if (!targetNode) continue;
+
+      if (isSceneNode(node) && isSceneNode(targetNode)) {
         choices.push({
           edge,
           targetNode,
           optionText: getEdgeOptionTextForLocale(
             promptsByLocale,
             activeLocale,
-            storyId,
+            activeStoryId,
             edge.id
           ),
+        });
+        continue;
+      }
+
+      if (
+        (isStartNode(node) || isSceneNode(node)) &&
+        (isSceneNode(targetNode) || isJumpNode(targetNode))
+      ) {
+        choices.push({
+          edge,
+          targetNode,
+          optionText: isSceneNode(targetNode)
+            ? getEdgeOptionTextForLocale(
+                promptsByLocale,
+                activeLocale,
+                activeStoryId,
+                edge.id
+              )
+            : undefined,
         });
       }
     }
@@ -111,10 +179,12 @@ export function createRunner(
 
   async function renderCurrentNode(): Promise<string> {
     if (!currentNodeId) return "";
+    const node = getCurrentNode();
+    if (!node || !isSceneNode(node)) return "";
     const textTemplate = getNodeTextTemplateForLocale(
       promptsByLocale,
       activeLocale,
-      storyId,
+      activeStoryId,
       currentNodeId
     );
     return runTemplate(textTemplate, context);
@@ -122,10 +192,12 @@ export function createRunner(
 
   async function renderCurrentSpeaker(): Promise<string> {
     if (!currentNodeId) return "";
+    const node = getCurrentNode();
+    if (!node || !isSceneNode(node)) return "";
     const speaker = getNodeSpeakerForLocale(
       promptsByLocale,
       activeLocale,
-      storyId,
+      activeStoryId,
       currentNodeId
     );
     if (!speaker) return "";
@@ -135,26 +207,49 @@ export function createRunner(
   async function getRuntimeState(): Promise<RuntimeState> {
     const node = getCurrentNode();
     const [html, speaker, choices] = await Promise.all([
-      node ? renderCurrentNode() : Promise.resolve(""),
-      node ? renderCurrentSpeaker() : Promise.resolve(""),
+      node && isSceneNode(node) ? renderCurrentNode() : Promise.resolve(""),
+      node && isSceneNode(node) ? renderCurrentSpeaker() : Promise.resolve(""),
       getChoices(),
     ]);
+
+    const ended =
+      isEnded ||
+      (node != null &&
+        isSceneNode(node) &&
+        choices.length === 0 &&
+        !sceneHasOutgoingContinuation(activeStory, node.id));
+
     return {
       currentNodeId,
+      activeStoryId,
       state: { ...state },
       currentHtml: html,
       currentSpeaker: speaker,
       choices,
+      isEnded: ended,
     };
   }
 
   function goToNode(nodeId: string): void {
+    const node = activeStory.nodes.find((entry) => entry.id === nodeId);
+    if (!node) {
+      throw new Error(`Node "${nodeId}" not found in story "${activeStoryId}"`);
+    }
+
+    if (isJumpNode(node)) {
+      const target = resolveJumpTarget(project, node);
+      switchStory(target.storyId, target.startNodeId);
+      return;
+    }
+
     currentNodeId = nodeId;
+    isEnded = false;
   }
 
   function getSoundConfigsForCurrentNode(): StoryNode["soundConfigs"] {
     const node = getCurrentNode();
-    return node?.soundConfigs ?? [];
+    if (!node || !isSceneNode(node)) return [];
+    return node.soundConfigs ?? [];
   }
 
   return {
@@ -162,7 +257,10 @@ export function createRunner(
       return project;
     },
     get story() {
-      return story;
+      return activeStory;
+    },
+    get activeStoryId() {
+      return activeStoryId;
     },
     get activeLocale() {
       return activeLocale;

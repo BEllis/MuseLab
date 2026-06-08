@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Graph, Keyboard, MiniMap, Selection } from "@antv/x6";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
-import { AddButton } from "./AddButton";
+import { AddNodeMenu } from "./AddNodeMenu";
+import type { StoryNodeType } from "@/core/model/types";
 import { PlayButton } from "./PlayButton";
 import { PlayValidationDialog } from "./PlayValidationDialog";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
@@ -14,7 +15,14 @@ import {
   type NodeWithPosition,
 } from "@/utils/nodeOverlap";
 import { createGraphOptions } from "@/x6/graphOptions";
-import { bindGraphEvents, bindGraphKeyboard } from "@/x6/graphEvents";
+import { bindGraphEvents, bindGraphKeyboard, type ConnectionDropOnBlank } from "@/x6/graphEvents";
+import {
+  CONNECTION_DROP_LABELS,
+  type ConnectionDropAction,
+  canSourceStartConnection,
+  connectionDropMenuOptions,
+  proposedNodePositionAtPoint,
+} from "@/x6/connectionDrop";
 import { bindGraphAssetDrop } from "@/x6/graphAssetDrop";
 import { ensureShapesRegistered } from "@/x6/registerShapes";
 import { syncProjectToGraph } from "@/x6/syncProjectToGraph";
@@ -27,6 +35,8 @@ type ContextMenu =
   | { type: "node"; id: string; x: number; y: number }
   | { type: "edge"; id: string; x: number; y: number };
 
+type ConnectionDropMenuState = ConnectionDropOnBlank;
+
 function applyGraphTheme(graph: Graph): void {
   graph.drawBackground({
     color: getThemeCssVar("--app-canvas-bg") || "#f8f8f8",
@@ -38,6 +48,8 @@ function applyGraphTheme(graph: Graph): void {
 }
 
 export function FlowCanvas() {
+  const project = useProjectStore((s) => s.project);
+  const activeStoryId = useProjectStore((s) => s.activeStoryId);
   const removeNode = useProjectStore((s) => s.removeNode);
   const removeEdge = useProjectStore((s) => s.removeEdge);
   const clearSelection = useProjectStore((s) => s.clearSelection);
@@ -54,7 +66,11 @@ export function FlowCanvas() {
   const hasFitRef = useRef(false);
 
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [connectionDropMenu, setConnectionDropMenu] = useState<ConnectionDropMenuState | null>(
+    null
+  );
   const menuRef = useRef<HTMLDivElement>(null);
+  const connectionDropMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     ensureShapesRegistered();
@@ -91,7 +107,12 @@ export function FlowCanvas() {
     const keyboard = new Keyboard({ enabled: true });
     graph.use(keyboard);
     bindGraphKeyboard(graph, keyboard);
-    bindGraphEvents(graph, isSyncingRef);
+    bindGraphEvents(graph, isSyncingRef, {
+      onConnectionDropOnBlank: (payload) => {
+        setContextMenu(null);
+        setConnectionDropMenu(payload);
+      },
+    });
     const unbindAssetDrop = bindGraphAssetDrop(graph);
     applyGraphTheme(graph);
 
@@ -155,6 +176,7 @@ export function FlowCanvas() {
 
     graph.on("blank:click", () => {
       setContextMenu(null);
+      setConnectionDropMenu(null);
     });
 
     graph.on("node:contextmenu", ({ e, node }) => {
@@ -223,25 +245,32 @@ export function FlowCanvas() {
     }
 
     setPlayValidationMessage(getPlayValidationMessage(validation));
-    if (validation.reason === "multiple_entries") {
-      setHighlightedRootNodeIds(validation.rootNodeIds);
+    if (
+      validation.reason === "invalid_entry" ||
+      validation.reason === "no_entry_configured"
+    ) {
+      const highlightId =
+        validation.reason === "invalid_entry" ? validation.entryNodeId : undefined;
+      const ids = highlightId ? [highlightId] : [];
+      setHighlightedRootNodeIds(ids);
       graphRef.current?.cleanSelection();
-      for (const nodeId of validation.rootNodeIds) {
-        const cell = graphRef.current?.getCellById(nodeId);
-        if (cell) graphRef.current?.select(cell);
+      if (highlightId) {
+        const cell = graphRef.current?.getCellById(highlightId);
+        if (cell) {
+          graphRef.current?.select(cell);
+          graphRef.current?.centerCell(cell);
+        }
       }
-      const firstRoot = graphRef.current?.getCellById(validation.rootNodeIds[0]);
-      if (firstRoot) graphRef.current?.centerCell(firstRoot);
     } else {
       clearPlayValidationHighlight();
     }
   }, [clearPlayValidationHighlight, navigate, setHighlightedRootNodeIds]);
 
-  const onAddNode = useCallback(() => {
+  const onAddNode = useCallback((type: StoryNodeType) => {
     const store = useProjectStore.getState();
     store.beginHistoryTransaction();
     try {
-      const newNode = store.addNode({ x: 100, y: 100 });
+      const newNode = store.addNode({ x: 100, y: 100 }, { type });
       const story = selectActiveStory(store.project, store.activeStoryId);
       const resolved = findNonOverlappingPosition(
         newNode.id,
@@ -253,6 +282,17 @@ export function FlowCanvas() {
         resolved.y !== newNode.position.y
       ) {
         useProjectStore.getState().updateNodePosition(newNode.id, resolved);
+      }
+      if (type === "start") {
+        const nextStory = selectActiveStory(
+          useProjectStore.getState().project,
+          useProjectStore.getState().activeStoryId
+        );
+        if (!nextStory.entryNodeId) {
+          useProjectStore.getState().updateStory(store.activeStoryId, {
+            entryNodeId: newNode.id,
+          });
+        }
       }
     } finally {
       useProjectStore.getState().commitHistoryTransaction();
@@ -329,6 +369,81 @@ export function FlowCanvas() {
     placeClonedNode(contextMenu.id, true);
   }, [contextMenu, placeClonedNode]);
 
+  const onConnectionDropAction = useCallback(
+    (action: ConnectionDropAction) => {
+      if (action === "cancel" || !connectionDropMenu) {
+        setConnectionDropMenu(null);
+        return;
+      }
+
+      const store = useProjectStore.getState();
+      const story = selectActiveStory(store.project, store.activeStoryId);
+      const source = story.nodes.find((node) => node.id === connectionDropMenu.sourceId);
+      if (!canSourceStartConnection(source)) {
+        setConnectionDropMenu(null);
+        return;
+      }
+
+      const proposedPosition = proposedNodePositionAtPoint(
+        connectionDropMenu.graphPoint,
+        story.nodes as NodeWithPosition[]
+      );
+
+      store.beginHistoryTransaction();
+      try {
+        let newNode;
+        if (action === "clone-scene") {
+          if (!source || source.type !== "scene") {
+            store.cancelHistoryTransaction();
+            setConnectionDropMenu(null);
+            return;
+          }
+          newNode = store.cloneNode(connectionDropMenu.sourceId, proposedPosition);
+        } else if (action === "new-scene") {
+          newNode = store.addNode(proposedPosition, { type: "scene" });
+        } else {
+          newNode = store.addNode(proposedPosition, { type: "jump" });
+        }
+
+        if (!newNode) {
+          store.cancelHistoryTransaction();
+          setConnectionDropMenu(null);
+          return;
+        }
+
+        const nextStory = selectActiveStory(
+          useProjectStore.getState().project,
+          useProjectStore.getState().activeStoryId
+        );
+        const resolved = findNonOverlappingPosition(
+          newNode.id,
+          newNode.position,
+          nextStory.nodes as NodeWithPosition[]
+        );
+        if (resolved.x !== newNode.position.x || resolved.y !== newNode.position.y) {
+          useProjectStore.getState().updateNodePosition(newNode.id, resolved);
+        }
+
+        store.addEdge(connectionDropMenu.sourceId, newNode.id, {
+          sourcePortId: connectionDropMenu.sourcePort,
+        });
+        store.setSelection([newNode.id], []);
+        store.commitHistoryTransaction();
+      } catch {
+        store.cancelHistoryTransaction();
+      }
+
+      graphRef.current?.cleanSelection();
+      const cell = graphRef.current?.getCellById(
+        useProjectStore.getState().selectedNodeIds[0] ?? ""
+      );
+      if (cell) graphRef.current?.select(cell);
+
+      setConnectionDropMenu(null);
+    },
+    [connectionDropMenu]
+  );
+
   const onDeleteFromContextMenu = useCallback(() => {
     if (!contextMenu) return;
     if (contextMenu.type === "node") {
@@ -342,20 +457,24 @@ export function FlowCanvas() {
   }, [contextMenu, removeNode, removeEdge, clearSelection]);
 
   useEffect(() => {
-    if (!contextMenu) return;
+    if (!contextMenu && !connectionDropMenu) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target;
-      if (
-        menuRef.current &&
-        target instanceof HTMLElement &&
-        !menuRef.current.contains(target)
-      ) {
-        setContextMenu(null);
-      }
+      if (!(target instanceof HTMLElement)) return;
+      if (menuRef.current?.contains(target)) return;
+      if (connectionDropMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
+      setConnectionDropMenu(null);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [contextMenu]);
+    // Defer so the mouseup that finishes a connector drag does not immediately dismiss the menu.
+    const listenerTimer = window.setTimeout(() => {
+      document.addEventListener("mousedown", handleClickOutside);
+    }, 0);
+    return () => {
+      window.clearTimeout(listenerTimer);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [contextMenu, connectionDropMenu]);
 
   const runZoom = useCallback((factor: number) => {
     graphRef.current?.zoom(factor);
@@ -364,6 +483,12 @@ export function FlowCanvas() {
   const runZoomToFit = useCallback(() => {
     graphRef.current?.zoomToFit({ padding: 20 });
   }, []);
+
+  const connectionDropSource = connectionDropMenu
+    ? selectActiveStory(project, activeStoryId).nodes.find(
+        (node) => node.id === connectionDropMenu.sourceId
+      )
+    : undefined;
 
   return (
     <div
@@ -384,7 +509,7 @@ export function FlowCanvas() {
         }}
       >
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <AddButton onClick={onAddNode} title="Add scene" />
+          <AddNodeMenu onAdd={onAddNode} />
           <PlayButton onClick={onPlay} title="Play" />
         </div>
         <ThumbnailAspectRatioControl />
@@ -430,6 +555,29 @@ export function FlowCanvas() {
           message={playValidationMessage}
           onClose={() => setPlayValidationMessage(null)}
         />
+      )}
+      {connectionDropMenu && (
+        <div
+          ref={connectionDropMenuRef}
+          className="app-context-menu"
+          style={{
+            position: "fixed",
+            left: connectionDropMenu.clientX,
+            top: connectionDropMenu.clientY,
+            zIndex: 1000,
+          }}
+        >
+          {connectionDropMenuOptions(connectionDropSource).map((action) => (
+            <button
+              key={action}
+              type="button"
+              className="app-context-menu-item"
+              onClick={() => onConnectionDropAction(action)}
+            >
+              {CONNECTION_DROP_LABELS[action]}
+            </button>
+          ))}
+        </div>
       )}
       {contextMenu && (
         <div

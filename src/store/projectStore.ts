@@ -5,6 +5,7 @@ import {
   createStarterProject,
   parseProject,
   addNode as addNodeInProject,
+  type AddNodeOptions,
   cloneNode as cloneNodeInProject,
   removeNode as removeNodeInProject,
   updateNodePosition as updateNodePositionInProject,
@@ -13,6 +14,12 @@ import {
   removeEdge as removeEdgeInProject,
   updateEdge as updateEdgeInProject,
   addAsset as addAssetInProject,
+  addBlankActor as addBlankActorInProject,
+  addActorFromImage as addActorFromImageInProject,
+  addActorExpression as addActorExpressionInProject,
+  updateActorExpression as updateActorExpressionInProject,
+  replaceActorExpressionMedia as replaceActorExpressionMediaInProject,
+  removeActorExpression as removeActorExpressionInProject,
   updateAsset as updateAssetInProject,
   replaceAssetMedia as replaceAssetMediaInProject,
   updateProject as updateProjectInProject,
@@ -28,12 +35,14 @@ import {
   getFirstStoryId,
 } from "@/core/model/project";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
-import type { StoryNode, StoryEdge, Asset } from "@/core/model/types";
+import type { StoryNode, StoryEdge, Asset, StoryNodeType, ActorExpression } from "@/core/model/types";
+import { expressionBlobKey } from "@/core/assets/actorExpressions";
 import { hydrateLegacyEmbeddedAssets, hydrateProjectAssets } from "@/core/assets/assetHydration";
 import {
   gcUnusedAssetBlobs,
   putAssetBlob,
   revokeWebAssetObjectUrl,
+  deleteAssetBlob,
 } from "@/core/assets/webAssetStorage";
 import { ensureDefaultBackdrop, canRemoveAsset, canReplaceAsset } from "@/core/assets/defaultBackdrop";
 import { parseAspectRatio } from "@/core/view/thumbnailAspectRatio";
@@ -286,7 +295,10 @@ interface ProjectState {
   commitHistoryTransaction: () => void;
   cancelHistoryTransaction: () => void;
 
-  addNode: (position?: { x: number; y: number }) => StoryNode;
+  addNode: (
+    position?: { x: number; y: number },
+    options?: AddNodeOptions
+  ) => StoryNode;
   cloneNode: (nodeId: string, position: { x: number; y: number }) => StoryNode | null;
   removeNode: (nodeId: string) => void;
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
@@ -338,7 +350,28 @@ interface ProjectState {
     name: string,
     options?: { path?: string; url?: string; file?: File }
   ) => Promise<Asset>;
-  updateAsset: (assetId: string, patch: Partial<Pick<Asset, "name">>, options?: MutationOptions) => void;
+  addBlankActor: (name?: string) => Asset;
+  addActorFromImage: (name: string, options?: { path?: string; file?: File }) => Promise<Asset>;
+  addActorExpression: (actorId: string, name: string) => ActorExpression;
+  updateActorExpression: (
+    actorId: string,
+    expressionId: string,
+    patch: Partial<Pick<ActorExpression, "name">>,
+    options?: MutationOptions
+  ) => void;
+  replaceActorExpressionMedia: (
+    actorId: string,
+    expressionId: string,
+    options: { file?: File; path?: string }
+  ) => Promise<void>;
+  removeActorExpression: (actorId: string, expressionId: string) => void;
+  updateAsset: (
+    assetId: string,
+    patch: Partial<
+      Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
+    >,
+    options?: MutationOptions
+  ) => void;
   replaceAssetMedia: (
     assetId: string,
     options: { file?: File; path?: string }
@@ -714,11 +747,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ lastSavedSnapshot: serializeProjectBundleSnapshot(getBundle(get())) });
   },
 
-  addNode: (position) => {
+  addNode: (position, options) => {
     const storyId = get().activeStoryId;
+    const type: StoryNodeType = options?.type ?? "scene";
     let node!: StoryNode;
     mutateBundle(get, set, (bundle) => {
-      node = addNodeInProject(bundle.project, storyId, position);
+      node = addNodeInProject(bundle.project, storyId, position, type);
     });
     return node;
   },
@@ -835,6 +869,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   addAsset: async (type, name, options = {}) => {
+    if (type === "actor") {
+      if (options.file || options.path) {
+        return get().addActorFromImage(name, { file: options.file, path: options.path });
+      }
+      return get().addBlankActor(name);
+    }
+
     let asset!: Asset;
     const storesBlob = Boolean(options.file && !isElectron());
     mutateBundle(get, set, (bundle) => {
@@ -850,6 +891,73 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       await putAssetBlob(asset.id, await fileToStoredBlob(options.file));
     }
     return asset;
+  },
+
+  addBlankActor: (name = "New actor") => {
+    let asset!: Asset;
+    mutateBundle(get, set, (bundle) => {
+      asset = addBlankActorInProject(bundle.project, name);
+    });
+    return asset;
+  },
+
+  addActorFromImage: async (name, options = {}) => {
+    let asset!: Asset;
+    const storesBlob = Boolean(options.file && !isElectron());
+    mutateBundle(get, set, (bundle) => {
+      asset = addActorFromImageInProject(bundle.project, name, {
+        path: options.path,
+        blobStored: storesBlob,
+      });
+    });
+    if (options.file && !isElectron()) {
+      const expressionId = asset.expressions?.[0]?.id;
+      if (expressionId) {
+        await putAssetBlob(
+          expressionBlobKey(asset.id, expressionId),
+          await fileToStoredBlob(options.file)
+        );
+      }
+    }
+    return asset;
+  },
+
+  addActorExpression: (actorId, name) => {
+    let expression!: ActorExpression;
+    mutateBundle(get, set, (bundle) => {
+      expression = addActorExpressionInProject(bundle.project, actorId, name);
+    });
+    return expression;
+  },
+
+  updateActorExpression: (actorId, expressionId, patch, options) => {
+    mutateBundle(
+      get,
+      set,
+      (bundle) => updateActorExpressionInProject(bundle.project, actorId, expressionId, patch),
+      options
+    );
+  },
+
+  replaceActorExpressionMedia: async (actorId, expressionId, options) => {
+    const blobKey = expressionBlobKey(actorId, expressionId);
+    mutateBundle(get, set, (bundle) => {
+      replaceActorExpressionMediaInProject(bundle.project, actorId, expressionId, {
+        path: options.path,
+        blobStored: Boolean(!isElectron() && options.file),
+      });
+    });
+    if (!isElectron() && options.file) {
+      revokeWebAssetObjectUrl(blobKey);
+      await putAssetBlob(blobKey, await fileToStoredBlob(options.file));
+    }
+  },
+
+  removeActorExpression: (actorId, expressionId) => {
+    mutateBundle(get, set, (bundle) => {
+      removeActorExpressionInProject(bundle.project, actorId, expressionId);
+    });
+    void deleteAssetBlob(expressionBlobKey(actorId, expressionId));
   },
 
   updateAsset: (assetId, patch, options) => {

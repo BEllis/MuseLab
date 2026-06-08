@@ -30,7 +30,7 @@ type SceneStagePreviewProps = {
   story: Story;
   storyId: string;
   promptsByLocale: PromptsByLocale;
-  node: Pick<StoryNode, "id" | "backdropId" | "actorIds">;
+  node: Pick<StoryNode, "id" | "backdropId" | "actorConfigs">;
   locale?: string;
   variant?: "compact" | "full";
   dialogueHtml?: string;
@@ -63,7 +63,7 @@ export function SceneStagePreview({
   disableShake = false,
   style,
 }: SceneStagePreviewProps) {
-  const backdropUrl = useAssetUrl(project, node.backdropId);
+  const backdropUrl = useAssetUrl(project, node.backdropId ?? null);
   const [previewHtml, setPreviewHtml] = useState(dialogueHtml ?? "");
   const [previewSpeaker, setPreviewSpeaker] = useState(dialogueSpeaker ?? "");
   const [previewChoices, setPreviewChoices] = useState<SceneStageChoice[]>(choicesProp ?? []);
@@ -166,7 +166,7 @@ export function SceneStagePreview({
 
       <ActorRow
         project={project}
-        actorIds={node.actorIds}
+        actorConfigs={node.actorConfigs ?? []}
         padding={compact ? "6px 8px 0" : "24px 32px 0"}
         zIndex={0}
       />

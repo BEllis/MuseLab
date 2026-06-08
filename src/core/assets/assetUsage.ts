@@ -15,8 +15,10 @@ export function getAssetUsage(project: Project, assetId: string): AssetUsage {
   for (const story of project.stories) {
     for (const node of story.nodes) {
       if (node.backdropId === assetId) backdropScenes += 1;
-      if (node.actorIds.includes(assetId)) actorScenes += 1;
-      for (const config of node.soundConfigs) {
+      for (const config of node.actorConfigs ?? []) {
+        if (config.assetId === assetId) actorScenes += 1;
+      }
+      for (const config of node.soundConfigs ?? []) {
         if (config.assetId === assetId) soundSlots += 1;
       }
     }

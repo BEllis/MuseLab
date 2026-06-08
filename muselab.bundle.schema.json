@@ -34,7 +34,7 @@
   },
   "examples": [
     {
-      "formatVersion": 1,
+      "formatVersion": 3,
       "schema": "https://muselab.dev/schemas/bundle.schema.json",
       "project": {
         "name": "Untitled",
@@ -56,7 +56,7 @@
                 "position": { "x": 100, "y": 100 },
                 "label": "Opening",
                 "backdropId": "muselab-default-backdrop",
-                "actorIds": [],
+                "actorConfigs": [],
                 "soundConfigs": []
               }
             ],

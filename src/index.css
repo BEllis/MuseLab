@@ -325,7 +325,7 @@ body {
 }
 
 .cito-wasm-splash__panel {
-  width: min(420px, 100%);
+  width: min(480px, 100%);
   padding: 32px 28px;
   border: 1px solid var(--app-border-subtle);
   border-radius: 16px;
@@ -335,20 +335,12 @@ body {
 }
 
 .cito-wasm-splash__logo {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 16px;
-}
-
-.cito-wasm-splash__title {
-  margin: 0 0 4px;
-  font-size: 1.75rem;
-  font-weight: 700;
-}
-
-.cito-wasm-splash__subtitle {
-  margin: 0 0 24px;
-  color: var(--app-text-muted);
+  width: min(320px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto 28px;
+  display: block;
+  object-fit: contain;
 }
 
 .cito-wasm-splash__label {

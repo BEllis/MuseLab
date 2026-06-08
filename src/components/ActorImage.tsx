@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
-import type { Project } from "@/core/model/types";
-import { useAssetUrl } from "@/hooks/useAssetUrl";
+import type { ActorSceneConfig, Project } from "@/core/model/types";
+import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
 
 export function actorRowJustifyContent(count: number): CSSProperties["justifyContent"] {
   if (count <= 1) return "center";
@@ -11,11 +11,12 @@ export function actorRowJustifyContent(count: number): CSSProperties["justifyCon
 type ActorImageProps = {
   project: Project;
   assetId: string;
+  expressionId: string;
   maxHeight?: string | number;
 };
 
-export function ActorImage({ project, assetId, maxHeight = "100%" }: ActorImageProps) {
-  const url = useAssetUrl(project, assetId);
+export function ActorImage({ project, assetId, expressionId, maxHeight = "100%" }: ActorImageProps) {
+  const url = useActorExpressionUrl(project, assetId, expressionId);
   if (!url) return null;
 
   return (
@@ -46,7 +47,7 @@ export function ActorImage({ project, assetId, maxHeight = "100%" }: ActorImageP
 
 type ActorRowProps = {
   project: Project;
-  actorIds: string[];
+  actorConfigs: ActorSceneConfig[];
   padding?: string;
   actorMaxHeight?: string | number;
   zIndex?: number;
@@ -54,12 +55,12 @@ type ActorRowProps = {
 
 export function ActorRow({
   project,
-  actorIds,
+  actorConfigs,
   padding = "24px 32px 0",
   actorMaxHeight,
   zIndex = 0,
 }: ActorRowProps) {
-  if (actorIds.length === 0) return null;
+  if (actorConfigs.length === 0) return null;
 
   return (
     <div
@@ -69,16 +70,17 @@ export function ActorRow({
         zIndex,
         display: "flex",
         alignItems: "stretch",
-        justifyContent: actorRowJustifyContent(actorIds.length),
+        justifyContent: actorRowJustifyContent(actorConfigs.length),
         padding,
         pointerEvents: "none",
       }}
     >
-      {actorIds.map((actorId) => (
+      {actorConfigs.map((config) => (
         <ActorImage
-          key={actorId}
+          key={config.assetId}
           project={project}
-          assetId={actorId}
+          assetId={config.assetId}
+          expressionId={config.expressionId}
           maxHeight={actorMaxHeight}
         />
       ))}

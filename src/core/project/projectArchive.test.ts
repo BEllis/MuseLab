@@ -6,7 +6,10 @@ import {
   getStory,
   addNode,
   addStory,
+  addBlankActor,
+  addActorExpression,
 } from "../model/project";
+import { PLACEHOLDER_EXPRESSION_URL } from "../assets/actorExpressions";
 import { migrateProjectBundle } from "../model/projectBundle";
 import {
   getEdgeOptionTextForLocale,
@@ -34,7 +37,7 @@ describe("projectArchive localization", () => {
     const archive = await packProjectArchive({ project, promptsByLocale });
     const unpacked = unpackProjectArchive(archive);
     expect(unpacked.metadata).toMatchObject({
-      formatVersion: 1,
+      formatVersion: 3,
       schema: "https://muselab.dev/schemas/mlvn.schema.json",
       manifest: "project.json",
     });
@@ -137,5 +140,33 @@ describe("projectArchive localization", () => {
         restoredSecond.nodes[0]!.id
       )
     ).toBe("<p>Second</p>");
+  });
+
+  it("round-trips actor expressions in mlvn archives", async () => {
+    const project = createStarterProject("Actors");
+    const actor = addBlankActor(project, "Hero");
+    const happy = addActorExpression(project, actor.id, "happy");
+    actor.expressions![0].url = PLACEHOLDER_EXPRESSION_URL;
+
+    const storyId = getFirstStoryId(project);
+    const scene = addNode(project, storyId, { x: 300, y: 100 }, "scene");
+    scene.actorConfigs = [
+      { assetId: actor.id, expressionId: actor.expressions![0].id },
+      { assetId: actor.id, expressionId: happy.id },
+    ];
+
+    const archive = await packProjectArchive({
+      project,
+      promptsByLocale: { en: createEmptyLocalePrompts() },
+    });
+    const unpacked = unpackProjectArchive(archive);
+    const bundle = migrateProjectBundle(parseProject(unpacked.manifest));
+
+    const restoredActor = bundle.project.assets.find((asset) => asset.id === actor.id);
+    expect(restoredActor?.expressions).toHaveLength(2);
+    expect(restoredActor?.expressions?.map((expression) => expression.name).sort()).toEqual([
+      "default",
+      "happy",
+    ]);
   });
 });

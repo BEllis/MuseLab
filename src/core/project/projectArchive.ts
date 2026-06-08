@@ -1,5 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
-import type { Asset, AssetType, LocalePrompts } from "../model/types";
+import type { ActorExpression, Asset, AssetType, LocalePrompts } from "../model/types";
 import {
   PROJECT_MANIFEST,
   assetArchivePath,
@@ -13,9 +13,14 @@ import { serializeMlvnMetadata } from "../model/projectBundle";
 import { MLVN_METADATA_FILE } from "../model/formatVersion";
 import { parseLocalePrompts, serializeLocalePrompts } from "../locale/prompts";
 import { parseLocaleFromPromptsFileName, normalizeLocales } from "../locale/localeTag";
-import { base64ToBlob } from "../assets/actorImageSerialization";
+import { base64ToBlob, expressionImageDataUrl } from "../assets/actorImageSerialization";
+import {
+  expressionArchivePath,
+  expressionBlobKey,
+  PLACEHOLDER_EXPRESSION_URL,
+} from "../assets/actorExpressions";
 import { isDefaultBackdrop } from "../assets/defaultBackdrop";
-import { getAssetUrlAsync } from "../assets/resolver";
+import { getAssetUrlAsync, getActorExpressionUrlAsync } from "../assets/resolver";
 import { getAssetBlob } from "../assets/webAssetStorage";
 
 const DEFAULT_IMAGE_MIME = "image/png";
@@ -31,6 +36,10 @@ function defaultFallbackExtension(type: AssetType): string {
 }
 
 function assetHasPackableMedia(asset: Asset): boolean {
+  if (asset.type === "actor") {
+    return (asset.expressions ?? []).some((expression) => expressionHasPackableMedia(expression));
+  }
+
   if (isDefaultBackdrop(asset.id)) {
     return Boolean(asset.path || asset.imageData || asset.blobStored);
   }
@@ -40,6 +49,67 @@ function assetHasPackableMedia(asset: Asset): boolean {
       asset.blobStored ||
       (asset.url && !asset.url.startsWith("blob:"))
   );
+}
+
+function expressionHasPackableMedia(expression: ActorExpression): boolean {
+  if (expression.url === PLACEHOLDER_EXPRESSION_URL) return false;
+  return Boolean(
+    expression.path ||
+      expression.imageData ||
+      expression.blobStored ||
+      (expression.url && !expression.url.startsWith("blob:"))
+  );
+}
+
+function stripExpressionForManifest(expression: ActorExpression): void {
+  delete expression.url;
+  delete expression.imageData;
+  delete expression.imageMimeType;
+  delete expression.blobStored;
+}
+
+async function resolveExpressionBytes(
+  bundle: ProjectBundle,
+  actorId: string,
+  expression: ActorExpression
+): Promise<{ bytes: Uint8Array; mime: string } | null> {
+  if (expression.imageData) {
+    const mime = expression.imageMimeType || DEFAULT_IMAGE_MIME;
+    const blob = base64ToBlob(expression.imageData, mime);
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), mime };
+  }
+
+  if (expression.url?.startsWith("data:")) {
+    const parsed = parseDataUrl(expression.url);
+    if (parsed) {
+      const blob = base64ToBlob(parsed.imageData, parsed.mimeType);
+      return { bytes: new Uint8Array(await blob.arrayBuffer()), mime: parsed.mimeType };
+    }
+  }
+
+  const stored = await getAssetBlob(expressionBlobKey(actorId, expression.id));
+  if (stored) {
+    return {
+      bytes: new Uint8Array(await stored.arrayBuffer()),
+      mime: stored.type || DEFAULT_IMAGE_MIME,
+    };
+  }
+
+  if (expression.path && isArchiveRelativePath(expression.path)) {
+    return null;
+  }
+
+  const url = await getActorExpressionUrlAsync(bundle.project, actorId, expression.id);
+  if (!url) return null;
+
+  const response = await fetch(url);
+  if (!response.ok) return null;
+
+  const blob = await response.blob();
+  return {
+    bytes: new Uint8Array(await blob.arrayBuffer()),
+    mime: blob.type || DEFAULT_IMAGE_MIME,
+  };
 }
 
 async function resolveAssetBytes(
@@ -106,6 +176,36 @@ export async function packProjectArchive(bundle: ProjectBundle): Promise<Uint8Ar
   const zipEntries: Record<string, Uint8Array> = {};
 
   for (const asset of cloned.assets) {
+    if (asset.type === "actor") {
+      stripAssetForManifest(asset);
+      for (const expression of asset.expressions ?? []) {
+        if (!expressionHasPackableMedia(expression)) {
+          if (expression.url === PLACEHOLDER_EXPRESSION_URL) {
+            delete expression.url;
+          }
+          stripExpressionForManifest(expression);
+          continue;
+        }
+
+        const resolved = await resolveExpressionBytes(bundle, asset.id, expression);
+        if (!resolved) {
+          if (expression.path && isArchiveRelativePath(expression.path)) {
+            stripExpressionForManifest(expression);
+            continue;
+          }
+          stripExpressionForManifest(expression);
+          continue;
+        }
+
+        const ext = extensionForMime(resolved.mime, ".png");
+        const relativePath = expressionArchivePath(asset.id, expression.id, ext);
+        zipEntries[relativePath] = resolved.bytes;
+        expression.path = relativePath;
+        stripExpressionForManifest(expression);
+      }
+      continue;
+    }
+
     if (!assetHasPackableMedia(asset)) {
       if (!isDefaultBackdrop(asset.id)) {
         stripAssetForManifest(asset);
@@ -202,3 +302,5 @@ export function assertArchivePromptLocales(
     }
   }
 }
+
+export { expressionImageDataUrl };

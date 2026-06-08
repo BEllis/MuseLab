@@ -1,4 +1,6 @@
 import { useProjectStore } from "@/store/projectStore";
+import { validateAllStories } from "@/core/model/graphHierarchy";
+import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
 import { isElectron } from "@/utils/isElectron";
 
 function downloadBlob(filename: string, data: Uint8Array, mimeType: string): void {
@@ -52,6 +54,13 @@ async function confirmDiscardUnsavedChanges(): Promise<boolean> {
 
 export async function saveProject(): Promise<void> {
   const store = useProjectStore.getState();
+  const validationFailure = validateAllStories(store.project.stories);
+  if (validationFailure) {
+    const message = `Cannot save: story "${validationFailure.storyName}" — ${getPlayValidationMessage(validationFailure.validation)}`;
+    window.alert(message);
+    return;
+  }
+
   const archive = await store.exportArchive();
 
   if (isElectron() && window.electronAPI) {

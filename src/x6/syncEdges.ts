@@ -3,7 +3,7 @@ import type { Project, Story, StoryEdge } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { getDefaultLocale, getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { buildEdgeSourceTerminal, buildEdgeTargetTerminal } from "./connectionPorts";
-import { FREE_OUT_PORT, STORY_EDGE_SHAPE } from "./constants";
+import { FREE_OUT_PORT, STORY_EDGE_SHAPE, isSyntheticEndEdgeId } from "./constants";
 import {
   applyEdgeSelectionStyle,
   getStoryEdgeRouter,
@@ -113,6 +113,7 @@ export function purgeDanglingEdges(
 
     const edge = cell as Edge;
     if (retainEdgeIds?.has(edge.id)) continue;
+    if (isSyntheticEndEdgeId(edge.id)) continue;
 
     if (!hasValidTerminals(edge) || !projectEdgeIds.has(edge.id)) {
       graph.removeCell(edge.id);
@@ -134,6 +135,7 @@ export function purgeDanglingEdges(
 
 export function removeStaleEdges(graph: Graph, projectEdgeIds: ReadonlySet<string>): void {
   for (const edge of [...graph.getEdges()]) {
+    if (isSyntheticEndEdgeId(edge.id)) continue;
     if (!projectEdgeIds.has(edge.id)) {
       graph.removeEdge(edge.id);
     }
@@ -147,6 +149,7 @@ export function purgeFreeOutPreviews(graph: Graph, story: Story): void {
   for (const edge of [...graph.getEdges()]) {
     if (edge.getSourcePortId() !== FREE_OUT_PORT) continue;
     if (projectEdgeIds.has(edge.id)) continue;
+    if (isSyntheticEndEdgeId(edge.id)) continue;
     graph.removeEdge(edge.id);
   }
 }

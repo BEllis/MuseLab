@@ -9,7 +9,13 @@ import {
   type PromptsByLocale,
 } from "../locale/prompts";
 import { normalizeLocales } from "../locale/localeTag";
-import { createEmptyProject, getFirstStoryId, parseProject, serializeProject } from "./project";
+import {
+  createEmptyProject,
+  finalizeProjectNodes,
+  getFirstStoryId,
+  parseProject,
+  serializeProject,
+} from "./project";
 import {
   BUNDLE_SCHEMA_ID,
   MUSELAB_FORMAT_VERSION,
@@ -43,6 +49,7 @@ export function migrateProjectBundle(project: Project, promptsByLocale?: Prompts
     promptsByLocale ??
     createEmptyPromptsByLocale(project.locales);
   const migratedPrompts = migrateLegacyInlinePrompts(project, basePrompts);
+  finalizeProjectNodes(project);
   if (defaultStoryId) {
     for (const locale of normalizeLocales(project.locales)) {
       const raw = migratedPrompts[locale];

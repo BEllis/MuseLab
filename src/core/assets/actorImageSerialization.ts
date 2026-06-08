@@ -1,6 +1,12 @@
-import type { Asset } from "../model/types";
+import type { Asset, ActorExpression } from "../model/types";
 
 const DEFAULT_ACTOR_MIME = "image/png";
+
+export function expressionImageDataUrl(expression: ActorExpression): string | null {
+  if (!expression.imageData) return null;
+  const mime = expression.imageMimeType || DEFAULT_ACTOR_MIME;
+  return `data:${mime};base64,${expression.imageData}`;
+}
 
 export function actorImageDataUrl(asset: Asset): string | null {
   if (!asset.imageData) return null;

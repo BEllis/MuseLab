@@ -1,13 +1,26 @@
-import type { Graph } from "@antv/x6";
+import type { Edge, Graph } from "@antv/x6";
 import type { MutableRefObject } from "react";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
 import {
   findNonOverlappingPosition,
   type NodeWithPosition,
 } from "@/utils/nodeOverlap";
+import {
+  graphPointFromEdgeDrop,
+  isBlankTargetEdge,
+  isPreviewConnectionEdge,
+  type ConnectionDropOnBlank,
+} from "./connectionDrop";
 import { verticesFromGraphEdge } from "./edgeConfig";
 import { purgeDanglingEdges, purgeFreeOutPreviews } from "./syncEdges";
 import { syncProjectToGraph } from "./syncProjectToGraph";
+import { isEndNodeId, isSyntheticEndEdgeId } from "./constants";
+
+export type { ConnectionDropOnBlank };
+
+export type GraphEventHandlers = {
+  onConnectionDropOnBlank?: (payload: ConnectionDropOnBlank) => void;
+};
 
 type PendingConnection = {
   edgeId: string;
@@ -16,7 +29,13 @@ type PendingConnection = {
   sourcePort: string | null | undefined;
 };
 
+type MouseLikeEvent = {
+  clientX?: number;
+  clientY?: number;
+};
+
 const pendingConnectionEdgeIds = new Set<string>();
+const handledBlankDropEdgeIds = new Set<string>();
 
 function getActiveGraphContext() {
   const state = useProjectStore.getState();
@@ -81,19 +100,82 @@ function scheduleConnectionFinalize(
   });
 }
 
+function shouldOfferBlankConnectionDrop(
+  graph: Graph,
+  edge: Edge,
+  isNew: boolean
+): boolean {
+  if (!isNew) return false;
+  if (!isBlankTargetEdge(edge.getTargetCellId())) return false;
+
+  const { story } = getActiveGraphContext();
+  const projectEdgeIds = new Set(story.edges.map((stored) => stored.id));
+  return isPreviewConnectionEdge(edge.id, projectEdgeIds);
+}
+
+function offerBlankConnectionDrop(
+  graph: Graph,
+  edge: Edge,
+  e: MouseLikeEvent | undefined,
+  handlers: GraphEventHandlers
+): boolean {
+  const edgeId = edge.id;
+  const sourceId = edge.getSourceCellId();
+  if (!edgeId || !sourceId || handledBlankDropEdgeIds.has(edgeId)) {
+    return false;
+  }
+
+  handledBlankDropEdgeIds.add(edgeId);
+  queueMicrotask(() => handledBlankDropEdgeIds.delete(edgeId));
+
+  const target = edge.getTarget();
+  const graphPoint = graphPointFromEdgeDrop(
+    graph,
+    target && "x" in target ? target : null,
+    e?.clientX ?? 0,
+    e?.clientY ?? 0
+  );
+
+  if (graph.getCellById(edgeId)) {
+    graph.removeEdge(edgeId);
+  }
+  queueMicrotask(() => cleanupDanglingEdges(graph));
+
+  handlers.onConnectionDropOnBlank?.({
+    sourceId,
+    sourcePort: edge.getSourcePortId(),
+    clientX: e?.clientX ?? 0,
+    clientY: e?.clientY ?? 0,
+    graphPoint,
+  });
+  return true;
+}
+
 export function bindGraphEvents(
   graph: Graph,
-  isSyncingRef: MutableRefObject<boolean>
+  isSyncingRef: MutableRefObject<boolean>,
+  handlers: GraphEventHandlers = {}
 ): void {
-  graph.on("edge:connected", ({ edge, isNew }) => {
+  graph.on("edge:connected", ({ edge, isNew, e, currentCell }) => {
     if (isSyncingRef.current || !isNew) return;
 
     const edgeId = edge.id;
     const sourceId = edge.getSourceCellId();
-    const targetId = edge.getTargetCellId();
+    const targetId = edge.getTargetCellId() ?? currentCell?.id;
     const sourcePort = edge.getSourcePortId();
 
-    if (!edgeId || !sourceId || !targetId || sourceId === targetId) {
+    if (!edgeId || !sourceId) {
+      graph.removeEdge(edge.id);
+      queueMicrotask(() => cleanupDanglingEdges(graph));
+      return;
+    }
+
+    if (shouldOfferBlankConnectionDrop(graph, edge, isNew) || (!targetId && !currentCell)) {
+      offerBlankConnectionDrop(graph, edge, e, handlers);
+      return;
+    }
+
+    if (sourceId === targetId) {
       graph.removeEdge(edge.id);
       queueMicrotask(() => cleanupDanglingEdges(graph));
       return;
@@ -102,9 +184,17 @@ export function bindGraphEvents(
     scheduleConnectionFinalize(graph, isSyncingRef, {
       edgeId,
       sourceId,
-      targetId,
+      targetId: targetId!,
       sourcePort,
     });
+  });
+
+  // X6 often skips edge:connected for blank point drops because point terminals
+  // compare equal without a cell id. Handle those on mouseup instead.
+  graph.on("edge:mouseup", ({ edge, e }) => {
+    if (isSyncingRef.current) return;
+    if (!shouldOfferBlankConnectionDrop(graph, edge, true)) return;
+    offerBlankConnectionDrop(graph, edge, e, handlers);
   });
 
   graph.on("edge:change:vertices", ({ edge, options }) => {
@@ -129,7 +219,7 @@ export function bindGraphEvents(
   });
 
   graph.on("node:moved", ({ node }) => {
-    if (isSyncingRef.current) return;
+    if (isSyncingRef.current || isEndNodeId(node.id)) return;
 
     const position = node.getPosition();
     const { story } = getActiveGraphContext();
@@ -142,8 +232,12 @@ export function bindGraphEvents(
   });
 
   graph.on("selection:changed", ({ selected }) => {
-    const nodeIds = selected.filter((cell) => cell.isNode()).map((cell) => cell.id);
-    const edgeIds = selected.filter((cell) => cell.isEdge()).map((cell) => cell.id);
+    const nodeIds = selected
+      .filter((cell) => cell.isNode() && !isEndNodeId(cell.id))
+      .map((cell) => cell.id);
+    const edgeIds = selected
+      .filter((cell) => cell.isEdge() && !isSyntheticEndEdgeId(cell.id))
+      .map((cell) => cell.id);
     useProjectStore.getState().setSelection(nodeIds, edgeIds);
   });
 }
@@ -163,7 +257,9 @@ export function bindGraphKeyboard(
         useProjectStore.getState().removeEdge(edgeId);
       }
       for (const nodeId of selectedNodeIds) {
-        useProjectStore.getState().removeNode(nodeId);
+        if (!isEndNodeId(nodeId)) {
+          useProjectStore.getState().removeNode(nodeId);
+        }
       }
     } finally {
       useProjectStore.getState().commitHistoryTransaction();

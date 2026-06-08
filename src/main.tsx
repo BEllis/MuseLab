@@ -65,4 +65,11 @@ async function bootstrap() {
   );
 }
 
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    // WASM cannot be re-initialized after Vite HMR; a full reload is required.
+    window.location.reload();
+  });
+}
+
 void bootstrap();

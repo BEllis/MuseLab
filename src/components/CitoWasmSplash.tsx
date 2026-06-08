@@ -18,8 +18,6 @@ export function CitoWasmSplash({ progress, error, logoUrl }: CitoWasmSplashProps
     <div className="cito-wasm-splash" role="status" aria-live="polite" aria-busy={!error}>
       <div className="cito-wasm-splash__panel">
         <img className="cito-wasm-splash__logo" src={logoUrl} alt="MuseLab" />
-        <h1 className="cito-wasm-splash__title">MuseLab</h1>
-        <p className="cito-wasm-splash__subtitle">Visual Novel Designer</p>
         {error ? (
           <p className="cito-wasm-splash__error">{error}</p>
         ) : (

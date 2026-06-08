@@ -92,6 +92,62 @@
       "type": "string",
       "enum": ["backdrop", "actor", "sound"]
     },
+    "actorExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable expression identifier unique within the actor."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name unique within the actor (case-insensitive)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Archive-relative image path, e.g. assets/actors/{actorId}/{expressionId}.png."
+        },
+        "url": {
+          "type": "string",
+          "description": "Built-in placeholder data URL only. Omitted from saved MLVN manifests."
+        },
+        "imageData": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Legacy JSON import only: base64-encoded image bytes before hydration."
+        },
+        "imageMimeType": {
+          "type": "string",
+          "pattern": "^image/",
+          "description": "MIME type for imageData."
+        },
+        "blobStored": {
+          "type": "boolean",
+          "description": "Web runtime only: image stored in IndexedDB."
+        }
+      }
+    },
+    "actorSceneConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "expressionId"],
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Actor asset id."
+        },
+        "expressionId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Expression id within the actor asset."
+        }
+      }
+    },
     "asset": {
       "type": "object",
       "additionalProperties": false,
@@ -125,6 +181,27 @@
           "type": "string",
           "pattern": "^image/",
           "description": "MIME type for imageData (e.g. image/png, image/jpeg)."
+        },
+        "personality": {
+          "type": "string",
+          "description": "Actor only: personality notes for designers."
+        },
+        "appearance": {
+          "type": "string",
+          "description": "Actor only: appearance notes for designers."
+        },
+        "backstory": {
+          "type": "string",
+          "description": "Actor only: backstory notes for designers."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Actor only: general notes for designers."
+        },
+        "expressions": {
+          "type": "array",
+          "description": "Actor only: named expression sprites.",
+          "items": { "$ref": "#/$defs/actorExpression" }
         }
       },
       "allOf": [
@@ -134,7 +211,13 @@
             "required": ["type"]
           },
           "then": {
-            "description": "Actor sprites reference archive files via path in saved MLVN projects."
+            "required": ["expressions"],
+            "properties": {
+              "expressions": {
+                "minItems": 1
+              }
+            },
+            "description": "Actor assets require at least one expression with an image."
           }
         }
       ]
@@ -222,34 +305,47 @@
     "storyNode": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "position", "backdropId", "actorIds", "soundConfigs"],
+      "required": ["id", "type", "position"],
       "properties": {
         "id": {
           "type": "string",
           "minLength": 1,
-          "description": "Stable scene identifier."
+          "description": "Stable node identifier."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["start", "scene", "jump"],
+          "description": "Node kind: start (entry), scene (content), or jump (cross-story redirect)."
         },
         "position": { "$ref": "#/$defs/point" },
         "label": {
           "type": "string",
-          "description": "Optional scene title shown in the designer."
+          "description": "Unique display name shown in the designer."
         },
         "backdropId": {
           "type": "string",
           "minLength": 1,
-          "description": "Backdrop asset id. Projects always include muselab-default-backdrop as a built-in fallback."
+          "description": "Scene only: backdrop asset id."
         },
-        "actorIds": {
+        "actorConfigs": {
           "type": "array",
-          "description": "Ordered list of actor asset ids displayed on this scene.",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
+          "description": "Scene only: ordered actor placements with expression per actor.",
+          "items": { "$ref": "#/$defs/actorSceneConfig" }
         },
         "soundConfigs": {
           "type": "array",
+          "description": "Scene only: sound playback configs.",
           "items": { "$ref": "#/$defs/soundConfig" }
+        },
+        "jumpTargetStoryId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Jump only: target story id."
+        },
+        "jumpTargetStartNodeId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Jump only: target Start node id in the target story."
         }
       }
     },
@@ -313,8 +409,14 @@
           "id": "hero1",
           "type": "actor",
           "name": "Hero",
-          "imageMimeType": "image/png",
-          "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+          "expressions": [
+            {
+              "id": "expr-default",
+              "name": "default",
+              "imageMimeType": "image/png",
+              "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            }
+          ]
         }
       ],
       "stories": [
@@ -324,10 +426,11 @@
           "nodes": [
             {
               "id": "scene1",
+              "type": "scene",
               "position": { "x": 100, "y": 100 },
               "label": "Opening",
               "backdropId": "muselab-default-backdrop",
-              "actorIds": ["hero1"],
+              "actorConfigs": [{ "assetId": "hero1", "expressionId": "expr-default" }],
               "soundConfigs": []
             }
           ],

@@ -23,7 +23,7 @@ describe("legacy prompt migration", () => {
           id: "scene1",
           position: { x: 0, y: 0 },
           backdropId: "muselab-default-backdrop",
-          actorIds: [],
+          actorConfigs: [],
           soundConfigs: [],
           textTemplate: "<p>Hello</p>",
         },

@@ -1,39 +1,66 @@
 import type { Story } from "./types";
-
-/** Scene ids with no incoming edges (top-level / entry candidates). */
-export function getRootNodeIds(story: Story): string[] {
-  const hasIncoming = new Set(story.edges.map((edge) => edge.targetNodeId));
-  return story.nodes.filter((node) => !hasIncoming.has(node.id)).map((node) => node.id);
-}
+import { findDuplicateNodeNames } from "./nodeNames";
+import { getStartNodes, isStartNode } from "./nodeTypes";
 
 export type PlayEntryValidation =
   | { ok: true; entryNodeId: string }
   | {
       ok: false;
-      reason: "no_nodes" | "no_entry" | "multiple_entries";
-      rootNodeIds: string[];
+      reason:
+        | "no_nodes"
+        | "no_starts"
+        | "no_entry_configured"
+        | "invalid_entry"
+        | "duplicate_names";
+      duplicateNames?: string[];
+      entryNodeId?: string;
     };
 
 export function validatePlayEntry(story: Story): PlayEntryValidation {
   if (story.nodes.length === 0) {
-    return { ok: false, reason: "no_nodes", rootNodeIds: [] };
+    return { ok: false, reason: "no_nodes" };
   }
 
-  const rootNodeIds = getRootNodeIds(story);
-
-  if (rootNodeIds.length === 0) {
-    return { ok: false, reason: "no_entry", rootNodeIds: [] };
+  const duplicateNames = findDuplicateNodeNames(story);
+  if (duplicateNames.length > 0) {
+    return { ok: false, reason: "duplicate_names", duplicateNames };
   }
 
-  if (rootNodeIds.length > 1) {
-    return { ok: false, reason: "multiple_entries", rootNodeIds };
+  const startNodes = getStartNodes(story);
+  if (startNodes.length === 0) {
+    return { ok: false, reason: "no_starts" };
   }
 
-  return { ok: true, entryNodeId: rootNodeIds[0] };
+  if (!story.entryNodeId) {
+    return { ok: false, reason: "no_entry_configured" };
+  }
+
+  const entryNode = story.nodes.find((node) => node.id === story.entryNodeId);
+  if (!entryNode || !isStartNode(entryNode)) {
+    return {
+      ok: false,
+      reason: "invalid_entry",
+      entryNodeId: story.entryNodeId,
+    };
+  }
+
+  return { ok: true, entryNodeId: story.entryNodeId };
 }
 
-/** Unique starting scene for play, or null when ambiguous or missing. */
+/** Configured starting node for play, or null when invalid. */
 export function getPlayEntryNodeId(story: Story): string | null {
   const validation = validatePlayEntry(story);
   return validation.ok ? validation.entryNodeId : null;
+}
+
+export function validateAllStories(
+  stories: Story[]
+): { storyId: string; storyName: string; validation: Extract<PlayEntryValidation, { ok: false }> } | null {
+  for (const story of stories) {
+    const validation = validatePlayEntry(story);
+    if (!validation.ok) {
+      return { storyId: story.id, storyName: story.name, validation };
+    }
+  }
+  return null;
 }

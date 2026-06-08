@@ -3,11 +3,14 @@ import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import type { MutationOptions } from "@/store/projectStore";
-import type { Project, SoundConfig, StoryNode } from "@/core/model/types";
+import type { Project, SoundConfig, StoryNode, ActorSceneConfig } from "@/core/model/types";
+import { getNodeDisplayName, isNodeLabelUnique } from "@/core/model/nodeNames";
+import { getStartNodes, isJumpNode, isSceneNode, isStartNode } from "@/core/model/nodeTypes";
 import { getNodeSpeakerForLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
+import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
 import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
@@ -16,6 +19,67 @@ import { TemplateTextEditor } from "./TemplateTextEditor";
 
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
+
+const panelShellStyle: React.CSSProperties = {
+  width: "320px",
+  borderLeft: "1px solid var(--app-border)",
+  padding: "12px",
+  background: "var(--app-surface-muted)",
+  overflowY: "auto",
+  maxHeight: "100vh",
+};
+
+function NodeNameField({
+  node,
+  story,
+  update,
+  onFocus,
+  onBlur,
+  placeholder,
+}: {
+  node: StoryNode;
+  story: ReturnType<typeof useActiveStory>["story"];
+  update: (patch: Partial<Omit<StoryNode, "id">>, options?: MutationOptions) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  placeholder?: string;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <label style={{ display: "block", marginBottom: "8px" }}>
+      Name
+      <input
+        type="text"
+        value={node.label ?? ""}
+        onChange={(e) => {
+          const value = e.target.value;
+          const trimmed = value.trim();
+          if (trimmed && !isNodeLabelUnique(story, trimmed, node.id)) {
+            setError("Name must be unique within this story");
+            return;
+          }
+          setError(null);
+          update({ label: value || undefined }, { mergeKey: `node-label:${node.id}` });
+        }}
+        onFocus={onFocus}
+        onBlur={() => {
+          onBlur?.();
+          if (!node.label?.trim()) {
+            setError(null);
+          }
+        }}
+        placeholder={placeholder ?? getNodeDisplayName(node)}
+        style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
+      />
+      {error && (
+        <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--app-node-invalid-border)" }}>
+          {error}
+        </p>
+      )}
+    </label>
+  );
+}
 
 function SoundConfigRow({
   config,
@@ -120,10 +184,11 @@ function SoundConfigRow({
 
 function ActorRow({
   project,
-  actorId,
+  config,
   name,
   index,
   onRemove,
+  onExpressionChange,
   onReorderDrop,
   onReorderDragOver,
   onReorderDragLeave,
@@ -131,17 +196,20 @@ function ActorRow({
   onFocusPreview,
 }: {
   project: Project;
-  actorId: string;
+  config: ActorSceneConfig;
   name: string;
   index: number;
   onRemove: () => void;
+  onExpressionChange: (expressionId: string) => void;
   onReorderDrop: (fromIndex: number, toIndex: number) => void;
   onReorderDragOver: () => void;
   onReorderDragLeave: () => void;
   isDropTarget: boolean;
   onFocusPreview: () => void;
 }) {
-  const thumbUrl = useAssetUrl(project, actorId);
+  const actor = project.assets.find((asset) => asset.id === config.assetId && asset.type === "actor");
+  const expressions = actor?.expressions ?? [];
+  const thumbUrl = useActorExpressionUrl(project, config.assetId, config.expressionId);
 
   const onDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -225,6 +293,18 @@ function ActorRow({
       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={name}>
         {name}
       </span>
+      <select
+        value={config.expressionId}
+        onChange={(e) => onExpressionChange(e.target.value)}
+        onFocus={onFocusPreview}
+        style={{ maxWidth: "96px", fontSize: "11px" }}
+      >
+        {expressions.map((expression) => (
+          <option key={expression.id} value={expression.id}>
+            {expression.name}
+          </option>
+        ))}
+      </select>
       <CloseButton onClick={onRemove} title="Remove actor" />
     </div>
   );
@@ -289,11 +369,11 @@ export function NodeEditorPanel() {
       setBackdropDropActive(false);
       const data = getAssetDragData(e.dataTransfer);
       if (data?.type === "backdrop" && node) {
-        const patch = patchNodeForAssetDrop(node, data);
+        const patch = patchNodeForAssetDrop(project, node, data);
         if (patch) update(patch);
       }
     },
-    [node, update]
+    [node, project, update]
   );
 
   const onActorsDragOver = useCallback((e: React.DragEvent) => {
@@ -314,24 +394,24 @@ export function NodeEditorPanel() {
       setActorsDropActive(false);
       const data = getAssetDragData(e.dataTransfer);
       if (data?.type === "actor" && node) {
-        const patch = patchNodeForAssetDrop(node, data);
+        const patch = patchNodeForAssetDrop(project, node, data);
         if (patch) update(patch);
       }
     },
-    [node, update]
+    [node, project, update]
   );
 
   const reorderActors = useCallback(
     (fromIndex: number, toIndex: number) => {
       if (!node) return;
-      const ids = [...(node.actorIds ?? [])];
-      if (fromIndex < 0 || fromIndex >= ids.length || toIndex < 0 || toIndex >= ids.length) return;
-      const [removed] = ids.splice(fromIndex, 1);
-      ids.splice(toIndex, 0, removed);
-      update({ actorIds: ids });
+      const configs = [...(node.actorConfigs ?? [])];
+      if (fromIndex < 0 || fromIndex >= configs.length || toIndex < 0 || toIndex >= configs.length) return;
+      const [removed] = configs.splice(fromIndex, 1);
+      configs.splice(toIndex, 0, removed);
+      update({ actorConfigs: configs });
       setActorReorderDropIndex(null);
     },
-    [node, update]
+    [node, project, update]
   );
 
   const openScenePreview = useCallback(() => {
@@ -367,6 +447,108 @@ export function NodeEditorPanel() {
 
   if (!node) return null;
 
+  if (isStartNode(node)) {
+    return (
+      <div style={panelShellStyle}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <strong>Start</strong>
+          <CloseButton onClick={() => clearSelection()} />
+        </div>
+        <NodeNameField
+          node={node}
+          story={story}
+          update={update}
+          onBlur={() => flushHistoryCoalesce()}
+          placeholder="Start"
+        />
+      </div>
+    );
+  }
+
+  if (isJumpNode(node)) {
+    const targetStoryId = node.jumpTargetStoryId ?? storyId;
+    const targetStory = project.stories.find((entry) => entry.id === targetStoryId);
+    const targetStarts = targetStory ? getStartNodes(targetStory) : [];
+    const displayName = getNodeDisplayName(node, project);
+
+    return (
+      <div style={panelShellStyle}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <strong>Jump To</strong>
+          <CloseButton onClick={() => clearSelection()} />
+        </div>
+        <p
+          style={{
+            margin: "0 0 12px",
+            fontSize: "13px",
+            fontWeight: 600,
+            color: "var(--app-text)",
+          }}
+        >
+          {displayName}
+        </p>
+        <label style={{ display: "block", marginBottom: "8px" }}>
+          Target story
+          <select
+            value={targetStoryId}
+            onChange={(e) => {
+              const nextStoryId = e.target.value;
+              const nextStory = project.stories.find((entry) => entry.id === nextStoryId);
+              const firstStart = nextStory ? getStartNodes(nextStory)[0] : undefined;
+              update({
+                jumpTargetStoryId: nextStoryId,
+                jumpTargetStartNodeId: firstStart?.id,
+              });
+            }}
+            style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
+          >
+            {project.stories.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: "block", marginBottom: "8px" }}>
+          Target Start
+          <select
+            value={node.jumpTargetStartNodeId ?? ""}
+            onChange={(e) =>
+              update({
+                jumpTargetStoryId: targetStoryId,
+                jumpTargetStartNodeId: e.target.value || undefined,
+              })
+            }
+            style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
+          >
+            <option value="">— Select Start —</option>
+            {targetStarts.map((startNode) => (
+              <option key={startNode.id} value={startNode.id}>
+                {getNodeDisplayName(startNode)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    );
+  }
+
+  if (!isSceneNode(node)) return null;
+
   const addSoundConfig = () => {
     const soundConfigs = [...(node.soundConfigs || [])];
     soundConfigs.push({
@@ -389,8 +571,16 @@ export function NodeEditorPanel() {
     update({ soundConfigs });
   };
 
-  const removeActor = (actorId: string) => {
-    update({ actorIds: (node.actorIds ?? []).filter((id) => id !== actorId) });
+  const removeActor = (assetId: string) => {
+    update({ actorConfigs: (node.actorConfigs ?? []).filter((config) => config.assetId !== assetId) });
+  };
+
+  const updateActorExpression = (assetId: string, expressionId: string) => {
+    update({
+      actorConfigs: (node.actorConfigs ?? []).map((config) =>
+        config.assetId === assetId ? { ...config, expressionId } : config
+      ),
+    });
   };
 
   const currentBackdrop =
@@ -398,16 +588,7 @@ export function NodeEditorPanel() {
     backdrops.find((a) => a.id === DEFAULT_BACKDROP_ID);
 
   return (
-    <div
-      style={{
-        width: "320px",
-        borderLeft: "1px solid var(--app-border)",
-        padding: "12px",
-        background: "var(--app-surface-muted)",
-        overflowY: "auto",
-        maxHeight: "100vh",
-      }}
-    >
+    <div style={panelShellStyle}>
       <div
         style={{
           display: "flex",
@@ -420,20 +601,14 @@ export function NodeEditorPanel() {
         <CloseButton onClick={() => clearSelection()} />
       </div>
 
-      <label style={{ display: "block", marginBottom: "8px" }}>
-        Scene Title
-        <input
-          type="text"
-          value={node.label ?? ""}
-          onChange={(e) =>
-            update({ label: e.target.value || undefined }, { mergeKey: `node-label:${node.id}` })
-          }
-          onFocus={openScenePreview}
-          onBlur={() => flushHistoryCoalesce()}
-          placeholder="Scene name"
-          style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
-        />
-      </label>
+      <NodeNameField
+        node={node}
+        story={story}
+        update={update}
+        onFocus={openScenePreview}
+        onBlur={() => flushHistoryCoalesce()}
+        placeholder="Scene"
+      />
 
       <div style={{ marginBottom: "8px" }}>
         <div style={{ marginBottom: "4px" }}>Backdrop</div>
@@ -523,23 +698,24 @@ export function NodeEditorPanel() {
             padding: "8px",
           }}
         >
-          {(node.actorIds ?? []).length > 0 ? (
+          {(node.actorConfigs ?? []).length > 0 ? (
             <div
               style={{ display: "flex", flexDirection: "column", gap: "4px" }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) setActorReorderDropIndex(null);
               }}
             >
-              {(node.actorIds ?? []).map((actorId, index) => {
-                const actor = actors.find((a) => a.id === actorId);
+              {(node.actorConfigs ?? []).map((config, index) => {
+                const actor = actors.find((a) => a.id === config.assetId);
                 return (
                   <ActorRow
-                    key={actorId}
+                    key={config.assetId}
                     project={project}
-                    actorId={actorId}
-                    name={actor?.name ?? actorId}
+                    config={config}
+                    name={actor?.name ?? config.assetId}
                     index={index}
-                    onRemove={() => removeActor(actorId)}
+                    onRemove={() => removeActor(config.assetId)}
+                    onExpressionChange={(expressionId) => updateActorExpression(config.assetId, expressionId)}
                     onReorderDrop={reorderActors}
                     onReorderDragOver={() => setActorReorderDropIndex(index)}
                     onReorderDragLeave={() => setActorReorderDropIndex(null)}

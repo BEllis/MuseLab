@@ -7,48 +7,46 @@ export type CitoWasmLoadProgress = {
   label: string;
 };
 
-type MonoAsset = {
-  name: string;
-  behavior: string;
-  virtual_path?: string;
-  load_remote?: boolean;
-  is_optional?: boolean;
-  culture?: string;
+type BootManifest = {
+  resources?: {
+    assembly?: Record<string, string>;
+  };
 };
 
-type MonoConfig = {
-  assembly_root: string;
-  debug_level: number;
-  assets: MonoAsset[];
-  remote_sources: string[];
+type DotNetExports = {
+  Foxoft: {
+    Ci: {
+      TranspileLib: {
+        TranspileJs: (ciSource: string) => string;
+      };
+    };
+  };
+};
+
+type DotNetRuntime = {
+  getAssemblyExports: (assemblyName: string) => Promise<DotNetExports>;
+};
+
+type DotNetBuilder = {
+  withConfigSrc: (src: string) => DotNetBuilder;
+  withResourceLoader: (
+    loader: (
+      type: string,
+      name: string,
+      defaultUri: string,
+      integrity: string,
+      behavior: string
+    ) => string | Promise<Response> | null | undefined
+  ) => DotNetBuilder;
+  create: () => Promise<DotNetRuntime>;
 };
 
 type DotNetModule = {
-  onRuntimeInitialized?: () => void;
-  locateFile?: (path: string, prefix?: string) => string;
-  print?: (message: string) => void;
-  printErr?: (message: string) => void;
+  dotnet: DotNetBuilder;
 };
 
-type DotNetBinding = {
-  bind_static_method: (fqn: string, signature?: string) => (ciSource: string) => string;
-};
-
-type DotNetMono = {
-  mono_load_runtime_and_bcl_args: (args: Record<string, unknown>) => void;
-  mono_wasm_runtime_is_ready?: boolean;
-  loaded_files?: string[];
-};
-
-declare global {
-  interface Window {
-    Module?: DotNetModule;
-    BINDING?: DotNetBinding;
-    MONO?: DotNetMono;
-  }
-}
-
-const TRANSPILER_METHOD = "[cito-wasm] Foxoft.Ci.TranspileLib:TranspileJs";
+const CITO_ASSEMBLY = "cito-wasm";
+const FRAMEWORK_DIR = "_framework/";
 
 let transpileFn: ((ciSource: string) => string) | null = null;
 let initPromise: Promise<void> | null = null;
@@ -58,11 +56,29 @@ function citoWasmBaseUrl(): string {
   return `${base}${base.endsWith("/") ? "" : "/"}cito-wasm/`;
 }
 
-function resolveWasmAssetUrl(base: string, assetUrl: string): string {
+function citoFrameworkBaseUrl(): string {
+  return `${citoWasmBaseUrl()}${FRAMEWORK_DIR}`;
+}
+
+function citoFrameworkAbsoluteUrl(): string {
+  return new URL(citoFrameworkBaseUrl(), window.location.href).href;
+}
+
+export function resolveWasmAssetUrl(
+  base: string,
+  assetUrl: string,
+  locationHref: string = window.location.href
+): string {
   if (/^https?:\/\//i.test(assetUrl) || assetUrl.startsWith("blob:")) {
     return assetUrl;
   }
-  return `${base}${assetUrl}`;
+
+  const normalized = assetUrl.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (normalized.startsWith("cito-wasm/")) {
+    return new URL(normalized, locationHref).href;
+  }
+
+  return new URL(normalized, new URL(base, locationHref)).href;
 }
 
 function reportProgress(
@@ -72,29 +88,20 @@ function reportProgress(
   onProgress?.(progress);
 }
 
-function loadDotNetScript(src: string): Promise<void> {
-  const existing = document.querySelector('script[data-cito-wasm="dotnet"]');
-  if (existing) {
-    return Promise.resolve();
+async function loadBootManifest(frameworkUrl: string): Promise<BootManifest> {
+  const bootUrl = new URL("blazor.boot.json", frameworkUrl).href;
+  const response = await fetch(bootUrl, { credentials: "same-origin" });
+  if (!response.ok) {
+    throw new Error(
+      "Cito WASM bundle not found. Run npm run build:cito-wasm before using the web app."
+    );
   }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.dataset.citoWasm = "dotnet";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(script);
-  });
+  return (await response.json()) as BootManifest;
 }
 
-function bindTranspileMethod(): (ciSource: string) => string {
-  const binding = window.BINDING;
-  if (!binding) {
-    throw new Error("Cito WASM runtime failed to initialize (BINDING missing).");
-  }
-  return binding.bind_static_method(TRANSPILER_METHOD);
+async function importDotNetModule(frameworkUrl: string): Promise<DotNetModule> {
+  const dotnetUrl = new URL("dotnet.js", frameworkUrl).href;
+  return (await import(/* @vite-ignore */ dotnetUrl)) as DotNetModule;
 }
 
 export function isCitoWasmRequired(): boolean {
@@ -108,21 +115,8 @@ export async function initCitoWasm(
   if (transpileFn) return;
   if (initPromise) return initPromise;
 
-  if (window.MONO && !window.MONO.mono_wasm_runtime_is_ready && !transpileFn) {
-    throw new Error("Cito WASM runtime is in a bad state. Reload the page and try again.");
-  }
-
-  if (window.MONO?.mono_wasm_runtime_is_ready) {
-    try {
-      transpileFn = bindTranspileMethod();
-      return;
-    } catch {
-      // Fall through and rebuild runtime state on a fresh load.
-    }
-  }
-
   initPromise = (async () => {
-    const base = citoWasmBaseUrl();
+    const frameworkUrl = citoFrameworkAbsoluteUrl();
 
     reportProgress(onProgress, {
       phase: "config",
@@ -131,13 +125,8 @@ export async function initCitoWasm(
       label: "Loading transpiler configuration…",
     });
 
-    const configResponse = await fetch(`${base}mono-config.json`, { credentials: "same-origin" });
-    if (!configResponse.ok) {
-      throw new Error(
-        "Cito WASM bundle not found. Run npm run build:cito-wasm before using the web app."
-      );
-    }
-    const config = (await configResponse.json()) as MonoConfig;
+    const bootManifest = await loadBootManifest(frameworkUrl);
+    const assemblyTotal = Object.keys(bootManifest.resources?.assembly ?? {}).length;
 
     reportProgress(onProgress, {
       phase: "config",
@@ -153,80 +142,50 @@ export async function initCitoWasm(
       label: "Starting .NET WebAssembly runtime…",
     });
 
-    window.Module = {
-      locateFile: (path) => `${base}${path}`,
-      print: (message) => {
-        if (import.meta.env.DEV) console.debug("[cito-wasm]", message);
-      },
-      printErr: (message) => console.error("[cito-wasm]", message),
-    };
+    const dotnetModule = await importDotNetModule(frameworkUrl);
+    let downloadedAssemblies = 0;
 
-    await loadDotNetScript(`${base}dotnet.js`);
+    const runtime = await dotnetModule.dotnet
+      .withConfigSrc(new URL("blazor.boot.json", frameworkUrl).href)
+      .withResourceLoader((type, name, defaultUri) => {
+        if (type !== "assembly") {
+          return undefined;
+        }
 
-    const mono = window.MONO;
-    if (!mono) {
-      throw new Error("Cito WASM runtime failed to initialize (MONO missing).");
+        const url = /^https?:\/\//i.test(defaultUri)
+          ? defaultUri
+          : resolveWasmAssetUrl(frameworkUrl, defaultUri);
+        return fetch(url, { credentials: "same-origin" }).then((response) => {
+          if (!response.ok) {
+            throw new Error(`Failed to load Cito WASM asset: ${url} (${response.status})`);
+          }
+          if (name.endsWith(".wasm")) {
+            downloadedAssemblies += 1;
+            reportProgress(onProgress, {
+              phase: "assemblies",
+              loaded: Math.min(downloadedAssemblies, assemblyTotal),
+              total: assemblyTotal,
+              label: "Downloading Cito transpiler assemblies…",
+            });
+          }
+          return response;
+        });
+      })
+      .create();
+
+    const exports = await runtime.getAssemblyExports(CITO_ASSEMBLY);
+    const transpile = exports.Foxoft.Ci.TranspileLib.TranspileJs;
+    if (typeof transpile !== "function") {
+      throw new Error("Cito WASM transpiler export is missing.");
     }
 
-    const assemblyTotal = config.assets.filter((asset) => asset.behavior === "assembly").length;
+    transpileFn = transpile.bind(exports.Foxoft.Ci.TranspileLib);
 
-    await new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const fail = (error: unknown) => {
-        if (settled) return;
-        settled = true;
-        reject(error instanceof Error ? error : new Error(String(error)));
-      };
-
-      let progressTimer = 0;
-      const finish = () => {
-        if (settled) return;
-        window.clearInterval(progressTimer);
-        try {
-          transpileFn = bindTranspileMethod();
-          reportProgress(onProgress, {
-            phase: "init",
-            loaded: 1,
-            total: 1,
-            label: "Ready",
-          });
-          settled = true;
-          resolve();
-        } catch (error) {
-          fail(error);
-        }
-      };
-
-      progressTimer = window.setInterval(() => {
-        const loaded = window.MONO?.loaded_files?.length ?? 0;
-        reportProgress(onProgress, {
-          phase: "assemblies",
-          loaded: Math.min(loaded, assemblyTotal),
-          total: assemblyTotal,
-          label: "Downloading Cito transpiler assemblies…",
-        });
-      }, 100);
-
-      mono.mono_load_runtime_and_bcl_args({
-        assembly_root: config.assembly_root,
-        assets: config.assets,
-        remote_sources: config.remote_sources ?? [],
-        debug_level: config.debug_level,
-        globalization_mode: "invariant",
-        fetch_file_cb: (assetUrl: string) =>
-          window.fetch(resolveWasmAssetUrl(base, assetUrl), { credentials: "same-origin" }),
-        loaded_cb: finish,
-      });
-
-      window.setTimeout(() => {
-        window.clearInterval(progressTimer);
-        if (settled) return;
-        if (window.MONO?.mono_wasm_runtime_is_ready) {
-          finish();
-          return;
-        }
-        fail(new Error("Timed out waiting for the Cito WASM transpiler to start."));
-      }, 180_000);
+    reportProgress(onProgress, {
+      phase: "init",
+      loaded: 1,
+      total: 1,
+      label: "Ready",
     });
   })().catch((error) => {
     initPromise = null;
