@@ -1,4 +1,6 @@
-![MuseLab logo](docs/images/logo.png)
+<p align="center">
+  <img src="docs/images/logo.png" alt="MuseLab logo" width="96">
+</p>
 
 # MuseLab
 
