@@ -35,7 +35,7 @@ You need **Node.js 18 or newer** (and npm) installed.
 
 1. Clone the repository and go into the project folder:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/BEllis/MuseLab.git
    cd MuseLab
    ```
 2. Install dependencies:

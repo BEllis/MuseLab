@@ -16,7 +16,7 @@ This document is for developers who want to work on the MuseLab codebase.
 ## Getting the code running
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/BEllis/MuseLab.git
 cd MuseLab
 npm install
 ```
