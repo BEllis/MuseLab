@@ -1,12 +1,16 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
-import type { Asset, AssetType, Project } from "../model/types";
+import type { Asset, AssetType, LocalePrompts } from "../model/types";
 import {
   PROJECT_MANIFEST,
   assetArchivePath,
   extensionForMime,
   isArchiveRelativePath,
+  promptsFileName,
 } from "./assetArchivePaths";
 import { serializeProject } from "../model/project";
+import type { ProjectBundle } from "../model/projectBundle";
+import { serializeLocalePrompts } from "../locale/prompts";
+import { parseLocaleFromPromptsFileName, normalizeLocales } from "../locale/localeTag";
 import { base64ToBlob } from "../assets/actorImageSerialization";
 import { isDefaultBackdrop } from "../assets/defaultBackdrop";
 import { getAssetUrlAsync } from "../assets/resolver";
@@ -37,7 +41,7 @@ function assetHasPackableMedia(asset: Asset): boolean {
 }
 
 async function resolveAssetBytes(
-  project: Project,
+  bundle: ProjectBundle,
   asset: Asset
 ): Promise<{ bytes: Uint8Array; mime: string } | null> {
   if (asset.imageData) {
@@ -66,7 +70,7 @@ async function resolveAssetBytes(
     return null;
   }
 
-  const url = await getAssetUrlAsync(project, asset.id);
+  const url = await getAssetUrlAsync(bundle.project, asset.id);
   if (!url) return null;
 
   const response = await fetch(url);
@@ -95,8 +99,8 @@ export function isLegacyJsonProject(data: Uint8Array | string): boolean {
   return text.startsWith("{");
 }
 
-export async function packProjectArchive(project: Project): Promise<Uint8Array> {
-  const cloned = JSON.parse(JSON.stringify(project)) as Project;
+export async function packProjectArchive(bundle: ProjectBundle): Promise<Uint8Array> {
+  const cloned = JSON.parse(JSON.stringify(bundle.project)) as ProjectBundle["project"];
   const zipEntries: Record<string, Uint8Array> = {};
 
   for (const asset of cloned.assets) {
@@ -107,7 +111,7 @@ export async function packProjectArchive(project: Project): Promise<Uint8Array> 
       continue;
     }
 
-    const resolved = await resolveAssetBytes(project, asset);
+    const resolved = await resolveAssetBytes(bundle, asset);
     if (!resolved) {
       if (asset.path && isArchiveRelativePath(asset.path)) {
         stripAssetForManifest(asset);
@@ -125,12 +129,19 @@ export async function packProjectArchive(project: Project): Promise<Uint8Array> 
   }
 
   zipEntries[PROJECT_MANIFEST] = strToU8(serializeProject(cloned));
+
+  for (const locale of normalizeLocales(cloned.locales)) {
+    const prompts = bundle.promptsByLocale[locale] ?? { nodes: {}, edges: {} };
+    zipEntries[promptsFileName(locale)] = strToU8(serializeLocalePrompts(prompts));
+  }
+
   return zipSync(zipEntries);
 }
 
 export interface UnpackedProjectArchive {
   manifest: string;
   files: Map<string, Uint8Array>;
+  prompts: Map<string, LocalePrompts>;
 }
 
 export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
@@ -141,8 +152,21 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
   }
 
   const files = new Map<string, Uint8Array>();
+  const prompts = new Map<string, LocalePrompts>();
+
   for (const [name, bytes] of Object.entries(entries)) {
     if (name === PROJECT_MANIFEST) continue;
+
+    const locale = parseLocaleFromPromptsFileName(name);
+    if (locale) {
+      const parsed = JSON.parse(strFromU8(bytes)) as LocalePrompts;
+      prompts.set(locale, {
+        nodes: parsed.nodes ?? {},
+        edges: parsed.edges ?? {},
+      });
+      continue;
+    }
+
     if (name.startsWith("assets/")) {
       files.set(name, bytes);
     }
@@ -151,5 +175,20 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
   return {
     manifest: strFromU8(manifestBytes),
     files,
+    prompts,
   };
+}
+
+export function assertArchivePromptLocales(
+  projectLocales: string[],
+  prompts: Map<string, LocalePrompts>
+): void {
+  const allowed = new Set(normalizeLocales(projectLocales));
+  for (const locale of prompts.keys()) {
+    if (!allowed.has(locale)) {
+      throw new Error(
+        `Invalid MLVN archive: prompts.${locale}.json is not listed in project.locales`
+      );
+    }
+  }
 }

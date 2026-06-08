@@ -1,7 +1,15 @@
 import type { Project, StoryNode, StoryEdge } from "../model/types";
+import type { PromptsByLocale } from "../locale/prompts";
+import { getEdgeOptionTextForLocale, getNodeTextTemplateForLocale } from "../locale/prompts";
 import { getEntryNodeId } from "../model/project";
 import { runTemplate, evaluateCondition } from "../template/engine";
 import type { TemplateContext } from "../template/sandbox";
+
+export interface RuntimeChoice {
+  edge: StoryEdge;
+  targetNode: StoryNode;
+  optionText?: string;
+}
 
 export interface RuntimeState {
   currentNodeId: string | null;
@@ -9,7 +17,7 @@ export interface RuntimeState {
   /** Rendered HTML for current node */
   currentHtml: string;
   /** Out-edges from current node that pass their condition */
-  choices: Array<{ edge: StoryEdge; targetNode: StoryNode }>;
+  choices: RuntimeChoice[];
 }
 
 export type EventCallback = (eventName: string) => void;
@@ -21,6 +29,8 @@ export type PlaySoundHandler = (
 
 export function createRunner(
   project: Project,
+  promptsByLocale: PromptsByLocale,
+  activeLocale: string,
   callbacks: {
     onEmit?: EventCallback;
     onCall?: CallHandler;
@@ -64,21 +74,31 @@ export function createRunner(
     return project.edges.filter((e) => e.sourceNodeId === currentNodeId);
   }
 
-  function getChoices(): RuntimeState["choices"] {
+  function getChoices(): RuntimeChoice[] {
     const edges = getOutEdges();
-    const choices: RuntimeState["choices"] = [];
+    const choices: RuntimeChoice[] = [];
     for (const edge of edges) {
       if (!evaluateCondition(edge.condition, { state })) continue;
       const targetNode = project.nodes.find((n) => n.id === edge.targetNodeId);
-      if (targetNode) choices.push({ edge, targetNode });
+      if (targetNode) {
+        choices.push({
+          edge,
+          targetNode,
+          optionText: getEdgeOptionTextForLocale(promptsByLocale, activeLocale, edge.id),
+        });
+      }
     }
     return choices;
   }
 
   function renderCurrentNode(): string {
-    const node = getCurrentNode();
-    if (!node) return "";
-    return runTemplate(node.textTemplate, context);
+    if (!currentNodeId) return "";
+    const textTemplate = getNodeTextTemplateForLocale(
+      promptsByLocale,
+      activeLocale,
+      currentNodeId
+    );
+    return runTemplate(textTemplate, context);
   }
 
   function getRuntimeState(): RuntimeState {
@@ -104,6 +124,9 @@ export function createRunner(
   return {
     get project() {
       return project;
+    },
+    get activeLocale() {
+      return activeLocale;
     },
     get state() {
       return state;

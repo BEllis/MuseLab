@@ -5,7 +5,7 @@
   "description": "MuseLab story manifest (project.json inside a .mlvn zip archive). Media files live under assets/backdrops, assets/actors, and assets/sounds and are referenced by relative path. Legacy plain JSON imports may still embed base64 in imageData.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["name", "assets", "nodes", "edges", "globalState"],
+  "required": ["name", "assets", "nodes", "edges", "globalState", "locales"],
   "properties": {
     "name": {
       "type": "string",
@@ -31,6 +31,15 @@
       "type": "object",
       "description": "Initial runtime variables and flags (key/value JSON).",
       "additionalProperties": true
+    },
+    "locales": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Supported locale tags. The first entry is the default. Tags use lowercase letters and hyphens only.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]+(?:-[a-z]+)*$"
+      }
     },
     "entryNodeId": {
       "type": "string",
@@ -161,7 +170,7 @@
     "storyNode": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "position", "backdropId", "actorIds", "soundConfigs", "textTemplate"],
+      "required": ["id", "position", "backdropId", "actorIds", "soundConfigs"],
       "properties": {
         "id": {
           "type": "string",
@@ -189,10 +198,6 @@
         "soundConfigs": {
           "type": "array",
           "items": { "$ref": "#/$defs/soundConfig" }
-        },
-        "textTemplate": {
-          "type": "string",
-          "description": "Scene dialogue/narration template (HTML subset in the designer)."
         }
       }
     },
@@ -225,10 +230,6 @@
           "type": "string",
           "const": "__free_in__",
           "description": "Designer in-port id. All incoming links share __free_in__."
-        },
-        "optionText": {
-          "type": "string",
-          "description": "Player-facing choice label. Omit or leave empty for auto-advance."
         },
         "condition": {
           "type": "string",
@@ -271,12 +272,12 @@
           "label": "Opening",
           "backdropId": "muselab-default-backdrop",
           "actorIds": ["hero1"],
-          "soundConfigs": [],
-          "textTemplate": "Hello, world."
+          "soundConfigs": []
         }
       ],
       "edges": [],
-      "globalState": {}
+      "globalState": {},
+      "locales": ["en"]
     }
   ]
 }

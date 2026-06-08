@@ -17,6 +17,7 @@ export type StoryNodeData = {
 export function StoryNodeView({ node }: { node: Node }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const project = useProjectStore((s) => s.project);
+  const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const thumbnailAspectRatio = getProjectThumbnailAspectRatio(project);
   const data = node.getData<StoryNodeData>();
 
@@ -30,7 +31,6 @@ export function StoryNodeView({ node }: { node: Node }) {
     id: node.id,
     backdropId: data?.backdropId ?? DEFAULT_BACKDROP_ID,
     actorIds: [] as string[],
-    textTemplate: data?.preview ?? "",
   };
 
   useLayoutEffect(() => {
@@ -80,6 +80,7 @@ export function StoryNodeView({ node }: { node: Node }) {
       </div>
       <SceneStagePreview
         project={project}
+        promptsByLocale={promptsByLocale}
         node={stageNode}
         variant="compact"
         thumbnailAspectRatio={thumbnailAspectRatio}

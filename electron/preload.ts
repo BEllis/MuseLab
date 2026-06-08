@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("set-window-size", width, height),
   getUserSettings: () =>
     ipcRenderer.invoke("get-user-settings") as Promise<{ theme?: "light" | "dark" }>,
+  getPlayerLocale: (projectKey: string) =>
+    ipcRenderer.invoke("get-player-locale", projectKey) as Promise<string | null>,
+  setPlayerLocale: (projectKey: string, locale: string) =>
+    ipcRenderer.invoke("set-player-locale", projectKey, locale) as Promise<void>,
   syncTheme: (theme: "light" | "dark") => ipcRenderer.send("sync-theme", theme),
   usesInAppMenuBar: process.platform === "linux",
   onSetTheme: (callback: (theme: "light" | "dark") => void) => {

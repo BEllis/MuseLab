@@ -2,11 +2,8 @@ import { useMemo } from "react";
 import type { Project, StoryNode } from "@/core/model/types";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { ActorRow } from "@/components/ActorImage";
-import {
-  getNodeChoices,
-  renderNodePreviewHtml,
-  type SceneStageChoice,
-} from "@/core/view/sceneStage";
+import { getNodeChoices, renderNodePreviewHtmlForLocale, type SceneStageChoice } from "@/core/view/sceneStage";
+import type { PromptsByLocale } from "@/core/locale/prompts";
 import {
   compactVnBoxStyle,
   compactVnButtonStyle,
@@ -23,7 +20,9 @@ import {
 
 type SceneStagePreviewProps = {
   project: Project;
-  node: Pick<StoryNode, "id" | "backdropId" | "actorIds" | "textTemplate">;
+  promptsByLocale: PromptsByLocale;
+  node: Pick<StoryNode, "id" | "backdropId" | "actorIds">;
+  locale?: string;
   variant?: "compact" | "full";
   dialogueHtml?: string;
   choices?: SceneStageChoice[];
@@ -36,7 +35,9 @@ type SceneStagePreviewProps = {
 
 export function SceneStagePreview({
   project,
+  promptsByLocale,
   node,
+  locale,
   variant = "compact",
   dialogueHtml,
   choices: choicesProp,
@@ -48,14 +49,16 @@ export function SceneStagePreview({
 }: SceneStagePreviewProps) {
   const backdropUrl = useAssetUrl(project, node.backdropId);
   const choices = useMemo(
-    () => choicesProp ?? getNodeChoices(project, node.id),
-    [choicesProp, project, node.id]
+    () => choicesProp ?? getNodeChoices(project, node.id, promptsByLocale, locale),
+    [choicesProp, project, node.id, promptsByLocale, locale]
   );
   const html = useMemo(
-    () => dialogueHtml ?? renderNodePreviewHtml(node.textTemplate, project.globalState),
-    [dialogueHtml, node.textTemplate, project.globalState]
+    () =>
+      dialogueHtml ??
+      renderNodePreviewHtmlForLocale(project, promptsByLocale, node.id, locale),
+    [dialogueHtml, project, promptsByLocale, node.id, locale]
   );
-  const hasOptions = choices.some((choice) => choice.edge.optionText);
+  const hasOptions = choices.some((choice) => choice.optionText);
   const singleChoice = singleChoiceProp ?? (choices.length === 1 && !hasOptions);
   const compact = variant === "compact";
 
@@ -120,7 +123,7 @@ export function SceneStagePreview({
               width: "max-content",
             }}
           >
-            {choices.map(({ edge, targetNode }) => (
+            {choices.map(({ edge, targetNode, optionText }) => (
               <button
                 key={edge.id}
                 type="button"
@@ -132,7 +135,7 @@ export function SceneStagePreview({
                   pointerEvents: compact ? "none" : undefined,
                 }}
               >
-                {edge.optionText || `Go to ${targetNode.label ?? targetNode.id}`}
+                {optionText || `Go to ${targetNode.label ?? targetNode.id}`}
               </button>
             ))}
           </div>

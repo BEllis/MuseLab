@@ -5,7 +5,7 @@ import { createHash } from "crypto";
 import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
-import { loadUserSettings, resolveStartupTheme, saveUserSettings, type AppTheme } from "./userSettings";
+import { loadUserSettings, resolveStartupTheme, saveUserSettings, getPlayerLocale, setPlayerLocale, type AppTheme } from "./userSettings";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -339,6 +339,10 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle("get-user-settings", () => loadUserSettings());
+  ipcMain.handle("get-player-locale", (_, projectKey: string) => getPlayerLocale(projectKey));
+  ipcMain.handle("set-player-locale", (_, projectKey: string, locale: string) =>
+    setPlayerLocale(projectKey, locale)
+  );
 
   ipcMain.on("sync-theme", (_, theme: AppTheme) => {
     setAppTheme(theme, "renderer");

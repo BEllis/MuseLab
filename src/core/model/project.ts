@@ -6,6 +6,7 @@ import {
   isDefaultBackdrop,
   resolveBackdropId,
 } from "../assets/defaultBackdrop";
+import { assertValidLocaleTag, normalizeLocales } from "../locale/localeTag";
 
 /** Create a new empty project */
 export function createEmptyProject(name: string = "Untitled"): Project {
@@ -15,6 +16,7 @@ export function createEmptyProject(name: string = "Untitled"): Project {
     nodes: [],
     edges: [],
     globalState: {},
+    locales: [...normalizeLocales(undefined)],
   };
   ensureDefaultBackdrop(project);
   return project;
@@ -42,7 +44,6 @@ export function addNode(project: Project, position?: { x: number; y: number }): 
     backdropId: DEFAULT_BACKDROP_ID,
     actorIds: [],
     soundConfigs: [],
-    textTemplate: "",
   };
   project.nodes.push(node);
   return node;
@@ -66,7 +67,6 @@ export function cloneNode(
     backdropId: resolveBackdropId(project, source.backdropId),
     actorIds: [...source.actorIds],
     soundConfigs: source.soundConfigs.map((config) => ({ ...config })),
-    textTemplate: source.textTemplate,
   };
   project.nodes.push(node);
   return node;
@@ -111,7 +111,6 @@ export function addEdge(
   targetNodeId: string,
   options?: {
     id?: string;
-    optionText?: string;
     condition?: string;
     sourcePortId?: string | null;
     targetPortId?: string | null;
@@ -127,7 +126,6 @@ export function addEdge(
     targetNodeId,
     sourcePortId: resolveNewEdgeSourcePort(id, options?.sourcePortId),
     targetPortId: resolveNewEdgeTargetPort(),
-    optionText: options?.optionText,
     condition: options?.condition,
   };
   project.edges.push(edge);
@@ -160,11 +158,11 @@ export function removeEdge(project: Project, edgeId: string): void {
   project.edges = project.edges.filter((e) => e.id !== edgeId);
 }
 
-/** Update edge (option text, condition) */
+/** Update edge condition and routing metadata */
 export function updateEdge(
   project: Project,
   edgeId: string,
-  patch: Partial<Pick<StoryEdge, "optionText" | "condition" | "vertices" | "manualRoute">>
+  patch: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>
 ): void {
   const edge = project.edges.find((e) => e.id === edgeId);
   if (!edge) return;
@@ -252,7 +250,12 @@ export function getEntryNodeId(project: Project): string | null {
 /** Update top-level project fields. */
 export function updateProject(
   project: Project,
-  patch: Partial<Pick<Project, "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution">>
+  patch: Partial<
+    Pick<
+      Project,
+      "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution" | "locales"
+    >
+  >
 ): void {
   if (patch.name !== undefined) {
     project.name = patch.name;
@@ -269,11 +272,44 @@ export function updateProject(
   if (patch.playerResolution !== undefined) {
     project.playerResolution = patch.playerResolution;
   }
+  if (patch.locales !== undefined) {
+    project.locales = normalizeLocales(patch.locales);
+  }
 }
 
-/** Serialize project to JSON string (in-memory shape; actor blobs may be omitted). */
+function toManifestProject(project: Project): Project {
+  return {
+    name: project.name,
+    assets: project.assets,
+    nodes: project.nodes.map((node) => ({
+      id: node.id,
+      position: node.position,
+      label: node.label,
+      backdropId: node.backdropId,
+      actorIds: node.actorIds,
+      soundConfigs: node.soundConfigs,
+    })),
+    edges: project.edges.map((edge) => ({
+      id: edge.id,
+      sourceNodeId: edge.sourceNodeId,
+      targetNodeId: edge.targetNodeId,
+      sourcePortId: edge.sourcePortId,
+      targetPortId: edge.targetPortId,
+      condition: edge.condition,
+      vertices: edge.vertices,
+      manualRoute: edge.manualRoute,
+    })),
+    globalState: project.globalState,
+    locales: normalizeLocales(project.locales),
+    entryNodeId: project.entryNodeId,
+    thumbnailAspectRatio: project.thumbnailAspectRatio,
+    playerResolution: project.playerResolution,
+  };
+}
+
+/** Serialize project manifest to JSON string. */
 export function serializeProject(project: Project): string {
-  return JSON.stringify(project, null, 2);
+  return JSON.stringify(toManifestProject(project), null, 2);
 }
 
 /** Serialize project manifest for persistence (assets stored separately in MLVN archives). */
@@ -281,7 +317,8 @@ export function serializeProjectForSave(project: Project): string {
   return serializeProject(project);
 }
 
-/** Parse project from JSON string */
+
+/** Parse project manifest from JSON string */
 export function parseProject(json: string): Project {
   const data = JSON.parse(json) as Project;
   if (
@@ -293,7 +330,29 @@ export function parseProject(json: string): Project {
     throw new Error("Invalid project JSON");
   }
   data.globalState = data.globalState ?? {};
+  data.locales = normalizeLocales(data.locales);
   ensureDefaultBackdrop(data);
   normalizeEdgeTargetPorts(data);
   return data;
+}
+
+export function addLocaleToProject(project: Project, locale: string): void {
+  const tag = assertValidLocaleTag(locale);
+  const locales = normalizeLocales(project.locales);
+  if (locales.includes(tag)) {
+    throw new Error(`Locale "${tag}" already exists`);
+  }
+  project.locales = [...locales, tag];
+}
+
+export function removeLocaleFromProject(project: Project, locale: string): void {
+  const tag = assertValidLocaleTag(locale);
+  const locales = normalizeLocales(project.locales);
+  if (locales.length <= 1) {
+    throw new Error("Cannot remove the last locale");
+  }
+  if (!locales.includes(tag)) {
+    throw new Error(`Locale "${tag}" is not in the project`);
+  }
+  project.locales = locales.filter((entry) => entry !== tag);
 }

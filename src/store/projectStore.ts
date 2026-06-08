@@ -4,7 +4,6 @@ import {
   createEmptyProject,
   createStarterProject,
   parseProject,
-  serializeProject,
   addNode as addNodeInProject,
   cloneNode as cloneNodeInProject,
   removeNode as removeNodeInProject,
@@ -20,6 +19,8 @@ import {
   removeAsset as removeAssetInProject,
   getEntryNodeId,
   normalizeEdgeTargetPorts,
+  addLocaleToProject,
+  removeLocaleFromProject,
 } from "@/core/model/project";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import type { StoryNode, StoryEdge, Asset } from "@/core/model/types";
@@ -31,7 +32,11 @@ import {
 } from "@/core/assets/webAssetStorage";
 import { ensureDefaultBackdrop, canRemoveAsset, canReplaceAsset } from "@/core/assets/defaultBackdrop";
 import { parseAspectRatio } from "@/core/view/thumbnailAspectRatio";
-import { packProjectArchive, unpackProjectArchive } from "@/core/project/projectArchive";
+import {
+  assertArchivePromptLocales,
+  packProjectArchive,
+  unpackProjectArchive,
+} from "@/core/project/projectArchive";
 import { setProjectArchiveBaseDir } from "@/core/project/projectRuntimeContext";
 import { isElectron } from "@/utils/isElectron";
 import {
@@ -40,7 +45,6 @@ import {
   canUndoHistory,
   cancelHistoryTransaction as cancelHistoryTransactionState,
   clearHistory,
-  cloneProject,
   collectAssetIdsFromHistory,
   collectAssetIdsFromProject,
   commitHistoryTransaction as commitHistoryTransactionState,
@@ -53,6 +57,26 @@ import {
   undoHistory,
   type HistoryState,
 } from "@/core/history/projectHistory";
+import {
+  cloneProjectBundle,
+  migrateProjectBundle,
+  parseStoredProjectPayload,
+  serializeProjectBundleSnapshot,
+  serializeStoredProjectPayload,
+} from "@/core/model/projectBundle";
+import {
+  cloneNodePrompts,
+  createEmptyLocalePrompts,
+  ensureLocalePrompts,
+  ensurePromptsForProjectLocales,
+  removeEdgeFromAllLocales,
+  removeLocaleFromPrompts,
+  removeNodeFromAllLocales,
+  setEdgeOptionText,
+  setNodeTextTemplate,
+  type PromptsByLocale,
+} from "@/core/locale/prompts";
+import { assertValidLocaleTag } from "@/core/locale/localeTag";
 
 const STORAGE_KEY = "muselab-project";
 const PERSIST_DEBOUNCE_MS = 400;
@@ -65,60 +89,69 @@ export type MutationOptions = {
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let isApplyingHistory = false;
 
-function loadFromStorage(): Project {
+function loadBundleFromStorage(): ReturnType<typeof migrateProjectBundle> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const project = sanitizeLoadedProject(parseProject(raw));
-      if (serializeProject(project) !== raw) {
-        void saveToStorageNow(project);
+      const bundle = sanitizeLoadedBundle(parseStoredProjectPayload(raw));
+      if (serializeStoredProjectPayload(bundle) !== raw) {
+        void saveToStorageNow(bundle);
       }
-      return project;
+      return bundle;
     }
   } catch {
     // ignore
   }
-  return createEmptyProject();
+  const project = createEmptyProject();
+  return migrateProjectBundle(project);
 }
 
 const LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY = "muselab-thumbnail-aspect-ratio";
 
-function sanitizeLoadedProject(project: Project): Project {
-  for (const asset of project.assets) {
+function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
+  for (const asset of bundle.project.assets) {
     if (asset.url?.startsWith("blob:")) {
       delete asset.url;
     }
   }
-  ensureDefaultBackdrop(project);
-  normalizeEdgeTargetPorts(project);
-  if (!project.thumbnailAspectRatio) {
+  ensureDefaultBackdrop(bundle.project);
+  normalizeEdgeTargetPorts(bundle.project);
+  if (!bundle.project.thumbnailAspectRatio) {
     try {
       const raw = localStorage.getItem(LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY);
       if (raw) {
         const parsed = parseAspectRatio(JSON.parse(raw));
-        if (parsed) project.thumbnailAspectRatio = parsed;
+        if (parsed) bundle.project.thumbnailAspectRatio = parsed;
       }
     } catch {
       // ignore
     }
   }
-  return project;
+  bundle.promptsByLocale = ensurePromptsForProjectLocales(
+    bundle.project,
+    bundle.promptsByLocale
+  );
+  return bundle;
 }
 
-async function saveToStorageNow(project: Project): Promise<void> {
+async function saveToStorageNow(bundle: ReturnType<typeof migrateProjectBundle>): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_KEY, serializeProject(project));
+    localStorage.setItem(STORAGE_KEY, serializeStoredProjectPayload(bundle));
   } catch {
     // ignore
   }
 }
 
-function scheduleSaveToStorage(project: Project): void {
+function scheduleSaveToStorage(bundle: ReturnType<typeof migrateProjectBundle>): void {
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    void saveToStorageNow(project);
+    void saveToStorageNow(bundle);
   }, PERSIST_DEBOUNCE_MS);
+}
+
+function getBundle(state: Pick<ProjectState, "project" | "promptsByLocale">) {
+  return { project: state.project, promptsByLocale: state.promptsByLocale };
 }
 
 function collectRetainedAssetIds(history: HistoryState, project: Project): Set<string> {
@@ -164,7 +197,8 @@ function historyFlags(history: HistoryState): { canUndo: boolean; canRedo: boole
 
 interface ProjectState {
   project: Project;
-  lastSavedJson: string | null;
+  promptsByLocale: PromptsByLocale;
+  lastSavedSnapshot: string | null;
   projectArchiveBaseDir: string | null;
   loadedMlvnPath: string | null;
   selectedNodeIds: string[];
@@ -179,7 +213,7 @@ interface ProjectState {
     patch: Partial<
       Pick<
         Project,
-        "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution"
+        "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution" | "locales"
       >
     >,
     options?: MutationOptions
@@ -214,13 +248,26 @@ interface ProjectState {
     patch: Partial<Omit<StoryNode, "id">>,
     options?: MutationOptions
   ) => void;
+  updateNodePrompt: (
+    locale: string,
+    nodeId: string,
+    textTemplate: string,
+    options?: MutationOptions
+  ) => void;
+  updateEdgePrompt: (
+    locale: string,
+    edgeId: string,
+    optionText: string | undefined,
+    options?: MutationOptions
+  ) => void;
+  addLocale: (locale: string) => void;
+  removeLocale: (locale: string) => void;
 
   addEdge: (
     sourceNodeId: string,
     targetNodeId: string,
     options?: {
       id?: string;
-      optionText?: string;
       condition?: string;
       sourcePortId?: string | null;
       targetPortId?: string | null;
@@ -229,7 +276,7 @@ interface ProjectState {
   removeEdge: (edgeId: string) => void;
   updateEdge: (
     edgeId: string,
-    patch: Partial<Pick<StoryEdge, "optionText" | "condition" | "vertices" | "manualRoute">>,
+    patch: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>,
     options?: MutationOptions
   ) => void;
 
@@ -248,9 +295,9 @@ interface ProjectState {
   getEntryNodeId: () => string | null;
 }
 
-function getInitialState(): { project: Project; lastSavedJson: string } {
-  const project = loadFromStorage();
-  return { project, lastSavedJson: serializeProject(project) };
+function getInitialState(): { bundle: ReturnType<typeof migrateProjectBundle>; lastSavedSnapshot: string } {
+  const bundle = loadBundleFromStorage();
+  return { bundle, lastSavedSnapshot: serializeProjectBundleSnapshot(bundle) };
 }
 
 const initialState = getInitialState();
@@ -267,64 +314,70 @@ function maybeClearPlayHighlight(
   }
 }
 
-function mutateProject(
+function mutateBundle(
   get: () => ProjectState,
   set: (partial: Partial<ProjectState>) => void,
-  recipe: (project: Project) => void,
+  recipe: (bundle: ReturnType<typeof migrateProjectBundle>) => void,
   options?: MutationOptions
-): Project {
+): ReturnType<typeof migrateProjectBundle> {
   const state = get();
   let history = state.history;
+  const beforeBundle = getBundle(state);
 
   if (!isApplyingHistory && shouldRecordHistory(history, options)) {
-    history = recordHistorySnapshot(history, state.project, options?.mergeKey);
+    history = recordHistorySnapshot(history, beforeBundle, options?.mergeKey);
   }
 
-  const project = cloneProject(state.project);
-  recipe(project);
+  const bundle = cloneProjectBundle(beforeBundle);
+  recipe(bundle);
+  bundle.promptsByLocale = ensurePromptsForProjectLocales(bundle.project, bundle.promptsByLocale);
   set({
-    project,
+    project: bundle.project,
+    promptsByLocale: bundle.promptsByLocale,
     history,
     ...historyFlags(history),
   });
-  scheduleSaveToStorage(project);
-  maybeClearPlayHighlight(project, get, set);
-  scheduleAssetBlobGc(history, project);
-  return project;
+  scheduleSaveToStorage(bundle);
+  maybeClearPlayHighlight(bundle.project, get, set);
+  scheduleAssetBlobGc(history, bundle.project);
+  return bundle;
 }
 
 function applyHistoryRestore(
   get: () => ProjectState,
   set: (partial: Partial<ProjectState>) => void,
-  project: Project,
+  bundle: ReturnType<typeof migrateProjectBundle>,
   history: HistoryState
 ): void {
   isApplyingHistory = true;
   try {
     const state = get();
     const selection = clampSelectionForProject(
-      project,
+      bundle.project,
       state.selectedNodeIds,
       state.selectedEdgeIds,
       state.selectedAssetId
     );
+    const restored = cloneProjectBundle(bundle);
     set({
-      project: cloneProject(project),
+      project: restored.project,
+      promptsByLocale: restored.promptsByLocale,
       history,
       ...historyFlags(history),
       ...selection,
     });
-    scheduleSaveToStorage(get().project);
-    maybeClearPlayHighlight(project, get, set);
-    scheduleAssetBlobGc(history, project);
+    scheduleSaveToStorage(restored);
+    maybeClearPlayHighlight(restored.project, get, set);
+    scheduleAssetBlobGc(history, restored.project);
   } finally {
     isApplyingHistory = false;
   }
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
-  project: initialState.project,
-  lastSavedJson: initialState.lastSavedJson,
+  project: initialState.bundle.project,
+  promptsByLocale: initialState.bundle.promptsByLocale,
+  lastSavedSnapshot: initialState.lastSavedSnapshot,
   projectArchiveBaseDir: null,
   loadedMlvnPath: null,
   selectedNodeIds: [],
@@ -336,15 +389,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   canRedo: false,
 
   setProject: (project) => {
+    const bundle = migrateProjectBundle(project, get().promptsByLocale);
     const history = clearHistory(get().history);
-    set({ project, history, ...historyFlags(history) });
-    scheduleSaveToStorage(project);
-    maybeClearPlayHighlight(project, get, set);
-    scheduleAssetBlobGc(history, project);
+    set({
+      project: bundle.project,
+      promptsByLocale: bundle.promptsByLocale,
+      history,
+      ...historyFlags(history),
+    });
+    scheduleSaveToStorage(bundle);
+    maybeClearPlayHighlight(bundle.project, get, set);
+    scheduleAssetBlobGc(history, bundle.project);
   },
 
   updateProject: (patch, options) => {
-    mutateProject(get, set, (project) => updateProjectInProject(project, patch), options);
+    mutateBundle(get, set, (bundle) => updateProjectInProject(bundle.project, patch), options);
   },
 
   setSelection: (nodeIds, edgeIds) =>
@@ -363,7 +422,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   beginHistoryTransaction: () => {
-    const history = beginHistoryTransactionState(get().history, get().project);
+    const history = beginHistoryTransactionState(get().history, getBundle(get()));
     set({ history });
   },
 
@@ -383,36 +442,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   undo: () => {
     const state = get();
-    const { history, project } = undoHistory(state.history, state.project);
-    if (!project) return;
-    applyHistoryRestore(get, set, project, history);
+    const { history, bundle } = undoHistory(state.history, getBundle(state));
+    if (!bundle) return;
+    applyHistoryRestore(get, set, bundle, history);
   },
 
   redo: () => {
     const state = get();
-    const { history, project } = redoHistory(state.history, state.project);
-    if (!project) return;
-    applyHistoryRestore(get, set, project, history);
+    const { history, bundle } = redoHistory(state.history, getBundle(state));
+    if (!bundle) return;
+    applyHistoryRestore(get, set, bundle, history);
   },
 
   loadFromStorage: () => {
-    const { project, lastSavedJson } = getInitialState();
+    const { bundle, lastSavedSnapshot } = getInitialState();
     const history = clearHistory(get().history);
-    set({ project, lastSavedJson, history, ...historyFlags(history) });
+    set({
+      project: bundle.project,
+      promptsByLocale: bundle.promptsByLocale,
+      lastSavedSnapshot,
+      history,
+      ...historyFlags(history),
+    });
   },
 
   saveToStorage: () => {
-    void saveToStorageNow(get().project);
+    void saveToStorageNow(getBundle(get()));
   },
 
   newProject: (name) => {
     const project = createStarterProject(name);
-    const json = serializeProject(project);
+    const bundle = migrateProjectBundle(project);
+    const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
     setProjectArchiveBaseDir(null);
     set({
-      project,
-      lastSavedJson: json,
+      project: bundle.project,
+      promptsByLocale: bundle.promptsByLocale,
+      lastSavedSnapshot: snapshot,
       projectArchiveBaseDir: null,
       loadedMlvnPath: null,
       selectedNodeIds: [],
@@ -422,31 +489,33 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       history,
       ...historyFlags(history),
     });
-    void saveToStorageNow(project);
-    scheduleAssetBlobGc(history, project);
+    void saveToStorageNow(bundle);
+    scheduleAssetBlobGc(history, bundle.project);
   },
 
   hydrateAssets: async () => {
     isApplyingHistory = true;
     try {
-      const project = cloneProject(get().project);
-      await hydrateLegacyEmbeddedAssets(project);
-      set({ project });
-      scheduleSaveToStorage(project);
+      const bundle = cloneProjectBundle(getBundle(get()));
+      await hydrateLegacyEmbeddedAssets(bundle.project);
+      set({ project: bundle.project, promptsByLocale: bundle.promptsByLocale });
+      scheduleSaveToStorage(bundle);
     } finally {
       isApplyingHistory = false;
     }
   },
 
   loadFromJson: async (json) => {
-    const project = sanitizeLoadedProject(parseProject(json));
-    await hydrateLegacyEmbeddedAssets(project);
-    const snapshot = serializeProject(project);
+    const project = parseProject(json);
+    const bundle = sanitizeLoadedBundle(migrateProjectBundle(project));
+    await hydrateLegacyEmbeddedAssets(bundle.project);
+    const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
     setProjectArchiveBaseDir(null);
     set({
-      project,
-      lastSavedJson: snapshot,
+      project: bundle.project,
+      promptsByLocale: bundle.promptsByLocale,
+      lastSavedSnapshot: snapshot,
       projectArchiveBaseDir: null,
       loadedMlvnPath: null,
       selectedNodeIds: [],
@@ -456,20 +525,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       history,
       ...historyFlags(history),
     });
-    scheduleSaveToStorage(project);
-    scheduleAssetBlobGc(history, project);
+    scheduleSaveToStorage(bundle);
+    scheduleAssetBlobGc(history, bundle.project);
   },
 
   loadFromArchive: async (data, mlvnPath = null) => {
-    const { manifest, files } = unpackProjectArchive(data);
-    const project = sanitizeLoadedProject(parseProject(manifest));
-    const baseDir = await hydrateProjectAssets(project, { files, mlvnPath });
-    const snapshot = serializeProject(project);
+    const { manifest, files, prompts } = unpackProjectArchive(data);
+    const project = parseProject(manifest);
+    assertArchivePromptLocales(project.locales, prompts);
+    const promptsByLocale: PromptsByLocale = {};
+    for (const [locale, localePrompts] of prompts.entries()) {
+      promptsByLocale[locale] = localePrompts;
+    }
+    const bundle = sanitizeLoadedBundle(migrateProjectBundle(project, promptsByLocale));
+    const baseDir = await hydrateProjectAssets(bundle.project, { files, mlvnPath });
+    const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
     setProjectArchiveBaseDir(baseDir);
     set({
-      project,
-      lastSavedJson: snapshot,
+      project: bundle.project,
+      promptsByLocale: bundle.promptsByLocale,
+      lastSavedSnapshot: snapshot,
       projectArchiveBaseDir: baseDir,
       loadedMlvnPath: mlvnPath ?? null,
       selectedNodeIds: [],
@@ -479,66 +555,107 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       history,
       ...historyFlags(history),
     });
-    scheduleSaveToStorage(project);
-    scheduleAssetBlobGc(history, project);
+    scheduleSaveToStorage(bundle);
+    scheduleAssetBlobGc(history, bundle.project);
   },
 
-  exportArchive: async () => packProjectArchive(get().project),
+  exportArchive: async () => packProjectArchive(getBundle(get())),
 
-  isDirty: () => serializeProject(get().project) !== get().lastSavedJson,
+  isDirty: () => serializeProjectBundleSnapshot(getBundle(get())) !== get().lastSavedSnapshot,
 
   markSaved: () => {
-    set({ lastSavedJson: serializeProject(get().project) });
+    set({ lastSavedSnapshot: serializeProjectBundleSnapshot(getBundle(get())) });
   },
 
   addNode: (position) => {
     let node!: StoryNode;
-    mutateProject(get, set, (project) => {
-      node = addNodeInProject(project, position);
+    mutateBundle(get, set, (bundle) => {
+      node = addNodeInProject(bundle.project, position);
     });
     return node;
   },
 
   cloneNode: (nodeId, position) => {
     let node: StoryNode | null = null;
-    mutateProject(get, set, (project) => {
-      node = cloneNodeInProject(project, nodeId, position);
+    mutateBundle(get, set, (bundle) => {
+      node = cloneNodeInProject(bundle.project, nodeId, position);
+      if (node) {
+        cloneNodePrompts(bundle.promptsByLocale, nodeId, node.id);
+      }
     });
     return node;
   },
 
   removeNode: (nodeId) => {
-    mutateProject(get, set, (project) => removeNodeInProject(project, nodeId));
+    mutateBundle(get, set, (bundle) => {
+      removeNodeInProject(bundle.project, nodeId);
+      removeNodeFromAllLocales(bundle.promptsByLocale, nodeId);
+    });
   },
 
   updateNodePosition: (nodeId, position) => {
-    mutateProject(get, set, (project) => updateNodePositionInProject(project, nodeId, position));
+    mutateBundle(get, set, (bundle) => updateNodePositionInProject(bundle.project, nodeId, position));
   },
 
   updateNode: (nodeId, patch, options) => {
-    mutateProject(get, set, (project) => updateNodeInProject(project, nodeId, patch), options);
+    mutateBundle(get, set, (bundle) => updateNodeInProject(bundle.project, nodeId, patch), options);
+  },
+
+  updateNodePrompt: (locale, nodeId, textTemplate, options) => {
+    const tag = assertValidLocaleTag(locale);
+    mutateBundle(get, set, (bundle) => {
+      const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
+      setNodeTextTemplate(prompts, nodeId, textTemplate);
+    }, options);
+  },
+
+  updateEdgePrompt: (locale, edgeId, optionText, options) => {
+    const tag = assertValidLocaleTag(locale);
+    mutateBundle(get, set, (bundle) => {
+      const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
+      setEdgeOptionText(prompts, edgeId, optionText);
+    }, options);
+  },
+
+  addLocale: (locale) => {
+    mutateBundle(get, set, (bundle) => {
+      addLocaleToProject(bundle.project, locale);
+      const tag = assertValidLocaleTag(locale);
+      bundle.promptsByLocale[tag] = createEmptyLocalePrompts();
+    });
+  },
+
+  removeLocale: (locale) => {
+    const tag = assertValidLocaleTag(locale);
+    mutateBundle(get, set, (bundle) => {
+      removeLocaleFromProject(bundle.project, tag);
+      bundle.promptsByLocale = removeLocaleFromPrompts(bundle.promptsByLocale, tag);
+    });
   },
 
   addEdge: (sourceNodeId, targetNodeId, options) => {
     let edge!: StoryEdge;
-    mutateProject(get, set, (project) => {
-      edge = addEdgeInProject(project, sourceNodeId, targetNodeId, options);
+    mutateBundle(get, set, (bundle) => {
+      edge = addEdgeInProject(bundle.project, sourceNodeId, targetNodeId, options);
     });
     return edge;
   },
 
   removeEdge: (edgeId) => {
-    mutateProject(get, set, (project) => removeEdgeInProject(project, edgeId));
+    mutateBundle(get, set, (bundle) => {
+      removeEdgeInProject(bundle.project, edgeId);
+      removeEdgeFromAllLocales(bundle.promptsByLocale, edgeId);
+    });
   },
 
   updateEdge: (edgeId, patch, options) => {
-    mutateProject(get, set, (project) => updateEdgeInProject(project, edgeId, patch), options);
+    mutateBundle(get, set, (bundle) => updateEdgeInProject(bundle.project, edgeId, patch), options);
   },
 
   addAsset: async (type, name, options = {}) => {
     let asset!: Asset;
-    mutateProject(get, set, (project) => {
-      asset = addAssetInProject(project, type, name, {
+    mutateBundle(get, set, (bundle) => {
+      asset = addAssetInProject(bundle.project, type, name, {
         path: options.path,
         url: options.file ? undefined : options.url,
       });
@@ -550,14 +667,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   updateAsset: (assetId, patch, options) => {
-    mutateProject(get, set, (project) => updateAssetInProject(project, assetId, patch), options);
+    mutateBundle(get, set, (bundle) => updateAssetInProject(bundle.project, assetId, patch), options);
   },
 
   replaceAssetMedia: async (assetId, options) => {
     if (!canReplaceAsset(assetId)) return;
-    mutateProject(get, set, (project) => {
+    mutateBundle(get, set, (bundle) => {
       const usesBlob = Boolean(!isElectron() && options.file);
-      replaceAssetMediaInProject(project, assetId, {
+      replaceAssetMediaInProject(bundle.project, assetId, {
         path: options.path,
         blobStored: usesBlob,
       });
@@ -570,7 +687,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   removeAsset: async (assetId) => {
     if (!canRemoveAsset(assetId)) return;
-    mutateProject(get, set, (project) => removeAssetInProject(project, assetId));
+    mutateBundle(get, set, (bundle) => removeAssetInProject(bundle.project, assetId));
     const selectedAssetId = get().selectedAssetId === assetId ? null : get().selectedAssetId;
     if (selectedAssetId !== get().selectedAssetId) {
       set({ selectedAssetId });
@@ -579,3 +696,5 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   getEntryNodeId: () => getEntryNodeId(get().project),
 }));
+
+export type { PromptsByLocale };

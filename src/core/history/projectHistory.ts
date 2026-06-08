@@ -1,14 +1,17 @@
+import type { ProjectBundle } from "@/core/model/projectBundle";
+import { cloneProjectBundle } from "@/core/model/projectBundle";
 import type { Project } from "@/core/model/types";
+export { collectAssetIdsFromProject } from "./projectHistoryAssets";
 
 export const DEFAULT_HISTORY_MAX_DEPTH = 50;
 
 export type HistoryState = {
-  past: Project[];
-  future: Project[];
+  past: ProjectBundle[];
+  future: ProjectBundle[];
   maxDepth: number;
   coalesceKey: string | null;
   transactionDepth: number;
-  transactionSnapshot: Project | null;
+  transactionSnapshot: ProjectBundle | null;
 };
 
 export function cloneProject(project: Project): Project {
@@ -52,7 +55,7 @@ export function flushHistoryCoalesce(history: HistoryState): HistoryState {
 
 export function beginHistoryTransaction(
   history: HistoryState,
-  currentProject: Project
+  currentBundle: ProjectBundle
 ): HistoryState {
   if (history.transactionDepth > 0) {
     return { ...history, transactionDepth: history.transactionDepth + 1 };
@@ -60,14 +63,14 @@ export function beginHistoryTransaction(
   return {
     ...history,
     transactionDepth: 1,
-    transactionSnapshot: cloneProject(currentProject),
+    transactionSnapshot: cloneProjectBundle(currentBundle),
   };
 }
 
 export function commitHistoryTransaction(history: HistoryState): {
   history: HistoryState;
   shouldRecord: boolean;
-  snapshot: Project | null;
+  snapshot: ProjectBundle | null;
 } {
   if (history.transactionDepth <= 0) {
     return { history, shouldRecord: false, snapshot: null };
@@ -109,10 +112,10 @@ export function shouldRecordHistory(
 
 export function recordHistorySnapshot(
   history: HistoryState,
-  beforeProject: Project,
+  beforeBundle: ProjectBundle,
   mergeKey?: string
 ): HistoryState {
-  const snapshot = cloneProject(beforeProject);
+  const snapshot = cloneProjectBundle(beforeBundle);
   const coalescing = mergeKey !== undefined && mergeKey === history.coalesceKey;
 
   if (coalescing) {
@@ -134,9 +137,9 @@ export function recordHistorySnapshot(
 
 export function pushHistoryFromSnapshot(
   history: HistoryState,
-  snapshot: Project
+  snapshot: ProjectBundle
 ): HistoryState {
-  const past = [...history.past, cloneProject(snapshot)];
+  const past = [...history.past, cloneProjectBundle(snapshot)];
   while (past.length > history.maxDepth) {
     past.shift();
   }
@@ -150,15 +153,15 @@ export function pushHistoryFromSnapshot(
 
 export function undoHistory(
   history: HistoryState,
-  currentProject: Project
-): { history: HistoryState; project: Project | null } {
+  currentBundle: ProjectBundle
+): { history: HistoryState; bundle: ProjectBundle | null } {
   if (history.past.length === 0) {
-    return { history, project: null };
+    return { history, bundle: null };
   }
 
   const past = [...history.past];
-  const project = past.pop()!;
-  const future = [cloneProject(currentProject), ...history.future];
+  const bundle = past.pop()!;
+  const future = [cloneProjectBundle(currentBundle), ...history.future];
 
   return {
     history: {
@@ -169,21 +172,21 @@ export function undoHistory(
       transactionDepth: 0,
       transactionSnapshot: null,
     },
-    project,
+    bundle,
   };
 }
 
 export function redoHistory(
   history: HistoryState,
-  currentProject: Project
-): { history: HistoryState; project: Project | null } {
+  currentBundle: ProjectBundle
+): { history: HistoryState; bundle: ProjectBundle | null } {
   if (history.future.length === 0) {
-    return { history, project: null };
+    return { history, bundle: null };
   }
 
   const future = [...history.future];
-  const project = future.shift()!;
-  const past = [...history.past, cloneProject(currentProject)];
+  const bundle = future.shift()!;
+  const past = [...history.past, cloneProjectBundle(currentBundle)];
 
   while (past.length > history.maxDepth) {
     past.shift();
@@ -198,23 +201,19 @@ export function redoHistory(
       transactionDepth: 0,
       transactionSnapshot: null,
     },
-    project,
+    bundle,
   };
-}
-
-export function collectAssetIdsFromProject(project: Project): Set<string> {
-  return new Set(project.assets.map((asset) => asset.id));
 }
 
 export function collectAssetIdsFromHistory(history: HistoryState): Set<string> {
   const ids = new Set<string>();
   for (const snapshot of history.past) {
-    for (const asset of snapshot.assets) {
+    for (const asset of snapshot.project.assets) {
       ids.add(asset.id);
     }
   }
   for (const snapshot of history.future) {
-    for (const asset of snapshot.assets) {
+    for (const asset of snapshot.project.assets) {
       ids.add(asset.id);
     }
   }

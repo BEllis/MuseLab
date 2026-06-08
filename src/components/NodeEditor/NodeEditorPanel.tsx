@@ -1,13 +1,15 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import type { MutationOptions } from "@/store/projectStore";
 import type { Project, SoundConfig, StoryNode } from "@/core/model/types";
+import { getNodeTextTemplateForLocale } from "@/core/locale/prompts";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
+import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
 import { TemplateTextEditor } from "./TemplateTextEditor";
 
 const ACTOR_THUMB_SIZE = 36;
@@ -222,8 +224,10 @@ function ActorRow({
 export function NodeEditorPanel() {
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const project = useProjectStore((s) => s.project);
+  const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateNode = useProjectStore((s) => s.updateNode);
+  const updateNodePrompt = useProjectStore((s) => s.updateNodePrompt);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
 
   const node =
@@ -247,6 +251,11 @@ export function NodeEditorPanel() {
   const [backdropDropActive, setBackdropDropActive] = useState(false);
   const [actorsDropActive, setActorsDropActive] = useState(false);
   const [actorReorderDropIndex, setActorReorderDropIndex] = useState<number | null>(null);
+  const [visibleLocales, setVisibleLocales] = useState<string[]>(project.locales);
+
+  useEffect(() => {
+    setVisibleLocales(project.locales);
+  }, [project.locales]);
 
   const onBackdropDragOver = useCallback((e: React.DragEvent) => {
     if (isAssetDrag(e.dataTransfer)) {
@@ -518,19 +527,30 @@ export function NodeEditorPanel() {
         ))}
       </div>
 
-      <label style={{ display: "block", marginBottom: "8px" }}>
-        <div style={{ marginBottom: "4px" }}>Text template</div>
-        <TemplateTextEditor
-          value={node.textTemplate}
-          onChange={(markup) =>
-            update({ textTemplate: markup }, { mergeKey: `node-text:${node.id}` })
-          }
-          onBlurCommit={() => flushHistoryCoalesce()}
-          syncKey={node.id}
-          placeholder="Hello world… Use the toolbar for style tags, or {{ state.x }} for logic."
-          style={{ marginTop: "4px", width: "100%" }}
+      <div style={{ marginBottom: "8px" }}>
+        <LocaleVisibilityToggle
+          locales={project.locales}
+          visibleLocales={visibleLocales}
+          onChange={setVisibleLocales}
         />
-      </label>
+        {visibleLocales.map((locale) => (
+          <label key={locale} style={{ display: "block", marginBottom: "12px" }}>
+            <div style={{ marginBottom: "4px" }}>Text template ({locale})</div>
+            <TemplateTextEditor
+              value={getNodeTextTemplateForLocale(promptsByLocale, locale, node.id)}
+              onChange={(markup) =>
+                updateNodePrompt(locale, node.id, markup, {
+                  mergeKey: `node-text:${node.id}:${locale}`,
+                })
+              }
+              onBlurCommit={() => flushHistoryCoalesce()}
+              syncKey={`${node.id}:${locale}`}
+              placeholder="Hello world… Use the toolbar for style tags, or {{ state.x }} for logic."
+              style={{ marginTop: "4px", width: "100%" }}
+            />
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

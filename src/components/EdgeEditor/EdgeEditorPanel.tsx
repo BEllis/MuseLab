@@ -1,12 +1,22 @@
+import { useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
+import { getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { CloseButton } from "../CloseButton";
+import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
 
 export function EdgeEditorPanel() {
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
   const project = useProjectStore((s) => s.project);
+  const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateEdge = useProjectStore((s) => s.updateEdge);
+  const updateEdgePrompt = useProjectStore((s) => s.updateEdgePrompt);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
+  const [visibleLocales, setVisibleLocales] = useState<string[]>(project.locales);
+
+  useEffect(() => {
+    setVisibleLocales(project.locales);
+  }, [project.locales]);
 
   const edge =
     selectedEdgeIds.length === 1
@@ -36,23 +46,35 @@ export function EdgeEditorPanel() {
       <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--app-text-muted)" }}>
         {sourceLabel} → {targetLabel}
       </p>
-      <label style={{ display: "block", marginBottom: "8px" }}>
-        Option text (shown as player choice; leave empty for auto-advance)
-        <input
-          type="text"
-          value={edge.optionText ?? ""}
-          onChange={(e) =>
-            updateEdge(
-              edge.id,
-              { optionText: e.target.value || undefined },
-              { mergeKey: `edge-field:${edge.id}:optionText` }
-            )
-          }
-          onBlur={() => flushHistoryCoalesce()}
-          placeholder="e.g. Go left"
-          style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
+
+      <div style={{ marginBottom: "8px" }}>
+        <LocaleVisibilityToggle
+          locales={project.locales}
+          visibleLocales={visibleLocales}
+          onChange={setVisibleLocales}
         />
-      </label>
+        {visibleLocales.map((locale) => (
+          <label key={locale} style={{ display: "block", marginBottom: "8px" }}>
+            Option text ({locale})
+            <input
+              type="text"
+              value={getEdgeOptionTextForLocale(promptsByLocale, locale, edge.id) ?? ""}
+              onChange={(e) =>
+                updateEdgePrompt(
+                  locale,
+                  edge.id,
+                  e.target.value || undefined,
+                  { mergeKey: `edge-field:${edge.id}:optionText:${locale}` }
+                )
+              }
+              onBlur={() => flushHistoryCoalesce()}
+              placeholder="e.g. Go left"
+              style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
+            />
+          </label>
+        ))}
+      </div>
+
       <label style={{ display: "block" }}>
         Condition (TypeScript expression; leave empty to always show)
         <textarea

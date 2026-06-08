@@ -28,7 +28,7 @@ export interface SoundConfig {
   endTime?: number;
 }
 
-/** Story element (node): position, optional backdrop, actors, sounds, text template */
+/** Story element (node): position, optional backdrop, actors, sounds */
 export interface StoryNode {
   id: string;
   position: { x: number; y: number };
@@ -36,22 +36,26 @@ export interface StoryNode {
   backdropId: string;
   actorIds: string[];
   soundConfigs: SoundConfig[];
-  textTemplate: string;
 }
 
-/** Link between nodes; optional option text and condition for player choices */
+/** Link between nodes; optional condition for player choices */
 export interface StoryEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
   sourcePortId?: string;
   targetPortId?: string;
-  optionText?: string;
   condition?: string;
   /** User-defined bend points; when present the edge stops auto-routing. */
   vertices?: { x: number; y: number }[];
   /** True once the user has manually shaped this edge. */
   manualRoute?: boolean;
+}
+
+/** Localized text content stored in prompts.<locale>.json */
+export interface LocalePrompts {
+  nodes: Record<string, { textTemplate?: string }>;
+  edges: Record<string, { optionText?: string }>;
 }
 
 /** Aspect ratio stored as width:height integers (e.g. 16:9). */
@@ -68,6 +72,8 @@ export interface Project {
   edges: StoryEdge[];
   /** Initial state for the runtime (variables, flags) */
   globalState: Record<string, unknown>;
+  /** Supported locale tags; first entry is the default */
+  locales: string[];
   /** Optional: id of the entry node; otherwise first node */
   entryNodeId?: string;
   /** Scene thumbnail aspect ratio in the designer canvas */

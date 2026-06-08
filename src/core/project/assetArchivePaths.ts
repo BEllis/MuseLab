@@ -2,6 +2,10 @@ import type { AssetType } from "../model/types";
 
 export const PROJECT_MANIFEST = "project.json";
 
+export function promptsFileName(locale: string): string {
+  return `prompts.${locale}.json`;
+}
+
 const ASSET_TYPE_DIRS: Record<AssetType, string> = {
   backdrop: "backdrops",
   actor: "actors",

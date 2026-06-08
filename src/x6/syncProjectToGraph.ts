@@ -1,5 +1,6 @@
 import type { Graph } from "@antv/x6";
 import type { Project } from "@/core/model/types";
+import type { PromptsByLocale } from "@/core/locale/prompts";
 import {
   purgeDanglingEdges,
   purgeFreeOutPreviews,
@@ -13,6 +14,7 @@ export type SyncGuard = { current: boolean };
 export function syncProjectToGraph(
   graph: Graph,
   project: Project,
+  promptsByLocale: PromptsByLocale,
   selectedNodeIds: ReadonlySet<string>,
   selectedEdgeIds: ReadonlySet<string>,
   highlightedRootNodeIds: ReadonlySet<string>,
@@ -35,12 +37,19 @@ export function syncProjectToGraph(
           projectNode,
           selectedNodeIds,
           highlightedRootNodeIds,
-          project
+          project,
+          promptsByLocale
         );
       }
 
       for (const projectEdge of project.edges) {
-        syncProjectEdge(graph, projectEdge, selectedEdgeIds.has(projectEdge.id));
+        syncProjectEdge(
+          graph,
+          projectEdge,
+          selectedEdgeIds.has(projectEdge.id),
+          project,
+          promptsByLocale
+        );
       }
 
       purgeDanglingEdges(graph, project);

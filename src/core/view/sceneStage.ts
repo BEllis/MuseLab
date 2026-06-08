@@ -1,13 +1,22 @@
 import type { Project, StoryEdge, StoryNode } from "@/core/model/types";
+import type { PromptsByLocale } from "@/core/locale/prompts";
+import { getDefaultLocale, getEdgeOptionTextForLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
 import { evaluateCondition, runTemplate } from "@/core/template/engine";
 import type { TemplateContext } from "@/core/template/sandbox";
 
 export type SceneStageChoice = {
   edge: StoryEdge;
   targetNode: StoryNode;
+  optionText?: string;
 };
 
-export function getNodeChoices(project: Project, nodeId: string): SceneStageChoice[] {
+export function getNodeChoices(
+  project: Project,
+  nodeId: string,
+  promptsByLocale: PromptsByLocale,
+  locale?: string
+): SceneStageChoice[] {
+  const activeLocale = locale ?? getDefaultLocale(project);
   const choices: SceneStageChoice[] = [];
 
   for (const edge of project.edges) {
@@ -15,7 +24,13 @@ export function getNodeChoices(project: Project, nodeId: string): SceneStageChoi
     if (!evaluateCondition(edge.condition, { state: project.globalState })) continue;
 
     const targetNode = project.nodes.find((node) => node.id === edge.targetNodeId);
-    if (targetNode) choices.push({ edge, targetNode });
+    if (targetNode) {
+      choices.push({
+        edge,
+        targetNode,
+        optionText: getEdgeOptionTextForLocale(promptsByLocale, activeLocale, edge.id),
+      });
+    }
   }
 
   return choices;
@@ -36,4 +51,15 @@ export function renderNodePreviewHtml(
   globalState: Project["globalState"]
 ): string {
   return runTemplate(textTemplate, previewTemplateContext(globalState));
+}
+
+export function renderNodePreviewHtmlForLocale(
+  project: Project,
+  promptsByLocale: PromptsByLocale,
+  nodeId: string,
+  locale?: string
+): string {
+  const activeLocale = locale ?? getDefaultLocale(project);
+  const textTemplate = getNodeTextTemplateForLocale(promptsByLocale, activeLocale, nodeId);
+  return renderNodePreviewHtml(textTemplate, project.globalState);
 }

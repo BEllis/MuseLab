@@ -99,6 +99,7 @@ export function FlowCanvas() {
       syncProjectToGraph(
         graph,
         state.project,
+        state.promptsByLocale,
         new Set(state.selectedNodeIds),
         new Set(state.selectedEdgeIds),
         new Set(state.highlightedRootNodeIds),
@@ -120,6 +121,7 @@ export function FlowCanvas() {
     const unsubscribeProject = useProjectStore.subscribe((state, prevState) => {
       if (
         state.project === prevState.project &&
+        state.promptsByLocale === prevState.promptsByLocale &&
         state.selectedNodeIds === prevState.selectedNodeIds &&
         state.selectedEdgeIds === prevState.selectedEdgeIds &&
         state.highlightedRootNodeIds === prevState.highlightedRootNodeIds

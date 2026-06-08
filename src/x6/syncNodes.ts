@@ -1,5 +1,7 @@
 import type { Graph, Node } from "@antv/x6";
 import type { Project } from "@/core/model/types";
+import type { PromptsByLocale } from "@/core/locale/prompts";
+import { getDefaultLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
 import { syncNodeEdgePorts } from "./connectionPorts";
 import { STORY_NODE_SHAPE } from "./constants";
 import { applyNodeBoundaryTool } from "./nodeConfig";
@@ -7,11 +9,12 @@ import { applyNodeBoundaryTool } from "./nodeConfig";
 function buildNodeData(
   node: Project["nodes"][number],
   selectedNodeIds: ReadonlySet<string>,
-  highlightedRootNodeIds: ReadonlySet<string>
+  highlightedRootNodeIds: ReadonlySet<string>,
+  preview: string
 ) {
   return {
     label: node.label,
-    preview: node.textTemplate.slice(0, 60) || "(no text)",
+    preview: preview.slice(0, 60) || "(no text)",
     selected: selectedNodeIds.has(node.id),
     invalidRoot: highlightedRootNodeIds.has(node.id),
     backdropId: node.backdropId,
@@ -23,9 +26,12 @@ export function syncProjectNode(
   projectNode: Project["nodes"][number],
   selectedNodeIds: ReadonlySet<string>,
   highlightedRootNodeIds: ReadonlySet<string>,
-  project: Project
+  project: Project,
+  promptsByLocale: PromptsByLocale
 ): void {
-  const data = buildNodeData(projectNode, selectedNodeIds, highlightedRootNodeIds);
+  const locale = getDefaultLocale(project);
+  const preview = getNodeTextTemplateForLocale(promptsByLocale, locale, projectNode.id);
+  const data = buildNodeData(projectNode, selectedNodeIds, highlightedRootNodeIds, preview);
   const existing = graph.getCellById(projectNode.id);
 
   if (existing?.isNode()) {

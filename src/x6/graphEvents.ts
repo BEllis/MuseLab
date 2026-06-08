@@ -44,6 +44,7 @@ function finalizeConnection(
   syncProjectToGraph(
     graph,
     nextState.project,
+    nextState.promptsByLocale,
     new Set(nextState.selectedNodeIds),
     new Set(nextState.selectedEdgeIds),
     new Set(nextState.highlightedRootNodeIds),

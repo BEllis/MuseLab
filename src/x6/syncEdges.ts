@@ -1,5 +1,7 @@
 import type { Edge, Graph } from "@antv/x6";
 import type { Project, StoryEdge } from "@/core/model/types";
+import type { PromptsByLocale } from "@/core/locale/prompts";
+import { getDefaultLocale, getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { buildEdgeSourceTerminal, buildEdgeTargetTerminal } from "./connectionPorts";
 import { FREE_OUT_PORT, STORY_EDGE_SHAPE } from "./constants";
 import {
@@ -22,10 +24,15 @@ function hasValidTerminals(edge: Edge): boolean {
   return Boolean(edge.getSourceCellId() && edge.getTargetCellId());
 }
 
-function applyEdgeAttrs(edge: Edge, projectEdge: StoryEdge, selected: boolean): void {
+function applyEdgeAttrs(
+  edge: Edge,
+  projectEdge: StoryEdge,
+  selected: boolean,
+  optionText: string | undefined
+): void {
   const router = getStoryEdgeRouter(projectEdge);
   const vertices = getStoryEdgeVertices(projectEdge);
-  const labels = projectEdge.optionText ? [projectEdge.optionText] : [];
+  const labels = optionText ? [optionText] : [];
   const source = buildEdgeSourceTerminal(projectEdge);
   const target = buildEdgeTargetTerminal(projectEdge);
 
@@ -41,12 +48,19 @@ function applyEdgeAttrs(edge: Edge, projectEdge: StoryEdge, selected: boolean): 
 export function syncProjectEdge(
   graph: Graph,
   projectEdge: StoryEdge,
-  selected: boolean
+  selected: boolean,
+  project: Project,
+  promptsByLocale: PromptsByLocale
 ): void {
+  const optionText = getEdgeOptionTextForLocale(
+    promptsByLocale,
+    getDefaultLocale(project),
+    projectEdge.id
+  );
   const existing = graph.getCellById(projectEdge.id);
 
   if (existing?.isEdge()) {
-    applyEdgeAttrs(existing, projectEdge, selected);
+    applyEdgeAttrs(existing, projectEdge, selected, optionText);
     return;
   }
 
@@ -58,7 +72,7 @@ export function syncProjectEdge(
     router: getStoryEdgeRouter(projectEdge),
     connector: storyEdgeConnector,
     vertices: getStoryEdgeVertices(projectEdge),
-    labels: projectEdge.optionText ? [projectEdge.optionText] : [],
+    labels: optionText ? [optionText] : [],
   });
 
   const created = graph.getCellById(projectEdge.id);

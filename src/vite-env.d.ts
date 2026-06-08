@@ -34,6 +34,8 @@ interface Window {
     showBeforeNewDialog?: () => Promise<boolean>;
     setWindowSize?: (width: number, height: number) => Promise<void>;
     getUserSettings?: () => Promise<{ theme?: "light" | "dark" }>;
+    getPlayerLocale?: (projectKey: string) => Promise<string | null>;
+    setPlayerLocale?: (projectKey: string, locale: string) => Promise<void>;
     syncTheme?: (theme: "light" | "dark") => void;
     usesInAppMenuBar?: boolean;
     onSetTheme?: (callback: (theme: "light" | "dark") => void) => (() => void) | void;

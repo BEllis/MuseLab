@@ -2,10 +2,16 @@ import { useRef, useState, useMemo, useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useProjectStore } from "@/store/projectStore";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
-import { createRunner } from "@/core/runtime/runner";
+import { createRunner, type RuntimeChoice } from "@/core/runtime/runner";
+import {
+  getStoredPlayerLocale,
+  readElectronPlayerLocale,
+  setStoredPlayerLocale,
+} from "@/core/locale/playerLocalePreference";
+import type { PromptsByLocale } from "@/core/locale/prompts";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
-import type { Project, StoryEdge, StoryNode } from "@/core/model/types";
+import type { Project, StoryNode } from "@/core/model/types";
 import {
   clampPlayerResolution,
   CUSTOM_PLAYER_RESOLUTION_KEY,
@@ -33,26 +39,42 @@ function PlayerViewInner({
   entryId: string;
 }) {
   const updateProject = useProjectStore((s) => s.updateProject);
+  const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
+  const loadedMlvnPath = useProjectStore((s) => s.loadedMlvnPath);
   const storedResolution = getProjectPlayerResolution(project);
   const storedPresetKey = findPlayerResolutionPresetKey(storedResolution);
-  const runnerRef = useRef<ReturnType<typeof createRunner> | null>(null);
-  if (!runnerRef.current) {
-    runnerRef.current = createRunner(project, {
-      onPlaySound: (assetId, options) => {
-        window.__playerPlaySound?.(assetId, options);
-      },
-    });
-  }
-  if (runnerRef.current.project !== project) {
-    runnerRef.current = createRunner(project, {
-      onPlaySound: (assetId, options) => {
-        window.__playerPlaySound?.(assetId, options);
-      },
-    });
-  }
-  const runner = runnerRef.current;
-
+  const [activeLocale, setActiveLocale] = useState(() =>
+    getStoredPlayerLocale(project.name, project.locales, loadedMlvnPath)
+  );
   const [, setTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const locale = await readElectronPlayerLocale(
+        loadedMlvnPath ?? project.name,
+        project.name,
+        project.locales
+      );
+      if (!cancelled) {
+        setActiveLocale(locale);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedMlvnPath, project.name, project.locales]);
+
+  const runner = useMemo(
+    () =>
+      createRunner(project, promptsByLocale, activeLocale, {
+        onPlaySound: (assetId, options) => {
+          window.__playerPlaySound?.(assetId, options);
+        },
+      }),
+    [project, promptsByLocale, activeLocale]
+  );
+
   const runtime = runner.getRuntimeState();
 
   // Start at entry when project has nodes and we don't have a current node
@@ -98,8 +120,14 @@ function PlayerViewInner({
   }
 
   const node = project.nodes.find((n) => n.id === runtime.currentNodeId)!;
-  const hasOptions = runtime.choices.some((c) => c.edge.optionText);
+  const hasOptions = runtime.choices.some((c) => c.optionText);
   const singleChoice = runtime.choices.length === 1 && !hasOptions;
+
+  const handleLocaleChange = (locale: string) => {
+    setActiveLocale(locale);
+    setStoredPlayerLocale(project.name, locale, loadedMlvnPath);
+    setTick((t) => t + 1);
+  };
 
   const [resolutionKey, setResolutionKey] = useState(storedPresetKey);
   const [customWidth, setCustomWidth] = useState(storedResolution.width);
@@ -181,6 +209,28 @@ function PlayerViewInner({
       >
         <span style={{ color: "#eee" }}>{project.name}</span>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label style={{ color: "#aaa", fontSize: "14px" }}>
+            Locale
+            <select
+              value={activeLocale}
+              onChange={(e) => handleLocaleChange(e.target.value)}
+              style={{
+                marginLeft: "6px",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                border: "1px solid #444",
+                background: "#1a1a2e",
+                color: "#eee",
+                fontSize: "14px",
+              }}
+            >
+              {project.locales.map((locale) => (
+                <option key={locale} value={locale}>
+                  {locale}
+                </option>
+              ))}
+            </select>
+          </label>
           <label style={{ color: "#aaa", fontSize: "14px" }}>
             Resolution
             <select
@@ -290,6 +340,8 @@ function PlayerViewInner({
           >
             <PlayerStage
               project={project}
+              promptsByLocale={promptsByLocale}
+              locale={activeLocale}
               node={node}
               runtime={runtime}
               singleChoice={singleChoice}
@@ -307,6 +359,8 @@ function PlayerViewInner({
 
 function PlayerStage({
   project,
+  promptsByLocale,
+  locale,
   node,
   runtime,
   singleChoice,
@@ -314,8 +368,10 @@ function PlayerStage({
   onRestart,
 }: {
   project: Project;
-  node: { id: string; backdropId: string; actorIds: string[]; textTemplate: string };
-  runtime: { currentHtml: string; choices: Array<{ edge: StoryEdge; targetNode: StoryNode }> };
+  promptsByLocale: PromptsByLocale;
+  locale: string;
+  node: Pick<StoryNode, "id" | "backdropId" | "actorIds">;
+  runtime: { currentHtml: string; choices: RuntimeChoice[] };
   singleChoice: boolean;
   handleChoice: (targetId: string) => void;
   onRestart?: () => void;
@@ -323,6 +379,8 @@ function PlayerStage({
   return (
     <SceneStagePreview
       project={project}
+      promptsByLocale={promptsByLocale}
+      locale={locale}
       node={node}
       variant="full"
       dialogueHtml={runtime.currentHtml}
