@@ -4,35 +4,73 @@ import DesignerView from "./views/DesignerView";
 import PlayerView from "./views/PlayerView";
 import { MenuBar } from "./components/MenuBar/MenuBar";
 import { useProjectStore } from "./store/projectStore";
-import { newProjectWithPrompt, saveProject } from "./core/project/projectFileActions";
+import { newProjectWithPrompt, loadProject, saveProject } from "./core/project/projectFileActions";
 import { isElectron } from "./utils/isElectron";
 import { useThemeStore } from "./store/themeStore";
 import { isAppTheme } from "./core/view/theme";
 import { AboutDialog } from "./components/AboutDialog";
 import { useAboutStore } from "./store/aboutStore";
+import { runProjectEditCommand } from "./core/view/viewCommands";
 
 function App() {
   const location = useLocation();
-  const showMenuBar = !isElectron() && location.pathname !== "/play";
+  const usesInAppMenuBar = isElectron() && Boolean(window.electronAPI?.usesInAppMenuBar);
+  const showMenuBar = (!isElectron() || usesInAppMenuBar) && location.pathname !== "/play";
 
   useEffect(() => {
     void useProjectStore.getState().hydrateAssets();
   }, []);
 
   useEffect(() => {
+    const syncUndoRedoState = () => {
+      const { canUndo, canRedo } = useProjectStore.getState();
+      window.electronAPI?.syncUndoRedoState?.({ canUndo, canRedo });
+    };
+    syncUndoRedoState();
+    return useProjectStore.subscribe(syncUndoRedoState);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        runProjectEditCommand("undo");
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        runProjectEditCommand("redo");
+      }
+    };
+    if (isElectron() && !window.electronAPI?.usesInAppMenuBar) {
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    }
+  }, []);
+
+  useEffect(() => {
     const api = window.electronAPI;
-    if (!api?.onRequestSave || !api?.onLoadProjectData) return;
+    if (!api?.onRequestSave) return;
 
     const removeRequestSave = api.onRequestSave(() => {
       void saveProject();
     });
 
-    const removeLoadProjectData = api.onLoadProjectData((json) => {
-      void useProjectStore.getState().loadFromJson(json);
+    const removeRequestLoad = api.onRequestLoad?.(() => {
+      void loadProject();
     });
 
     const removeRequestNew = api.onRequestNew?.(() => {
       void newProjectWithPrompt();
+    });
+
+    const removeRequestUndo = api.onRequestUndo?.(() => {
+      runProjectEditCommand("undo");
+    });
+
+    const removeRequestRedo = api.onRequestRedo?.(() => {
+      runProjectEditCommand("redo");
     });
 
     const removeSetTheme = api.onSetTheme?.((theme) => {
@@ -47,8 +85,10 @@ function App() {
 
     return () => {
       removeRequestSave?.();
-      removeLoadProjectData?.();
+      removeRequestLoad?.();
       removeRequestNew?.();
+      removeRequestUndo?.();
+      removeRequestRedo?.();
       removeSetTheme?.();
       removeShowAbout?.();
     };

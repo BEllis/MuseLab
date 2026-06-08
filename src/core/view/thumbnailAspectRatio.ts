@@ -1,9 +1,6 @@
-export interface AspectRatio {
-  width: number;
-  height: number;
-}
+import type { AspectRatio, Project } from "@/core/model/types";
 
-export const THUMBNAIL_ASPECT_RATIO_STORAGE_KEY = "muselab-thumbnail-aspect-ratio";
+export type { AspectRatio };
 
 export type AspectRatioPresetGroup = "general" | "phone" | "tablet";
 
@@ -106,23 +103,8 @@ export function parseAspectRatio(value: unknown): AspectRatio | null {
   return { width, height };
 }
 
-export function readStoredThumbnailAspectRatio(): AspectRatio {
-  try {
-    const raw = localStorage.getItem(THUMBNAIL_ASPECT_RATIO_STORAGE_KEY);
-    if (!raw) return DEFAULT_THUMBNAIL_ASPECT_RATIO;
-    const parsed = parseAspectRatio(JSON.parse(raw));
-    return parsed ?? DEFAULT_THUMBNAIL_ASPECT_RATIO;
-  } catch {
-    return DEFAULT_THUMBNAIL_ASPECT_RATIO;
-  }
-}
-
-export function storeThumbnailAspectRatio(ratio: AspectRatio): void {
-  try {
-    localStorage.setItem(THUMBNAIL_ASPECT_RATIO_STORAGE_KEY, JSON.stringify(ratio));
-  } catch {
-    // ignore
-  }
+export function getProjectThumbnailAspectRatio(project: Project): AspectRatio {
+  return parseAspectRatio(project.thumbnailAspectRatio) ?? DEFAULT_THUMBNAIL_ASPECT_RATIO;
 }
 
 export function findPresetKey(ratio: AspectRatio): string {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { useDesignerStore } from "@/store/designerStore";
+import { useProjectStore } from "@/store/projectStore";
 import {
   findPresetKey,
+  getProjectThumbnailAspectRatio,
   THUMBNAIL_ASPECT_RATIO_GROUP_LABELS,
   THUMBNAIL_ASPECT_RATIO_GROUP_ORDER,
   THUMBNAIL_ASPECT_RATIO_PRESETS,
@@ -18,8 +19,10 @@ function parseCustomRatio(width: string, height: string): AspectRatio | null {
 }
 
 export function ThumbnailAspectRatioControl() {
-  const ratio = useDesignerStore((s) => s.thumbnailAspectRatio);
-  const setRatio = useDesignerStore((s) => s.setThumbnailAspectRatio);
+  const project = useProjectStore((s) => s.project);
+  const updateProject = useProjectStore((s) => s.updateProject);
+  const ratio = getProjectThumbnailAspectRatio(project);
+  const setRatio = (next: AspectRatio) => updateProject({ thumbnailAspectRatio: next });
   const matchedPresetKey = findPresetKey(ratio);
   const [customMode, setCustomMode] = useState(matchedPresetKey === CUSTOM_PRESET_KEY);
   const selectValue = customMode ? CUSTOM_PRESET_KEY : matchedPresetKey;

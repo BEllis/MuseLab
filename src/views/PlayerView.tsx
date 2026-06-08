@@ -6,20 +6,13 @@ import { createRunner } from "@/core/runtime/runner";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import type { Project, StoryEdge, StoryNode } from "@/core/model/types";
-
-const STANDARD_RESOLUTIONS: { key: string; width: number; height: number; label: string }[] = [
-  { key: "1920x1080", width: 1920, height: 1080, label: "1920 × 1080 (16:9)" },
-  { key: "1280x720", width: 1280, height: 720, label: "1280 × 720 (16:9)" },
-  { key: "1366x768", width: 1366, height: 768, label: "1366 × 768 (16:9)" },
-  { key: "2560x1440", width: 2560, height: 1440, label: "2560 × 1440 (16:9)" },
-  { key: "3840x2160", width: 3840, height: 2160, label: "3840 × 2160 (16:9)" },
-  { key: "1280x800", width: 1280, height: 800, label: "1280 × 800 (16:10)" },
-  { key: "1920x1200", width: 1920, height: 1200, label: "1920 × 1200 (16:10)" },
-  { key: "800x600", width: 800, height: 600, label: "800 × 600 (4:3)" },
-  { key: "1024x768", width: 1024, height: 768, label: "1024 × 768 (4:3)" },
-  { key: "1600x1200", width: 1600, height: 1200, label: "1600 × 1200 (4:3)" },
-];
-const CUSTOM_RESOLUTION_KEY = "custom";
+import {
+  clampPlayerResolution,
+  CUSTOM_PLAYER_RESOLUTION_KEY,
+  findPlayerResolutionPresetKey,
+  getProjectPlayerResolution,
+  STANDARD_PLAYER_RESOLUTIONS,
+} from "@/core/view/playerResolution";
 
 export default function PlayerView() {
   const project = useProjectStore((s) => s.project);
@@ -39,7 +32,9 @@ function PlayerViewInner({
   project: Project;
   entryId: string;
 }) {
-
+  const updateProject = useProjectStore((s) => s.updateProject);
+  const storedResolution = getProjectPlayerResolution(project);
+  const storedPresetKey = findPlayerResolutionPresetKey(storedResolution);
   const runnerRef = useRef<ReturnType<typeof createRunner> | null>(null);
   if (!runnerRef.current) {
     runnerRef.current = createRunner(project, {
@@ -106,14 +101,30 @@ function PlayerViewInner({
   const hasOptions = runtime.choices.some((c) => c.edge.optionText);
   const singleChoice = runtime.choices.length === 1 && !hasOptions;
 
-  const [resolutionKey, setResolutionKey] = useState("1280x720");
-  const [customWidth, setCustomWidth] = useState(1280);
-  const [customHeight, setCustomHeight] = useState(720);
+  const [resolutionKey, setResolutionKey] = useState(storedPresetKey);
+  const [customWidth, setCustomWidth] = useState(storedResolution.width);
+  const [customHeight, setCustomHeight] = useState(storedResolution.height);
   const [contentAreaSize, setContentAreaSize] = useState({ width: 1280, height: 720 });
   const contentAreaRef = useRef<HTMLDivElement>(null);
 
-  const frameWidth = resolutionKey === CUSTOM_RESOLUTION_KEY ? customWidth : (STANDARD_RESOLUTIONS.find((r) => r.key === resolutionKey)?.width ?? 1280);
-  const frameHeight = resolutionKey === CUSTOM_RESOLUTION_KEY ? customHeight : (STANDARD_RESOLUTIONS.find((r) => r.key === resolutionKey)?.height ?? 720);
+  useEffect(() => {
+    setResolutionKey(storedPresetKey);
+    setCustomWidth(storedResolution.width);
+    setCustomHeight(storedResolution.height);
+  }, [storedPresetKey, storedResolution.width, storedResolution.height]);
+
+  const persistResolution = (width: number, height: number) => {
+    updateProject({ playerResolution: clampPlayerResolution({ width, height }) }, { record: false });
+  };
+
+  const frameWidth =
+    resolutionKey === CUSTOM_PLAYER_RESOLUTION_KEY
+      ? customWidth
+      : (STANDARD_PLAYER_RESOLUTIONS.find((r) => r.key === resolutionKey)?.width ?? 1280);
+  const frameHeight =
+    resolutionKey === CUSTOM_PLAYER_RESOLUTION_KEY
+      ? customHeight
+      : (STANDARD_PLAYER_RESOLUTIONS.find((r) => r.key === resolutionKey)?.height ?? 720);
 
   useEffect(() => {
     const el = contentAreaRef.current;
@@ -135,7 +146,15 @@ function PlayerViewInner({
   const scaledHeight = frameHeight * scale;
 
   const handleResolutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setResolutionKey(e.target.value);
+    const key = e.target.value;
+    setResolutionKey(key);
+    if (key === CUSTOM_PLAYER_RESOLUTION_KEY) return;
+    const preset = STANDARD_PLAYER_RESOLUTIONS.find((r) => r.key === key);
+    if (preset) {
+      setCustomWidth(preset.width);
+      setCustomHeight(preset.height);
+      persistResolution(preset.width, preset.height);
+    }
   };
 
   return (
@@ -177,22 +196,26 @@ function PlayerViewInner({
                 fontSize: "14px",
               }}
             >
-              {STANDARD_RESOLUTIONS.map((r) => (
+              {STANDARD_PLAYER_RESOLUTIONS.map((r) => (
                 <option key={r.key} value={r.key}>
                   {r.label}
                 </option>
               ))}
-              <option value={CUSTOM_RESOLUTION_KEY}>Custom</option>
+              <option value={CUSTOM_PLAYER_RESOLUTION_KEY}>Custom</option>
             </select>
           </label>
-          {resolutionKey === CUSTOM_RESOLUTION_KEY && (
+          {resolutionKey === CUSTOM_PLAYER_RESOLUTION_KEY && (
             <>
               <input
                 type="number"
                 min={1}
                 max={7680}
                 value={customWidth}
-                onChange={(e) => setCustomWidth(Number(e.target.value) || 1)}
+                onChange={(e) => {
+                  const width = Number(e.target.value) || 1;
+                  setCustomWidth(width);
+                  persistResolution(width, customHeight);
+                }}
                 style={{
                   width: "64px",
                   padding: "4px 6px",
@@ -210,7 +233,11 @@ function PlayerViewInner({
                 min={1}
                 max={4320}
                 value={customHeight}
-                onChange={(e) => setCustomHeight(Number(e.target.value) || 1)}
+                onChange={(e) => {
+                  const height = Number(e.target.value) || 1;
+                  setCustomHeight(height);
+                  persistResolution(customWidth, height);
+                }}
                 style={{
                   width: "64px",
                   padding: "4px 6px",

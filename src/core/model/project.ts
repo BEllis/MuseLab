@@ -1,5 +1,4 @@
 import type { Project, StoryNode, StoryEdge, Asset } from "./types";
-import { embedActorImages } from "../assets/actorImageSerialization";
 import { getPlayEntryNodeId } from "./graphHierarchy";
 import {
   DEFAULT_BACKDROP_ID,
@@ -253,7 +252,7 @@ export function getEntryNodeId(project: Project): string | null {
 /** Update top-level project fields. */
 export function updateProject(
   project: Project,
-  patch: Partial<Pick<Project, "name" | "entryNodeId" | "globalState">>
+  patch: Partial<Pick<Project, "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution">>
 ): void {
   if (patch.name !== undefined) {
     project.name = patch.name;
@@ -264,6 +263,12 @@ export function updateProject(
   if (patch.globalState !== undefined) {
     project.globalState = patch.globalState;
   }
+  if (patch.thumbnailAspectRatio !== undefined) {
+    project.thumbnailAspectRatio = patch.thumbnailAspectRatio;
+  }
+  if (patch.playerResolution !== undefined) {
+    project.playerResolution = patch.playerResolution;
+  }
 }
 
 /** Serialize project to JSON string (in-memory shape; actor blobs may be omitted). */
@@ -271,10 +276,9 @@ export function serializeProject(project: Project): string {
   return JSON.stringify(project, null, 2);
 }
 
-/** Serialize project for persistence/export with actor images embedded as base64. */
-export async function serializeProjectForSave(project: Project): Promise<string> {
-  const withImages = await embedActorImages(project);
-  return JSON.stringify(withImages, null, 2);
+/** Serialize project manifest for persistence (assets stored separately in MLVN archives). */
+export function serializeProjectForSave(project: Project): string {
+  return serializeProject(project);
 }
 
 /** Parse project from JSON string */

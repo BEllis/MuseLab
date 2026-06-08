@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
+import type { MutationOptions } from "@/store/projectStore";
 import type { Project, SoundConfig, StoryNode } from "@/core/model/types";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
@@ -223,6 +224,7 @@ export function NodeEditorPanel() {
   const project = useProjectStore((s) => s.project);
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateNode = useProjectStore((s) => s.updateNode);
+  const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
 
   const node =
     selectedNodeIds.length === 1
@@ -236,8 +238,8 @@ export function NodeEditorPanel() {
   const backdropUrl = useAssetUrl(project, node?.backdropId ?? DEFAULT_BACKDROP_ID);
 
   const update = useCallback(
-    (patch: Partial<Omit<StoryNode, "id">>) => {
-      if (node) updateNode(node.id, patch);
+    (patch: Partial<Omit<StoryNode, "id">>, options?: MutationOptions) => {
+      if (node) updateNode(node.id, patch, options);
     },
     [node, updateNode]
   );
@@ -369,7 +371,10 @@ export function NodeEditorPanel() {
         <input
           type="text"
           value={node.label ?? ""}
-          onChange={(e) => update({ label: e.target.value || undefined })}
+          onChange={(e) =>
+            update({ label: e.target.value || undefined }, { mergeKey: `node-label:${node.id}` })
+          }
+          onBlur={() => flushHistoryCoalesce()}
           placeholder="Scene name"
           style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
         />
@@ -514,14 +519,13 @@ export function NodeEditorPanel() {
       </div>
 
       <label style={{ display: "block", marginBottom: "8px" }}>
-        <div style={{ marginBottom: "4px" }}>
-          Text template (<code>{`{{bold_start()}}`}</code>,{" "}
-          <code>{`{{color_start(#AA00FF)}}`}</code>, <code>{`{{shakechars_start()}}`}</code>,{" "}
-          <code>{`{{ state.x }}`}</code>)
-        </div>
+        <div style={{ marginBottom: "4px" }}>Text template</div>
         <TemplateTextEditor
           value={node.textTemplate}
-          onChange={(markup) => update({ textTemplate: markup })}
+          onChange={(markup) =>
+            update({ textTemplate: markup }, { mergeKey: `node-text:${node.id}` })
+          }
+          onBlurCommit={() => flushHistoryCoalesce()}
           syncKey={node.id}
           placeholder="Hello world… Use the toolbar for style tags, or {{ state.x }} for logic."
           style={{ marginTop: "4px", width: "100%" }}

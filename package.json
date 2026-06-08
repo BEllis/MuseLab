@@ -9,12 +9,49 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "electron:dev": "vite --mode electron",
-    "electron:build": "vite build --mode electron && electron-builder"
+    "electron:build": "vite build --mode electron && electron-builder",
+    "icons": "magick src/assets/logo.png -filter Lanczos -resize 1024x1024 build/icon.png && magick build/icon.png -define icon:auto-resize=256,128,64,48,32,16 build/icon.ico"
+  },
+  "build": {
+    "appId": "dev.muselab.app",
+    "productName": "MuseLab",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    }
   },
   "dependencies": {
     "@antv/x6": "^3.1.7",
     "@antv/x6-react-shape": "^3.0.1",
     "dompurify": "^3.2.2",
+    "fflate": "^0.8.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
@@ -27,6 +64,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "typescript": "~5.6.2",
     "vite": "^6.0.1",
     "vite-plugin-electron": "^0.28.4",

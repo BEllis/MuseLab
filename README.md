@@ -25,7 +25,7 @@ A **visual novel / interactive story** designer and player. Build branching narr
 - **Text templates** – Use `{{ expression }}` for dynamic text and `{{#if condition}}...{{/if}}` for conditional blocks. You can use `state`, `setState`, `emit`, `call`, and `playSound` in expressions.
 - **Assets** – Add backdrops, actors, and sounds from your computer. In the desktop app, use the file picker; in the browser, drag and drop.
 - **Player** – Run your story from the designer (Play button). The player shows your scenes with dialogue, choices, and branching based on conditions and state.
-- **Save and load** – In the desktop app, save your project as a JSON file and load it later. The app will prompt you to save before creating a new project or closing.
+- **Save and load** – In the desktop app, save your project as a `.mlvn` file (a zip archive) and load it later. Legacy plain `.json` projects can still be opened for migration. The app will prompt you to save before creating a new project or closing.
 
 ## How to Install
 
@@ -79,8 +79,8 @@ If a desktop release is provided for your platform, download and run the install
 ### File menu (desktop app)
 
 - **New** (Ctrl/Cmd+N) – Start a new project. You’ll be prompted to save first if there are unsaved changes.
-- **Save** (Ctrl/Cmd+S) – Save the project as a JSON file.
-- **Load** (Ctrl/Cmd+O) – Open a saved project file.
+- **Save** (Ctrl/Cmd+S) – Save the project as a `.mlvn` file.
+- **Load** (Ctrl/Cmd+O) – Open a saved `.mlvn` project (or legacy `.json` for migration).
 - **Quit** – Close the app.
 
 ## License

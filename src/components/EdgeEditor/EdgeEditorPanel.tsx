@@ -6,6 +6,7 @@ export function EdgeEditorPanel() {
   const project = useProjectStore((s) => s.project);
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateEdge = useProjectStore((s) => s.updateEdge);
+  const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
 
   const edge =
     selectedEdgeIds.length === 1
@@ -40,7 +41,14 @@ export function EdgeEditorPanel() {
         <input
           type="text"
           value={edge.optionText ?? ""}
-          onChange={(e) => updateEdge(edge.id, { optionText: e.target.value || undefined })}
+          onChange={(e) =>
+            updateEdge(
+              edge.id,
+              { optionText: e.target.value || undefined },
+              { mergeKey: `edge-field:${edge.id}:optionText` }
+            )
+          }
+          onBlur={() => flushHistoryCoalesce()}
           placeholder="e.g. Go left"
           style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
         />
@@ -49,7 +57,14 @@ export function EdgeEditorPanel() {
         Condition (TypeScript expression; leave empty to always show)
         <textarea
           value={edge.condition ?? ""}
-          onChange={(e) => updateEdge(edge.id, { condition: e.target.value || undefined })}
+          onChange={(e) =>
+            updateEdge(
+              edge.id,
+              { condition: e.target.value || undefined },
+              { mergeKey: `edge-field:${edge.id}:condition` }
+            )
+          }
+          onBlur={() => flushHistoryCoalesce()}
           placeholder="e.g. state.visitedForest"
           rows={2}
           style={{

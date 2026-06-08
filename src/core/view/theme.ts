@@ -29,8 +29,18 @@ export function applyTheme(theme: AppTheme): void {
   window.electronAPI?.syncTheme?.(theme);
 }
 
-export function initTheme(): AppTheme {
-  const theme = readStoredTheme();
+export async function initTheme(): Promise<AppTheme> {
+  let theme = readStoredTheme();
+  if (window.electronAPI?.getUserSettings) {
+    try {
+      const settings = await window.electronAPI.getUserSettings();
+      if (isAppTheme(settings.theme)) {
+        theme = settings.theme;
+      }
+    } catch {
+      // fall back to localStorage/default
+    }
+  }
   applyTheme(theme);
   return theme;
 }

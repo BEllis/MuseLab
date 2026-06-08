@@ -1,20 +1,20 @@
 /** Asset type: backdrop (image), actor (sprite), or sound (audio) */
 export type AssetType = "backdrop" | "actor" | "sound";
 
-/** Stored asset reference: id, type, name, and either path (Electron) or url (web) */
+/** Stored asset reference: id, type, name, and media location metadata. */
 export interface Asset {
   id: string;
   type: AssetType;
   name: string;
-  /** File path (Electron) or relative path in project */
+  /** Absolute path (Electron) or archive-relative path in saved MLVN manifests. */
   path?: string;
-  /** Data URL (web, legacy) or blob URL (web, ephemeral — prefer file for persistence) */
+  /** Built-in default backdrop data URL only; omitted from saved MLVN manifests. */
   url?: string;
-  /** Base64 image bytes for actors; embedded in saved project JSON. */
+  /** Legacy JSON import: base64 media bytes before hydration. */
   imageData?: string;
-  /** MIME type for imageData, e.g. image/png */
+  /** Legacy JSON import: MIME type for imageData. */
   imageMimeType?: string;
-  /** Web: binary media is stored in IndexedDB under this asset id. */
+  /** Web runtime: binary media stored in IndexedDB under this asset id. */
   blobStored?: boolean;
 }
 
@@ -54,6 +54,12 @@ export interface StoryEdge {
   manualRoute?: boolean;
 }
 
+/** Aspect ratio stored as width:height integers (e.g. 16:9). */
+export interface AspectRatio {
+  width: number;
+  height: number;
+}
+
 /** Full project: serializable to JSON */
 export interface Project {
   name: string;
@@ -64,4 +70,8 @@ export interface Project {
   globalState: Record<string, unknown>;
   /** Optional: id of the entry node; otherwise first node */
   entryNodeId?: string;
+  /** Scene thumbnail aspect ratio in the designer canvas */
+  thumbnailAspectRatio?: AspectRatio;
+  /** Target resolution for play mode (logical pixels) */
+  playerResolution?: AspectRatio;
 }

@@ -1,20 +1,34 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+export type OpenProjectFileResult =
+  | { type: "archive"; data: Uint8Array; path: string }
+  | { type: "json"; data: string; path: string };
+
 contextBridge.exposeInMainWorld("electronAPI", {
   openFileDialog: (options: { type: "backdrop" | "actor" | "sound"; multiple?: boolean }) =>
     ipcRenderer.invoke("open-file-dialog", options),
   resolveAssetUrl: (filePath: string) =>
     ipcRenderer.invoke("resolve-asset-url", filePath),
   showSaveDialog: () => ipcRenderer.invoke("show-save-dialog") as Promise<string | null>,
-  writeProjectFile: (filePath: string, json: string) =>
-    ipcRenderer.invoke("write-project-file", filePath, json),
+  openProjectFile: () => ipcRenderer.invoke("open-project-file") as Promise<OpenProjectFileResult | null>,
+  writeProjectFile: (filePath: string, data: Uint8Array) =>
+    ipcRenderer.invoke("write-project-file", filePath, data),
+  extractArchiveAssets: (
+    cacheKey: string,
+    entries: { relativePath: string; data: Uint8Array }[]
+  ) => ipcRenderer.invoke("extract-archive-assets", cacheKey, entries) as Promise<string>,
   onRequestSave: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("request-save", handler);
     return () => ipcRenderer.removeListener("request-save", handler);
   },
-  onLoadProjectData: (callback: (json: string) => void) => {
-    const handler = (_: unknown, json: string) => callback(json);
+  onRequestLoad: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("request-load", handler);
+    return () => ipcRenderer.removeListener("request-load", handler);
+  },
+  onLoadProjectData: (callback: (data: Uint8Array | string) => void) => {
+    const handler = (_: unknown, data: Uint8Array | string) => callback(data);
     ipcRenderer.on("load-project-data", handler);
     return () => ipcRenderer.removeListener("load-project-data", handler);
   },
@@ -23,11 +37,26 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("request-new", handler);
     return () => ipcRenderer.removeListener("request-new", handler);
   },
+  onRequestUndo: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("request-undo", handler);
+    return () => ipcRenderer.removeListener("request-undo", handler);
+  },
+  onRequestRedo: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("request-redo", handler);
+    return () => ipcRenderer.removeListener("request-redo", handler);
+  },
+  syncUndoRedoState: (state: { canUndo: boolean; canRedo: boolean }) =>
+    ipcRenderer.send("sync-undo-redo-state", state),
   showBeforeNewDialog: () =>
     ipcRenderer.invoke("show-before-new-dialog") as Promise<0 | 1 | 2>,
   setWindowSize: (width: number, height: number) =>
     ipcRenderer.invoke("set-window-size", width, height),
+  getUserSettings: () =>
+    ipcRenderer.invoke("get-user-settings") as Promise<{ theme?: "light" | "dark" }>,
   syncTheme: (theme: "light" | "dark") => ipcRenderer.send("sync-theme", theme),
+  usesInAppMenuBar: process.platform === "linux",
   onSetTheme: (callback: (theme: "light" | "dark") => void) => {
     const handler = (_: unknown, theme: "light" | "dark") => callback(theme);
     ipcRenderer.on("set-theme", handler);

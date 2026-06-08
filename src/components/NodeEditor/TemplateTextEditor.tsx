@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const COMMIT_IDLE_MS = 700;
 
 const toolbarButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
@@ -32,38 +34,89 @@ function insertAtSelection(textarea: HTMLTextAreaElement, text: string): string 
 export function TemplateTextEditor({
   value,
   onChange,
+  onBlurCommit,
   syncKey,
   placeholder = "",
   style,
 }: {
   value: string;
   onChange: (markup: string) => void;
+  onBlurCommit?: () => void;
   syncKey: string | undefined;
   placeholder?: string;
   style?: React.CSSProperties;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [draft, setDraft] = useState(value ?? "");
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const committedValueRef = useRef(value ?? "");
 
   useEffect(() => {
+    const next = value ?? "";
+    committedValueRef.current = next;
+    setDraft(next);
     const el = textareaRef.current;
-    if (!el || syncKey === undefined) return;
-    if (el.value !== value) {
-      el.value = value ?? "";
+    if (el && syncKey !== undefined && el.value !== next) {
+      el.value = next;
     }
   }, [syncKey, value]);
+
+  useEffect(
+    () => () => {
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    },
+    []
+  );
+
+  const commit = useCallback(
+    (next: string) => {
+      if (commitTimerRef.current) {
+        clearTimeout(commitTimerRef.current);
+        commitTimerRef.current = null;
+      }
+      if (next === committedValueRef.current) return;
+      committedValueRef.current = next;
+      onChange(next);
+    },
+    [onChange]
+  );
+
+  const scheduleCommit = useCallback(
+    (next: string) => {
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = setTimeout(() => {
+        commitTimerRef.current = null;
+        commit(next);
+      }, COMMIT_IDLE_MS);
+    },
+    [commit]
+  );
+
+  const handleDraftChange = useCallback(
+    (next: string) => {
+      setDraft(next);
+      scheduleCommit(next);
+    },
+    [scheduleCommit]
+  );
+
+  const handleBlur = useCallback(() => {
+    commit(draft);
+    onBlurCommit?.();
+  }, [commit, draft, onBlurCommit]);
 
   const applyWrap = useCallback(
     (open: string, close: string) => {
       const el = textareaRef.current;
       if (!el) return;
       const next = insertAroundSelection(el, open, close);
-      onChange(next);
+      setDraft(next);
+      commit(next);
       el.focus();
       const cursor = el.selectionStart;
-      el.value = next;
       el.setSelectionRange(cursor, cursor);
     },
-    [onChange]
+    [commit]
   );
 
   const applyColor = useCallback(
@@ -75,11 +128,11 @@ export function TemplateTextEditor({
       const next = hasSelection
         ? insertAroundSelection(el, open, "{{color_end()}}")
         : insertAtSelection(el, open);
-      onChange(next);
+      setDraft(next);
+      commit(next);
       el.focus();
-      el.value = next;
     },
-    [onChange]
+    [commit]
   );
 
   return (
@@ -130,9 +183,10 @@ export function TemplateTextEditor({
       </div>
       <textarea
         ref={textareaRef}
-        defaultValue={value}
+        value={draft}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => handleDraftChange(e.target.value)}
+        onBlur={handleBlur}
         style={{
           display: "block",
           width: "100%",

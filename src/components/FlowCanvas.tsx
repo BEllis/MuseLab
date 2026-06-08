@@ -37,18 +37,9 @@ function applyGraphTheme(graph: Graph): void {
 }
 
 export function FlowCanvas() {
-  const project = useProjectStore((s) => s.project);
-  const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
-  const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
-  const addNode = useProjectStore((s) => s.addNode);
-  const cloneNode = useProjectStore((s) => s.cloneNode);
-  const addEdge = useProjectStore((s) => s.addEdge);
-  const setSelection = useProjectStore((s) => s.setSelection);
   const removeNode = useProjectStore((s) => s.removeNode);
-  const updateNodePosition = useProjectStore((s) => s.updateNodePosition);
   const removeEdge = useProjectStore((s) => s.removeEdge);
   const clearSelection = useProjectStore((s) => s.clearSelection);
-  const highlightedRootNodeIds = useProjectStore((s) => s.highlightedRootNodeIds);
   const setHighlightedRootNodeIds = useProjectStore((s) => s.setHighlightedRootNodeIds);
   const clearPlayValidationHighlight = useProjectStore((s) => s.clearPlayValidationHighlight);
 
@@ -103,6 +94,41 @@ export function FlowCanvas() {
     const unbindAssetDrop = bindGraphAssetDrop(graph);
     applyGraphTheme(graph);
 
+    const syncGraphFromStore = () => {
+      const state = useProjectStore.getState();
+      syncProjectToGraph(
+        graph,
+        state.project,
+        new Set(state.selectedNodeIds),
+        new Set(state.selectedEdgeIds),
+        new Set(state.highlightedRootNodeIds),
+        isSyncingRef
+      );
+
+      if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
+        graph.cleanSelection();
+      }
+
+      if (!hasFitRef.current && state.project.nodes.length > 0) {
+        graph.zoomToFit({ padding: 20 });
+        hasFitRef.current = true;
+      }
+    };
+
+    syncGraphFromStore();
+
+    const unsubscribeProject = useProjectStore.subscribe((state, prevState) => {
+      if (
+        state.project === prevState.project &&
+        state.selectedNodeIds === prevState.selectedNodeIds &&
+        state.selectedEdgeIds === prevState.selectedEdgeIds &&
+        state.highlightedRootNodeIds === prevState.highlightedRootNodeIds
+      ) {
+        return;
+      }
+      syncGraphFromStore();
+    });
+
     graph.on("blank:click", () => {
       setContextMenu(null);
     });
@@ -128,6 +154,7 @@ export function FlowCanvas() {
     });
 
     return () => {
+      unsubscribeProject();
       unbindAssetDrop();
       graph.dispose();
       graphRef.current = null;
@@ -159,29 +186,6 @@ export function FlowCanvas() {
     };
   }, []);
 
-  useEffect(() => {
-    const graph = graphRef.current;
-    if (!graph) return;
-
-    syncProjectToGraph(
-      graph,
-      project,
-      new Set(selectedNodeIds),
-      new Set(selectedEdgeIds),
-      new Set(highlightedRootNodeIds),
-      isSyncingRef
-    );
-
-    if (selectedNodeIds.length === 0 && selectedEdgeIds.length === 0) {
-      graph.cleanSelection();
-    }
-
-    if (!hasFitRef.current && project.nodes.length > 0) {
-      graph.zoomToFit({ padding: 20 });
-      hasFitRef.current = true;
-    }
-  }, [project, selectedNodeIds, selectedEdgeIds, highlightedRootNodeIds]);
-
   const onPlay = useCallback(() => {
     const state = useProjectStore.getState();
     const validation = validatePlayEntry(state.project);
@@ -209,61 +213,81 @@ export function FlowCanvas() {
   }, [clearPlayValidationHighlight, navigate, setHighlightedRootNodeIds]);
 
   const onAddNode = useCallback(() => {
-    const newNode = addNode({ x: 100, y: 100 });
-    const projectState = useProjectStore.getState().project;
-    const resolved = findNonOverlappingPosition(
-      newNode.id,
-      newNode.position,
-      projectState.nodes as NodeWithPosition[]
-    );
-    if (
-      resolved.x !== newNode.position.x ||
-      resolved.y !== newNode.position.y
-    ) {
-      updateNodePosition(newNode.id, resolved);
+    const store = useProjectStore.getState();
+    store.beginHistoryTransaction();
+    try {
+      const newNode = store.addNode({ x: 100, y: 100 });
+      const projectState = useProjectStore.getState().project;
+      const resolved = findNonOverlappingPosition(
+        newNode.id,
+        newNode.position,
+        projectState.nodes as NodeWithPosition[]
+      );
+      if (
+        resolved.x !== newNode.position.x ||
+        resolved.y !== newNode.position.y
+      ) {
+        useProjectStore.getState().updateNodePosition(newNode.id, resolved);
+      }
+    } finally {
+      useProjectStore.getState().commitHistoryTransaction();
     }
-  }, [addNode, updateNodePosition]);
+  }, []);
 
   const placeClonedNode = useCallback(
     (sourceNodeId: string, linkToSource: boolean) => {
       if (!contextMenu || contextMenu.type !== "node") return;
 
-      const state = useProjectStore.getState();
-      const source = state.project.nodes.find((node) => node.id === sourceNodeId);
+      const store = useProjectStore.getState();
+      const source = store.project.nodes.find((node) => node.id === sourceNodeId);
       if (!source) return;
 
       const proposedPosition = {
         x: source.position.x + DEFAULT_NODE_WIDTH + MIN_NODE_GAP,
         y: source.position.y,
       };
-      const cloned = cloneNode(sourceNodeId, proposedPosition);
-      if (!cloned) return;
 
-      const projectState = useProjectStore.getState().project;
-      const resolved = findNonOverlappingPosition(
-        cloned.id,
-        cloned.position,
-        projectState.nodes as NodeWithPosition[]
-      );
-      if (
-        resolved.x !== cloned.position.x ||
-        resolved.y !== cloned.position.y
-      ) {
-        updateNodePosition(cloned.id, resolved);
+      store.beginHistoryTransaction();
+      try {
+        const cloned = store.cloneNode(sourceNodeId, proposedPosition);
+        if (!cloned) {
+          store.cancelHistoryTransaction();
+          return;
+        }
+
+        const projectState = useProjectStore.getState().project;
+        const resolved = findNonOverlappingPosition(
+          cloned.id,
+          cloned.position,
+          projectState.nodes as NodeWithPosition[]
+        );
+        if (
+          resolved.x !== cloned.position.x ||
+          resolved.y !== cloned.position.y
+        ) {
+          useProjectStore.getState().updateNodePosition(cloned.id, resolved);
+        }
+
+        if (linkToSource) {
+          useProjectStore.getState().addEdge(sourceNodeId, cloned.id);
+        }
+
+        store.setSelection([cloned.id], []);
+        store.commitHistoryTransaction();
+      } catch {
+        store.cancelHistoryTransaction();
+        return;
       }
 
-      if (linkToSource) {
-        addEdge(sourceNodeId, cloned.id);
-      }
-
-      setSelection([cloned.id], []);
       graphRef.current?.cleanSelection();
-      const cell = graphRef.current?.getCellById(cloned.id);
+      const cell = graphRef.current?.getCellById(
+        useProjectStore.getState().selectedNodeIds[0] ?? ""
+      );
       if (cell) graphRef.current?.select(cell);
 
       setContextMenu(null);
     },
-    [addEdge, cloneNode, contextMenu, setSelection, updateNodePosition]
+    [contextMenu]
   );
 
   const onCloneFromContextMenu = useCallback(() => {

@@ -9,8 +9,10 @@ import {
   dispatchViewCommand,
   reloadPage,
   runEditCommand,
+  runProjectEditCommand,
   toggleFullscreen,
 } from "@/core/view/viewCommands";
+import { useProjectStore } from "@/store/projectStore";
 import { useThemeStore } from "@/store/themeStore";
 import { useAboutStore } from "@/store/aboutStore";
 import logoUrl from "@/assets/logo.png";
@@ -129,9 +131,12 @@ export function MenuBar() {
   const location = useLocation();
   const isDesigner = location.pathname === "/";
   const platform = useMemo(() => getMenuPlatform(), []);
+  const usesInAppChrome = Boolean(window.electronAPI?.usesInAppMenuBar);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const showAbout = useAboutStore((s) => s.show);
+  const canUndo = useProjectStore((s) => s.canUndo);
+  const canRedo = useProjectStore((s) => s.canRedo);
 
   const closeMenu = useCallback(() => setOpenMenu(null), []);
 
@@ -148,11 +153,12 @@ export function MenuBar() {
     {
       label: "Edit",
       items: [
-        { label: "Undo", shortcut: modShortcut("Z"), action: () => runEditCommand("undo") },
+        { label: "Undo", shortcut: modShortcut("Z"), disabled: !canUndo, action: () => runProjectEditCommand("undo") },
         {
           label: "Redo",
           shortcut: isMac() ? "⇧⌘Z" : "Ctrl+Y",
-          action: () => runEditCommand("redo"),
+          disabled: !canRedo,
+          action: () => runProjectEditCommand("redo"),
         },
         { type: "separator" },
         { label: "Cut", shortcut: modShortcut("X"), action: () => runEditCommand("cut") },
@@ -210,7 +216,13 @@ export function MenuBar() {
       if (!mod) return;
 
       const key = e.key.toLowerCase();
-      if (key === "n") {
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        runProjectEditCommand("undo");
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        runProjectEditCommand("redo");
+      } else if (key === "n") {
         e.preventDefault();
         void newProjectWithPrompt();
       } else if (key === "s") {
@@ -251,6 +263,7 @@ export function MenuBar() {
       aria-label="Application menu"
       className="menubar"
       data-platform={platform}
+      data-in-app-chrome={usesInAppChrome ? "true" : undefined}
       style={{ height: platform === "mac" ? 26 : 28 }}
     >
       <div className="menubar-brand" aria-hidden="true">

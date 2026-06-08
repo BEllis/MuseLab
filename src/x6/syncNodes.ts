@@ -35,7 +35,7 @@ export function syncProjectNode(
     if (pos.x !== projectNode.position.x || pos.y !== projectNode.position.y) {
       node.setPosition(projectNode.position, { silent: true });
     }
-    node.setData(data, { silent: true });
+    node.setData(data);
     applyNodeBoundaryTool(node, selectedNodeIds.has(projectNode.id));
     return;
   }

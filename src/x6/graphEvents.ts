@@ -103,15 +103,20 @@ export function bindGraphEvents(
 
     const vertices = verticesFromGraphEdge(edge);
     const manualRoute = vertices.length > 0;
-    useProjectStore.getState().updateEdge(edge.id, {
-      vertices: manualRoute ? vertices : undefined,
-      manualRoute: manualRoute || undefined,
-    });
+    useProjectStore.getState().updateEdge(
+      edge.id,
+      {
+        vertices: manualRoute ? vertices : undefined,
+        manualRoute: manualRoute || undefined,
+      },
+      { mergeKey: `edge-vertices:${edge.id}` }
+    );
   });
 
   graph.on("blank:mouseup", () => {
     if (isSyncingRef.current) return;
     cleanupDanglingEdges(graph);
+    useProjectStore.getState().flushHistoryCoalesce();
   });
 
   graph.on("node:moved", ({ node }) => {
@@ -143,11 +148,16 @@ export function bindGraphKeyboard(
     const { selectedNodeIds, selectedEdgeIds } = state;
     if (selectedNodeIds.length === 0 && selectedEdgeIds.length === 0) return;
 
-    for (const edgeId of selectedEdgeIds) {
-      state.removeEdge(edgeId);
-    }
-    for (const nodeId of selectedNodeIds) {
-      state.removeNode(nodeId);
+    state.beginHistoryTransaction();
+    try {
+      for (const edgeId of selectedEdgeIds) {
+        useProjectStore.getState().removeEdge(edgeId);
+      }
+      for (const nodeId of selectedNodeIds) {
+        useProjectStore.getState().removeNode(nodeId);
+      }
+    } finally {
+      useProjectStore.getState().commitHistoryTransaction();
     }
     state.clearSelection();
     graph.cleanSelection();

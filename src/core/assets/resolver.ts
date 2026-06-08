@@ -1,7 +1,32 @@
 import type { Project, Asset } from "../model/types";
 import { actorImageDataUrl } from "./actorImageSerialization";
 import { getWebAssetObjectUrl } from "./webAssetStorage";
+import { isArchiveRelativePath } from "../project/assetArchivePaths";
+import { getProjectArchiveBaseDir } from "../project/projectRuntimeContext";
 import { isElectron } from "@/utils/isElectron";
+
+function isAbsoluteFilesystemPath(filePath: string): boolean {
+  return filePath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(filePath);
+}
+
+function resolveFilesystemPath(asset: Asset): string | null {
+  if (!asset.path) return null;
+  if (asset.path.startsWith("http:") || asset.path.startsWith("https:")) {
+    return asset.path;
+  }
+  if (isAbsoluteFilesystemPath(asset.path)) {
+    return asset.path;
+  }
+
+  const baseDir = getProjectArchiveBaseDir();
+  if (baseDir && isArchiveRelativePath(asset.path)) {
+    const normalizedBase = baseDir.replace(/\\/g, "/").replace(/\/+$/, "");
+    const normalizedRelative = asset.path.replace(/\\/g, "/").replace(/^\/+/, "");
+    return `${normalizedBase}/${normalizedRelative}`;
+  }
+
+  return asset.path;
+}
 
 function isPersistableWebUrl(url: string): boolean {
   return url.startsWith("data:") || url.startsWith("http:") || url.startsWith("https:");
@@ -29,12 +54,15 @@ export async function getAssetUrlAsync(
     if (webUrl) return webUrl;
   }
 
-  if (typeof window !== "undefined" && window.electronAPI?.resolveAssetUrl && asset.path) {
-    return window.electronAPI.resolveAssetUrl(asset.path);
+  const filesystemPath = resolveFilesystemPath(asset);
+  if (typeof window !== "undefined" && window.electronAPI?.resolveAssetUrl && filesystemPath) {
+    if (isAbsoluteFilesystemPath(filesystemPath) || filesystemPath.startsWith("/")) {
+      return window.electronAPI.resolveAssetUrl(filesystemPath);
+    }
   }
 
-  if (asset.path && (asset.path.startsWith("http") || asset.path.startsWith("/"))) {
-    return asset.path;
+  if (filesystemPath && (filesystemPath.startsWith("http:") || filesystemPath.startsWith("https:"))) {
+    return filesystemPath;
   }
 
   return "";

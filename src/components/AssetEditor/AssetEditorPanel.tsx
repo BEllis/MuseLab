@@ -64,6 +64,7 @@ export function AssetEditorPanel() {
   const updateAsset = useProjectStore((s) => s.updateAsset);
   const replaceAssetMedia = useProjectStore((s) => s.replaceAssetMedia);
   const removeAsset = useProjectStore((s) => s.removeAsset);
+  const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const asset = selectedAssetId
@@ -133,7 +134,10 @@ export function AssetEditorPanel() {
           type="text"
           value={asset.name}
           readOnly={!renamable}
-          onChange={(e) => updateAsset(asset.id, { name: e.target.value })}
+          onChange={(e) =>
+            updateAsset(asset.id, { name: e.target.value }, { mergeKey: `asset-name:${asset.id}` })
+          }
+          onBlur={() => flushHistoryCoalesce()}
           style={{
             display: "block",
             width: "100%",

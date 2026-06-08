@@ -23,6 +23,17 @@
   -webkit-font-smoothing: antialiased;
 }
 
+.menubar[data-in-app-chrome="true"] {
+  -webkit-app-region: drag;
+  padding-right: env(titlebar-area-width, 138px);
+}
+
+.menubar[data-in-app-chrome="true"] .menubar-item,
+.menubar[data-in-app-chrome="true"] .menubar-label,
+.menubar[data-in-app-chrome="true"] .menubar-brand {
+  -webkit-app-region: no-drag;
+}
+
 .menubar[data-platform="mac"] {
   --menubar-height: 26px;
   --menubar-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;

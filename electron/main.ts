@@ -1,15 +1,74 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, protocol, Menu, nativeTheme } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
-import { readFile, writeFile } from "fs/promises";
+import { createHash } from "crypto";
+import { existsSync } from "fs";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import { loadUserSettings, resolveStartupTheme, saveUserSettings, type AppTheme } from "./userSettings";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const APP_NAME = "MuseLab";
+const APP_WINDOW_TITLE = `${APP_NAME} – Visual Novel Designer`;
+const IS_LINUX = process.platform === "linux";
+
+app.setName(APP_NAME);
+if (IS_LINUX) {
+  app.commandLine.appendSwitch("class", APP_NAME);
+}
+
 const ASSET_PROTOCOL = "asset";
-const projectFilters = [{ name: "MuseLab project", extensions: ["json"] }];
-type AppTheme = "light" | "dark";
+const projectFilters = [
+  { name: "MuseLab project", extensions: ["mlvn"] },
+  { name: "Legacy JSON project", extensions: ["json"] },
+];
+const THEME_CHROME: Record<AppTheme, { background: string; menubar: string; symbol: string }> = {
+  light: { background: "#ffffff", menubar: "#f0f0f0", symbol: "#1a1a1a" },
+  dark: { background: "#121212", menubar: "#1e1e1e", symbol: "#e8e8e8" },
+};
 
 let currentTheme: AppTheme = "light";
+let undoRedoMenuState = { canUndo: false, canRedo: false };
+
+function getTitleBarOverlay(theme: AppTheme) {
+  const colors = THEME_CHROME[theme];
+  return {
+    color: colors.menubar,
+    symbolColor: colors.symbol,
+    height: 28,
+  };
+}
+
+function applyThemeToWindow(win: BrowserWindow, theme: AppTheme): void {
+  win.setBackgroundColor(THEME_CHROME[theme].background);
+  if (IS_LINUX) {
+    win.setTitleBarOverlay(getTitleBarOverlay(theme));
+  }
+}
+
+function applyNativeTheme(theme: AppTheme): void {
+  nativeTheme.themeSource = theme;
+  for (const win of BrowserWindow.getAllWindows()) {
+    applyThemeToWindow(win, theme);
+  }
+}
+
+function setAppTheme(theme: AppTheme, source: "menu" | "renderer"): void {
+  if (theme !== "light" && theme !== "dark") return;
+  currentTheme = theme;
+  applyNativeTheme(theme);
+  buildApplicationMenu();
+  void saveUserSettings({ theme });
+  if (source === "menu") {
+    sendThemeToFocusedWindow(theme);
+  }
+}
+
+function sendToFocusedWindow(channel: string): void {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) win.webContents.send(channel);
+}
 
 function sendThemeToFocusedWindow(theme: AppTheme): void {
   const win = BrowserWindow.getFocusedWindow();
@@ -17,6 +76,11 @@ function sendThemeToFocusedWindow(theme: AppTheme): void {
 }
 
 function buildApplicationMenu(): void {
+  if (IS_LINUX) {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+
   const menu = Menu.buildFromTemplate([
     {
       label: "File",
@@ -41,16 +105,9 @@ function buildApplicationMenu(): void {
         {
           label: "Load",
           accelerator: "CmdOrCtrl+O",
-          click: async () => {
+          click: () => {
             const win = BrowserWindow.getFocusedWindow();
-            if (!win) return;
-            const result = await dialog.showOpenDialog(win, {
-              properties: ["openFile"],
-              filters: projectFilters,
-            });
-            if (result.canceled || result.filePaths.length === 0) return;
-            const json = await readFile(result.filePaths[0], "utf8");
-            win.webContents.send("load-project-data", json);
+            if (win) win.webContents.send("request-load");
           },
         },
         { type: "separator" },
@@ -60,8 +117,18 @@ function buildApplicationMenu(): void {
     {
       label: "Edit",
       submenu: [
-        { role: "undo" },
-        { role: "redo" },
+        {
+          label: "Undo",
+          accelerator: "CmdOrCtrl+Z",
+          enabled: undoRedoMenuState.canUndo,
+          click: () => sendToFocusedWindow("request-undo"),
+        },
+        {
+          label: "Redo",
+          accelerator: process.platform === "darwin" ? "Shift+CmdOrCtrl+Z" : "Ctrl+Y",
+          enabled: undoRedoMenuState.canRedo,
+          click: () => sendToFocusedWindow("request-redo"),
+        },
         { type: "separator" },
         { role: "cut" },
         { role: "copy" },
@@ -87,21 +154,13 @@ function buildApplicationMenu(): void {
               label: "Light Mode",
               type: "radio",
               checked: currentTheme === "light",
-              click: () => {
-                currentTheme = "light";
-                sendThemeToFocusedWindow("light");
-                buildApplicationMenu();
-              },
+              click: () => setAppTheme("light", "menu"),
             },
             {
               label: "Dark Mode",
               type: "radio",
               checked: currentTheme === "dark",
-              click: () => {
-                currentTheme = "dark";
-                sendThemeToFocusedWindow("dark");
-                buildApplicationMenu();
-              },
+              click: () => setAppTheme("dark", "menu"),
             },
           ],
         },
@@ -133,10 +192,32 @@ protocol.registerSchemesAsPrivileged([
   { scheme: ASSET_PROTOCOL, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
+function resolveAppIconPath(): string | undefined {
+  const candidates = [
+    path.join(__dirname, "../build/icon.png"),
+    path.join(process.resourcesPath, "icon.png"),
+    path.join(app.getAppPath(), "build/icon.png"),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
 function createWindow() {
+  const iconPath = resolveAppIconPath();
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    title: APP_WINDOW_TITLE,
+    backgroundColor: THEME_CHROME[currentTheme].background,
+    ...(IS_LINUX
+      ? {
+          titleBarStyle: "hidden",
+          titleBarOverlay: getTitleBarOverlay(currentTheme),
+        }
+      : {}),
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
@@ -152,7 +233,8 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  currentTheme = await resolveStartupTheme();
   protocol.registerFileProtocol(ASSET_PROTOCOL, (request, callback) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url).pathname);
@@ -193,9 +275,46 @@ app.whenReady().then(() => {
     return result.canceled ? null : result.filePath ?? null;
   });
 
-  ipcMain.handle("write-project-file", async (_, filePath: string, json: string) => {
-    await writeFile(filePath, json, "utf8");
+  ipcMain.handle("open-project-file", async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return null;
+    const result = await dialog.showOpenDialog(win, {
+      properties: ["openFile"],
+      filters: projectFilters,
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+
+    const filePath = result.filePaths[0];
+    const data = await readFile(filePath);
+    if (data.length >= 4 && data[0] === 0x50 && data[1] === 0x4b) {
+      return { type: "archive", data: new Uint8Array(data), path: filePath };
+    }
+    return { type: "json", data: data.toString("utf8"), path: filePath };
   });
+
+  ipcMain.handle("write-project-file", async (_, filePath: string, data: Uint8Array) => {
+    await writeFile(filePath, Buffer.from(data));
+  });
+
+  ipcMain.handle(
+    "extract-archive-assets",
+    async (
+      _,
+      cacheKey: string,
+      entries: { relativePath: string; data: Uint8Array }[]
+    ) => {
+      const hash = createHash("sha256").update(cacheKey).digest("hex").slice(0, 16);
+      const baseDir = path.join(tmpdir(), "muselab-projects", hash);
+
+      for (const entry of entries) {
+        const fullPath = path.join(baseDir, entry.relativePath);
+        await mkdir(path.dirname(fullPath), { recursive: true });
+        await writeFile(fullPath, Buffer.from(entry.data));
+      }
+
+      return baseDir;
+    }
+  );
 
   ipcMain.handle("set-window-size", (event, width: number, height: number) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -219,12 +338,21 @@ app.whenReady().then(() => {
     return result.response === 0;
   });
 
+  ipcMain.handle("get-user-settings", () => loadUserSettings());
+
   ipcMain.on("sync-theme", (_, theme: AppTheme) => {
-    if (theme !== "light" && theme !== "dark") return;
-    currentTheme = theme;
+    setAppTheme(theme, "renderer");
+  });
+
+  ipcMain.on("sync-undo-redo-state", (_, state: { canUndo?: boolean; canRedo?: boolean }) => {
+    undoRedoMenuState = {
+      canUndo: Boolean(state?.canUndo),
+      canRedo: Boolean(state?.canRedo),
+    };
     buildApplicationMenu();
   });
 
+  applyNativeTheme(currentTheme);
   buildApplicationMenu();
 
   createWindow();

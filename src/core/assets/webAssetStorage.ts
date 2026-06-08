@@ -49,6 +49,18 @@ export async function deleteAssetBlob(assetId: string): Promise<void> {
   await runTransaction("readwrite", (store) => store.delete(assetId));
 }
 
+export async function listAssetBlobIds(): Promise<string[]> {
+  const keys = await runTransaction<IDBValidKey[]>("readonly", (store) => store.getAllKeys());
+  return keys.map(String);
+}
+
+export async function gcUnusedAssetBlobs(keepIds: Set<string>): Promise<void> {
+  const stored = await listAssetBlobIds();
+  await Promise.all(
+    stored.filter((id) => !keepIds.has(id)).map((id) => deleteAssetBlob(id))
+  );
+}
+
 export function revokeWebAssetObjectUrl(assetId: string): void {
   const url = objectUrlCache.get(assetId);
   if (!url) return;

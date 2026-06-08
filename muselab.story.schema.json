@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://muselab.dev/schemas/story.schema.json",
   "title": "MuseLab Story Project",
-  "description": "Serializable MuseLab designer project (scenes, links, and assets). Saved via File > Save or browser localStorage. Actor images are embedded as base64 in imageData when persisted.",
+  "description": "MuseLab story manifest (project.json inside a .mlvn zip archive). Media files live under assets/backdrops, assets/actors, and assets/sounds and are referenced by relative path. Legacy plain JSON imports may still embed base64 in imageData.",
   "type": "object",
   "additionalProperties": false,
   "required": ["name", "assets", "nodes", "edges", "globalState"],
@@ -36,9 +36,34 @@
       "type": "string",
       "minLength": 1,
       "description": "Optional explicit starting scene id. If omitted, play mode uses the sole scene with no incoming links."
+    },
+    "thumbnailAspectRatio": {
+      "$ref": "#/$defs/aspectRatio",
+      "description": "Scene thumbnail aspect ratio in the designer canvas."
+    },
+    "playerResolution": {
+      "$ref": "#/$defs/aspectRatio",
+      "description": "Target play-mode resolution in logical pixels (width × height)."
     }
   },
   "$defs": {
+    "aspectRatio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Aspect ratio width component."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Aspect ratio height component."
+        }
+      }
+    },
     "assetType": {
       "type": "string",
       "enum": ["backdrop", "actor", "sound"]
@@ -61,16 +86,16 @@
         },
         "path": {
           "type": "string",
-          "description": "Filesystem path when running in Electron."
+          "description": "Archive-relative media path in saved MLVN projects, e.g. assets/actors/abc123.png."
         },
         "url": {
           "type": "string",
-          "description": "Persistable URL for the asset, typically a data: URL for backdrops. Ephemeral blob: URLs are stripped on load."
+          "description": "Built-in default backdrop only. Omitted from saved MLVN manifests for custom assets."
         },
         "imageData": {
           "type": "string",
           "contentEncoding": "base64",
-          "description": "Base64-encoded image bytes for actor assets. Embedded when saving project JSON."
+          "description": "Legacy JSON import only: base64-encoded media bytes before hydration."
         },
         "imageMimeType": {
           "type": "string",
@@ -85,7 +110,7 @@
             "required": ["type"]
           },
           "then": {
-            "description": "Actor sprites may embed image bytes or reference an external path/url."
+            "description": "Actor sprites reference archive files via path in saved MLVN projects."
           }
         }
       ]
