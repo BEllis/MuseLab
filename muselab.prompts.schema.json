@@ -7,6 +7,15 @@
   "additionalProperties": false,
   "required": ["stories"],
   "properties": {
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "MuseLab locale prompts format version."
+    },
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for this prompts file."
+    },
     "stories": {
       "type": "object",
       "description": "Localized prompts keyed by story id.",

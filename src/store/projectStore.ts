@@ -86,6 +86,10 @@ import {
   type PromptsByLocale,
 } from "@/core/locale/prompts";
 import { assertValidLocaleTag } from "@/core/locale/localeTag";
+import {
+  validateStoredProjectJson,
+  validateUnpackedArchive,
+} from "@/core/project/loadValidation";
 
 const STORAGE_KEY = "muselab-project";
 const PERSIST_DEBOUNCE_MS = 400;
@@ -98,21 +102,25 @@ export type MutationOptions = {
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let isApplyingHistory = false;
 
-function loadBundleFromStorage(): ReturnType<typeof migrateProjectBundle> {
+function loadBundleFromStorage(): {
+  bundle: ReturnType<typeof migrateProjectBundle>;
+  loadWarnings: string[];
+} {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
+      const loadWarnings = validateStoredProjectJson(raw);
       const bundle = sanitizeLoadedBundle(parseStoredProjectPayload(raw));
       if (serializeStoredProjectPayload(bundle) !== raw) {
         void saveToStorageNow(bundle);
       }
-      return bundle;
+      return { bundle, loadWarnings };
     }
   } catch {
     // ignore
   }
   const project = createEmptyProject();
-  return migrateProjectBundle(project);
+  return { bundle: migrateProjectBundle(project), loadWarnings: [] };
 }
 
 const LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY = "muselab-thumbnail-aspect-ratio";
@@ -235,6 +243,7 @@ interface ProjectState {
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
   highlightedRootNodeIds: string[];
+  loadWarnings: string[];
   /** Bumped on undo/redo so the graph canvas can force a full resync. */
   graphRevision: number;
   history: HistoryState;
@@ -260,6 +269,7 @@ interface ProjectState {
   clearSelection: () => void;
   setHighlightedRootNodeIds: (ids: string[]) => void;
   clearPlayValidationHighlight: () => void;
+  dismissLoadWarnings: () => void;
   loadFromStorage: () => void;
   saveToStorage: () => void;
   newProject: (name?: string) => void;
@@ -342,12 +352,14 @@ function getInitialState(): {
   bundle: ReturnType<typeof migrateProjectBundle>;
   lastSavedSnapshot: string;
   activeStoryId: string;
+  loadWarnings: string[];
 } {
-  const bundle = loadBundleFromStorage();
+  const { bundle, loadWarnings } = loadBundleFromStorage();
   return {
     bundle,
     lastSavedSnapshot: serializeProjectBundleSnapshot(bundle),
     activeStoryId: getFirstStoryId(bundle.project),
+    loadWarnings,
   };
 }
 
@@ -442,6 +454,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedEdgeIds: [],
   selectedAssetId: null,
   highlightedRootNodeIds: [],
+  loadWarnings: initialState.loadWarnings,
   graphRevision: 0,
   history: initialHistory,
   canUndo: false,
@@ -536,6 +549,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setHighlightedRootNodeIds: (ids) => set({ highlightedRootNodeIds: ids }),
   clearPlayValidationHighlight: () => set({ highlightedRootNodeIds: [] }),
 
+  dismissLoadWarnings: () => set({ loadWarnings: [] }),
+
   flushHistoryCoalesce: () => {
     const history = flushHistoryCoalesce(get().history);
     if (history === get().history) return;
@@ -610,6 +625,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: [],
       selectedAssetId: null,
       highlightedRootNodeIds: [],
+      loadWarnings: [],
       history,
       ...historyFlags(history),
     });
@@ -630,8 +646,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   loadFromJson: async (json) => {
-    const project = parseProject(json);
-    const bundle = sanitizeLoadedBundle(migrateProjectBundle(project));
+    const loadWarnings = validateStoredProjectJson(json);
+    const bundle = sanitizeLoadedBundle(parseStoredProjectPayload(json));
     await hydrateLegacyEmbeddedAssets(bundle.project);
     const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
@@ -648,6 +664,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: [],
       selectedAssetId: null,
       highlightedRootNodeIds: [],
+      loadWarnings,
       history,
       ...historyFlags(history),
     });
@@ -656,7 +673,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   loadFromArchive: async (data, mlvnPath = null) => {
-    const { manifest, files, prompts } = unpackProjectArchive(data);
+    const { manifest, files, prompts, metadata } = unpackProjectArchive(data);
+    const loadWarnings = validateUnpackedArchive({ manifest, files, prompts, metadata });
     const project = parseProject(manifest);
     assertArchivePromptLocales(project.locales, prompts);
     const promptsByLocale: PromptsByLocale = {};
@@ -680,6 +698,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: [],
       selectedAssetId: null,
       highlightedRootNodeIds: [],
+      loadWarnings,
       history,
       ...historyFlags(history),
     });

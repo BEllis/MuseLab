@@ -17,9 +17,11 @@ MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (
 | `{{#if rt.GetBool("metMaya")}}…{{/if}}` | Conditional block |
 | `{{ Format.BoldStart() }}` / `{{ Format.BoldEnd() }}` | Bold markup |
 | `{{ Format.ItalicStart() }}` / `{{ Format.ItalicEnd() }}` | Italic markup |
-| `{{ Format.ColorStart("#ff0000") }}` | Colored span |
-| `{{ Format.ShakeCharsStart() }}` … `{{ Format.ShakeCharsEnd() }}` | Per-character shake |
-| `{{ Format.ShakePhraseStart() }}` … `{{ Format.ShakePhraseEnd() }}` | Phrase shake |
+| `{{ Format.ColorStart("#ff0000") }}` / `{{ Format.ColorEnd() }}` | Colored span |
+| `{{ Format.ShakeCharsStart() }}` … `{{ Format.ShakeCharsEnd() }}` | Per-character shake (wraps following text) |
+| `{{ Format.ShakePhraseStart() }}` … `{{ Format.ShakePhraseEnd() }}` | Phrase shake (wraps following text) |
+| `{{ Format.ShakeCharsText("…") }}` | Insert text with per-character shake |
+| `{{ Format.ShakePhraseText("…") }}` | Insert text with phrase shake |
 
 Plain HTML (`<p>`, `<b>`, `<i>`, `<br>`, `<span>`, `<div>`) is allowed outside `{{ }}` blocks.
 
@@ -66,7 +68,7 @@ MuseLab previously evaluated raw JavaScript in templates. That path has been rem
 ## Developer setup
 
 1. Install [.NET 6 SDK](https://dotnet.microsoft.com/download).
-2. Clone cito: `git clone https://github.com/Marco012/cito.git third_party/cito`
+2. Initialize cito submodule: `git submodule update --init --recursive`
 3. Build the transpiler: `npm run build:cito`
 
 Cito transpilation runs in the **Electron main process**. Browser-only `npm run dev` cannot evaluate templates; use `npm run electron:dev`.
@@ -75,7 +77,7 @@ Cito transpilation runs in the **Electron main process**. Browser-only `npm run 
 
 - [`src/core/cito/compileTemplate.ts`](../src/core/cito/compileTemplate.ts) — parse HTML + `{{ }}` → `.ci` `Render` method
 - [`src/core/cito/compileCondition.ts`](../src/core/cito/compileCondition.ts) — wrap edge conditions in `Eval`
-- [`electron/citoTranspile.ts`](../../electron/citoTranspile.ts) — invoke cito subprocess
+- [`electron/citoTranspile.ts`](../electron/citoTranspile.ts) — invoke cito subprocess
 - [`src/core/cito/runtimeBridge.ts`](../src/core/cito/runtimeBridge.ts) — TS bridge for state and side effects
 - [`src/cito/MuseLabRuntime.ci`](../src/cito/MuseLabRuntime.ci) — Cito API stub for compilation
 - [`src/cito/Format.ci`](../src/cito/Format.ci) — markup directives

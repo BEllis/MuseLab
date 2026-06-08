@@ -19,7 +19,7 @@ This document is for developers who want to work on the MuseLab codebase.
 ```bash
 git clone https://github.com/BEllis/MuseLab.git
 cd MuseLab
-git clone https://github.com/Marco012/cito.git third_party/cito
+git submodule update --init --recursive   # third_party/cito
 npm install
 npm run build:cito
 ```
@@ -45,25 +45,41 @@ npm run build:cito
 ```
 MuseLab/
 ├── src/
-│   ├── components/     # FlowCanvas, StoryNode, panels, etc.
+│   ├── components/     # FlowCanvas, StoryNode, panels, MenuBar, etc.
 │   ├── x6/             # X6 graph config, shape registration, project sync
 │   ├── views/          # DesignerView, PlayerView
-│   ├── store/          # projectStore (Zustand)
-│   ├── core/           # Model, template engine, runtime, assets (no DOM)
-│   └── hooks/          # useAssetUrl, etc.
+│   ├── store/          # projectStore, themeStore (Zustand)
+│   ├── cito/           # MuseLabRuntime.ci, Format.ci (compile stubs)
+│   ├── core/
+│   │   ├── model/      # Project, Story, nodes, edges, assets
+│   │   ├── locale/     # prompts.<locale>.json read/write
+│   │   ├── project/    # .mlvn archive, file actions
+│   │   ├── cito/       # Template/condition compile + transpile bridge
+│   │   ├── template/   # runTemplate, evaluateCondition, sanitize
+│   │   ├── runtime/    # Player runner
+│   │   ├── assets/     # Resolver, hydration, web storage
+│   │   └── history/    # Undo/redo
+│   └── hooks/          # useAssetUrl, useActiveStory
 ├── electron/
 │   ├── main.ts         # App menu, IPC (file dialogs, cito transpile, .mlvn)
 │   ├── citoTranspile.ts
+│   ├── assetProtocol.ts
 │   └── preload.ts      # contextBridge API for renderer
-├── third_party/cito/   # Marco012/cito (clone; npm run build:cito)
+├── docs/               # cito-templates.md, prompts/, PROJECT_STATUS.md
+├── scripts/            # build-cito.sh, bump-version.sh
+├── third_party/cito/   # Marco012/cito (git submodule)
 ├── tools/cito/         # Built transpiler output (gitignored)
 ├── build/              # Electron app icons (icon.png, icon.ico)
+├── muselab.story.schema.json
+├── muselab.prompts.schema.json
+├── muselab.bundle.schema.json
+├── muselab.mlvn.schema.json
 ├── package.json
 └── README.md
 ```
 
-- **Designer:** `FlowCanvas` (nodes/edges), `NodeEditorPanel`, `EdgeEditorPanel`, `AssetsPanel`.
-- **Core:** `project` (nodes, edges, assets, globalState), `serializeProject` / `parseProject`, template evaluation, runtime runner for the player.
+- **Designer:** `FlowCanvas` (nodes/edges), `NodeEditorPanel`, `EdgeEditorPanel`, `AssetsPanel`, `StoriesPanel`, `ProjectPanel`.
+- **Core:** `Project` with `stories[]`, `locales`, and per-locale prompts; `serializeProject` / `parseProject`; Cito template evaluation; runtime runner for the player.
 
 ## Implementation notes
 

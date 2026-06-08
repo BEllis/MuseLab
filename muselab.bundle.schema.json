@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://muselab.dev/schemas/bundle.schema.json",
+  "title": "MuseLab Project Bundle",
+  "description": "Combined project manifest and locale prompts for plain JSON import (browser localStorage persistence and legacy .json migration). Packaged .mlvn archives store project.json and prompts.<locale>.json separately instead.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "promptsByLocale"],
+  "properties": {
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "MuseLab plain JSON bundle format version."
+    },
+    "schema": {
+      "type": "string",
+      "description": "Schema URL for this bundle payload."
+    },
+    "project": {
+      "$ref": "https://muselab.dev/schemas/story.schema.json",
+      "description": "Project manifest (same shape as project.json inside a .mlvn archive)."
+    },
+    "promptsByLocale": {
+      "type": "object",
+      "description": "Localized prompts keyed by locale tag. Keys should match project.locales.",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z]+(?:-[a-z]+)*$"
+      },
+      "additionalProperties": {
+        "$ref": "https://muselab.dev/schemas/prompts.schema.json"
+      }
+    }
+  },
+  "examples": [
+    {
+      "formatVersion": 1,
+      "schema": "https://muselab.dev/schemas/bundle.schema.json",
+      "project": {
+        "name": "Untitled",
+        "assets": [
+          {
+            "id": "muselab-default-backdrop",
+            "type": "backdrop",
+            "name": "default",
+            "url": "data:image/png;base64,..."
+          }
+        ],
+        "stories": [
+          {
+            "id": "story-main",
+            "name": "Main",
+            "nodes": [
+              {
+                "id": "scene-opening",
+                "position": { "x": 100, "y": 100 },
+                "label": "Opening",
+                "backdropId": "muselab-default-backdrop",
+                "actorIds": [],
+                "soundConfigs": []
+              }
+            ],
+            "edges": [],
+            "globalState": {}
+          }
+        ],
+        "locales": ["en"]
+      },
+      "promptsByLocale": {
+        "en": {
+          "stories": {
+            "story-main": {
+              "nodes": {
+                "scene-opening": {
+                  "textTemplate": "<p>The rain hasn't stopped for three days.</p>",
+                  "speaker": "Narrator"
+                }
+              },
+              "edges": {}
+            }
+          }
+        }
+      }
+    }
+  ]
+}

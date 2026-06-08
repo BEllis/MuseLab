@@ -9,6 +9,8 @@ import {
 } from "./assetArchivePaths";
 import { serializeProject, parseProject, getFirstStoryId } from "../model/project";
 import type { ProjectBundle } from "../model/projectBundle";
+import { serializeMlvnMetadata } from "../model/projectBundle";
+import { MLVN_METADATA_FILE } from "../model/formatVersion";
 import { parseLocalePrompts, serializeLocalePrompts } from "../locale/prompts";
 import { parseLocaleFromPromptsFileName, normalizeLocales } from "../locale/localeTag";
 import { base64ToBlob } from "../assets/actorImageSerialization";
@@ -129,6 +131,7 @@ export async function packProjectArchive(bundle: ProjectBundle): Promise<Uint8Ar
   }
 
   zipEntries[PROJECT_MANIFEST] = strToU8(serializeProject(cloned));
+  zipEntries[MLVN_METADATA_FILE] = strToU8(serializeMlvnMetadata());
 
   for (const locale of normalizeLocales(cloned.locales)) {
     const prompts = bundle.promptsByLocale[locale] ?? { stories: {} };
@@ -140,6 +143,7 @@ export async function packProjectArchive(bundle: ProjectBundle): Promise<Uint8Ar
 
 export interface UnpackedProjectArchive {
   manifest: string;
+  metadata: Record<string, unknown> | null;
   files: Map<string, Uint8Array>;
   prompts: Map<string, LocalePrompts>;
 }
@@ -153,12 +157,18 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
 
   const files = new Map<string, Uint8Array>();
   const prompts = new Map<string, LocalePrompts>();
+  let metadata: Record<string, unknown> | null = null;
 
   const manifest = strFromU8(manifestBytes);
   const defaultStoryId = getFirstStoryId(parseProject(manifest));
 
   for (const [name, bytes] of Object.entries(entries)) {
     if (name === PROJECT_MANIFEST) continue;
+
+    if (name === MLVN_METADATA_FILE) {
+      metadata = JSON.parse(strFromU8(bytes)) as Record<string, unknown>;
+      continue;
+    }
 
     const locale = parseLocaleFromPromptsFileName(name);
     if (locale) {
@@ -173,6 +183,7 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
 
   return {
     manifest,
+    metadata,
     files,
     prompts,
   };

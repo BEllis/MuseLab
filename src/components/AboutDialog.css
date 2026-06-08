@@ -72,6 +72,10 @@
   text-decoration: underline;
 }
 
+.about-dialog-link--discord {
+  color: #5865f2;
+}
+
 .about-dialog-copyright {
   margin: 0 0 20px;
   font-size: 12px;

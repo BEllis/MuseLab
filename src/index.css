@@ -311,3 +311,75 @@ body {
     animation: none !important;
   }
 }
+
+.cito-wasm-splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, var(--app-accent-soft-bg), transparent 55%),
+    var(--app-bg);
+  color: var(--app-text);
+}
+
+.cito-wasm-splash__panel {
+  width: min(420px, 100%);
+  padding: 32px 28px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 16px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 40px var(--app-shadow);
+  text-align: center;
+}
+
+.cito-wasm-splash__logo {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 16px;
+}
+
+.cito-wasm-splash__title {
+  margin: 0 0 4px;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.cito-wasm-splash__subtitle {
+  margin: 0 0 24px;
+  color: var(--app-text-muted);
+}
+
+.cito-wasm-splash__label {
+  margin: 0 0 12px;
+  color: var(--app-text-muted);
+  font-size: 0.95rem;
+}
+
+.cito-wasm-splash__bar {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--app-surface-raised);
+}
+
+.cito-wasm-splash__bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--app-accent), var(--app-accent-border));
+  transition: width 180ms ease;
+}
+
+.cito-wasm-splash__percent {
+  margin: 10px 0 0;
+  color: var(--app-text-subtle);
+  font-size: 0.85rem;
+}
+
+.cito-wasm-splash__error {
+  margin: 0;
+  color: var(--app-node-invalid-border);
+  text-align: left;
+  white-space: pre-wrap;
+}

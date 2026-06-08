@@ -12,6 +12,15 @@
       "minLength": 1,
       "description": "Human-readable project title."
     },
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "MuseLab project manifest format version."
+    },
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for this manifest."
+    },
     "assets": {
       "type": "array",
       "description": "Backdrops, actor sprites, and sounds referenced by scenes.",

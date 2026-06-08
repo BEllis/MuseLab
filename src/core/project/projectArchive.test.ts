@@ -33,6 +33,11 @@ describe("projectArchive localization", () => {
 
     const archive = await packProjectArchive({ project, promptsByLocale });
     const unpacked = unpackProjectArchive(archive);
+    expect(unpacked.metadata).toMatchObject({
+      formatVersion: 1,
+      schema: "https://muselab.dev/schemas/mlvn.schema.json",
+      manifest: "project.json",
+    });
     const bundle = migrateProjectBundle(
       parseProject(unpacked.manifest),
       Object.fromEntries(unpacked.prompts.entries())

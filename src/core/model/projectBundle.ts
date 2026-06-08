@@ -10,6 +10,11 @@ import {
 } from "../locale/prompts";
 import { normalizeLocales } from "../locale/localeTag";
 import { createEmptyProject, getFirstStoryId, parseProject, serializeProject } from "./project";
+import {
+  BUNDLE_SCHEMA_ID,
+  MUSELAB_FORMAT_VERSION,
+  MLVN_SCHEMA_ID,
+} from "./formatVersion";
 
 export interface ProjectBundle {
   project: Project;
@@ -56,6 +61,8 @@ export function migrateProjectBundle(project: Project, promptsByLocale?: Prompts
 }
 
 export interface StoredProjectPayload {
+  formatVersion?: number;
+  schema?: string;
   project: Project;
   promptsByLocale: PromptsByLocale;
 }
@@ -80,8 +87,23 @@ export function parseStoredProjectPayload(raw: string): ProjectBundle {
 export function serializeStoredProjectPayload(bundle: ProjectBundle): string {
   return JSON.stringify(
     {
+      formatVersion: MUSELAB_FORMAT_VERSION,
+      schema: BUNDLE_SCHEMA_ID,
       project: JSON.parse(serializeProject(bundle.project)) as Project,
       promptsByLocale: bundle.promptsByLocale,
+    },
+    null,
+    2
+  );
+}
+
+export function serializeMlvnMetadata(): string {
+  return JSON.stringify(
+    {
+      formatVersion: MUSELAB_FORMAT_VERSION,
+      schema: MLVN_SCHEMA_ID,
+      manifest: "project.json",
+      promptsPattern: "prompts.{locale}.json",
     },
     null,
     2

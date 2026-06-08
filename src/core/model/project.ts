@@ -7,6 +7,7 @@ import {
   resolveBackdropId,
 } from "../assets/defaultBackdrop";
 import { assertValidLocaleTag, normalizeLocales } from "../locale/localeTag";
+import { MUSELAB_FORMAT_VERSION, STORY_SCHEMA_ID } from "./formatVersion";
 
 /** Generate a unique id (simple nanoid-style) */
 export function generateId(): string {
@@ -368,7 +369,16 @@ type LegacyProjectJson = Project & {
   edges?: StoryEdge[];
   globalState?: Record<string, unknown>;
   entryNodeId?: string;
+  $schema?: string;
+  formatVersion?: number;
 };
+
+function stripManifestMetadata(data: LegacyProjectJson): LegacyProjectJson {
+  const next = { ...data };
+  delete next.$schema;
+  delete next.formatVersion;
+  return next;
+}
 
 function toManifestStory(story: Story): Story {
   return {
@@ -410,7 +420,15 @@ function toManifestProject(project: Project): Project {
 
 /** Serialize project manifest to JSON string. */
 export function serializeProject(project: Project): string {
-  return JSON.stringify(toManifestProject(project), null, 2);
+  return JSON.stringify(
+    {
+      $schema: STORY_SCHEMA_ID,
+      formatVersion: MUSELAB_FORMAT_VERSION,
+      ...toManifestProject(project),
+    },
+    null,
+    2
+  );
 }
 
 /** Serialize project manifest for persistence (assets stored separately in MLVN archives). */
@@ -445,7 +463,7 @@ function migrateLegacyProjectData(data: LegacyProjectJson): Project {
 
 /** Parse project manifest from JSON string */
 export function parseProject(json: string): Project {
-  const data = JSON.parse(json) as LegacyProjectJson;
+  const data = stripManifestMetadata(JSON.parse(json) as LegacyProjectJson);
   const hasStories = Array.isArray(data.stories) && data.stories.length > 0;
   const hasLegacyGraph = Array.isArray(data.nodes) && Array.isArray(data.edges);
 

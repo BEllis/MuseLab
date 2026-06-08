@@ -7,6 +7,7 @@ import {
   APP_URL,
   APP_VERSION,
   COPYRIGHT_NOTICE,
+  DISCORD_INVITE_URL,
 } from "@/appInfo";
 import { getCompileTimeGitDescribe, resolveGitDescribe } from "@/gitDescribe";
 import { useAboutStore } from "@/store/aboutStore";
@@ -69,6 +70,17 @@ export function AboutDialog() {
         <p className="about-dialog-link-row">
           <a href={APP_URL} target="_blank" rel="noopener noreferrer" className="about-dialog-link">
             {APP_URL.replace(/^https?:\/\//, "")}
+          </a>
+          <span className="about-dialog-meta-separator" aria-hidden="true">
+            ·
+          </span>
+          <a
+            href={DISCORD_INVITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="about-dialog-link about-dialog-link--discord"
+          >
+            Discord
           </a>
         </p>
         <p className="about-dialog-copyright">{COPYRIGHT_NOTICE}</p>

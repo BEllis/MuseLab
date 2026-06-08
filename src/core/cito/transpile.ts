@@ -1,5 +1,7 @@
 import { createFormatRuntime, type FormatRuntime } from "./formatRuntime";
 import type { MuseLabRuntimeBridge } from "./runtimeBridge";
+import { isElectron } from "@/utils/isElectron";
+import { transpileCiSourceWithWasm } from "./citoWasmLoader";
 
 export type TranspileCitoRequest = {
   ciSource: string;
@@ -20,7 +22,10 @@ function cacheKey(ciSource: string): string {
 }
 
 export function getTranspileCitoUnavailableMessage(): string {
-  return "Cito transpilation requires the MuseLab desktop app (Electron). Run npm run electron:dev.";
+  if (isElectron()) {
+    return "Cito transpilation failed. Ensure cito is built (npm run build:cito) and the desktop app is up to date.";
+  }
+  return "Cito transpilation is unavailable. Run npm run build:cito-wasm and reload the page.";
 }
 
 export async function transpileCiToJs(ciSource: string): Promise<string> {
@@ -28,14 +33,20 @@ export async function transpileCiToJs(ciSource: string): Promise<string> {
   const cached = jsCache.get(key);
   if (cached) return cached;
 
-  const api = window.electronAPI?.transpileCito;
-  if (!api) {
-    throw new Error(getTranspileCitoUnavailableMessage());
+  let js: string;
+  if (isElectron()) {
+    const api = window.electronAPI?.transpileCito;
+    if (!api) {
+      throw new Error(getTranspileCitoUnavailableMessage());
+    }
+    const result = await api({ ciSource });
+    js = result.js;
+  } else {
+    js = await transpileCiSourceWithWasm(ciSource);
   }
 
-  const result = await api({ ciSource });
-  jsCache.set(key, result.js);
-  return result.js;
+  jsCache.set(key, js);
+  return js;
 }
 
 export function runTranspiledMethod(

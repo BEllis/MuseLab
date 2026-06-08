@@ -2,6 +2,8 @@
 
 **Original plan.** Preserved for reference and version control.
 
+> **Note:** This document describes the initial design (2025). The implementation has since evolved: projects use a `stories[]` model with per-locale `prompts.<locale>.json` files, Cito templates (not a JS sandbox), `.mlvn` zip archives, and additional features (undo/redo, themes, multi-story). See [PROJECT_STATUS.md](./PROJECT_STATUS.md) and [README.md](../README.md) for the current state.
+
 ---
 
 ## High-level architecture

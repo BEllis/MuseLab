@@ -1,5 +1,6 @@
 import type { LocalePrompts, Project, StoryEdge, StoryNode, StoryPrompts } from "../model/types";
 import { DEFAULT_LOCALES, normalizeLocales } from "./localeTag";
+import { MUSELAB_FORMAT_VERSION, PROMPTS_SCHEMA_ID } from "../model/formatVersion";
 
 export type PromptsByLocale = Record<string, LocalePrompts>;
 
@@ -329,7 +330,15 @@ export function serializeLocalePrompts(prompts: LocalePrompts): string {
     }
   }
 
-  return JSON.stringify({ stories }, null, 2);
+  return JSON.stringify(
+    {
+      $schema: PROMPTS_SCHEMA_ID,
+      formatVersion: MUSELAB_FORMAT_VERSION,
+      stories,
+    },
+    null,
+    2
+  );
 }
 
 export function clonePromptsByLocale(promptsByLocale: PromptsByLocale): PromptsByLocale {

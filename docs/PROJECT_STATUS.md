@@ -1,6 +1,6 @@
 # MuseLab – Project status and progress
 
-Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) for the original plan.
+Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) for the original plan (historical reference).
 
 ---
 
@@ -9,16 +9,16 @@ Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) 
 | Step | Plan item | Status | Notes |
 |------|-----------|--------|------|
 | 1 | Scaffold: Vite + React + TS, Electron | Done | Single package, `npm run dev` (web), `npm run electron:dev` (desktop) |
-| 2 | Core model: types, project, save/load JSON | Done | `src/core/model/`, Zustand store with localStorage |
+| 2 | Core model: types, project, save/load | Done | `src/core/model/`, Zustand store; `.mlvn` zip archives + legacy JSON import |
 | 3 | AntV X6: custom node, native edges, persist positions | Done | `FlowCanvas`, `StoryNode`, `src/x6/`; project is source of truth |
-| 4 | Node editor: backdrop, actors, sounds, template | Done | `NodeEditorPanel` with sound config (start/stop/loop/start/end time) |
+| 4 | Node editor: backdrop, actors, sounds, template | Done | `NodeEditorPanel` with sound config, locale prompts, speaker field |
 | 5 | Edge editor: option text and condition | Done | `EdgeEditorPanel`; option text on edge label |
 | 6 | Template engine: Cito compile + cito transpile, sanitized HTML | Done | `src/core/cito/`, `src/core/template/engine.ts` – Cito in `{{ }}`, DOMPurify allowlist |
-| 7 | Asset layer: resolver, file picker (Electron + Web) | Done | `resolver.ts`, `AssetsPanel`, Electron IPC for dialogs and path→URL |
-| 8 | Player: navigation, conditions, choices, sound | Done | `PlayerView`, `runner.ts`, SoundManager, `playSound` from template |
-| 9 | Polish: drag-drop, start/stop on load, invoke sound | Done | Drag-drop in AssetsPanel; start/stop on load and `playSound('id')` wired |
+| 7 | Asset layer: resolver, file picker (Electron + Web) | Done | `resolver.ts`, `AssetsPanel`, Electron IPC + `asset://` protocol; web IndexedDB blobs |
+| 8 | Player: navigation, conditions, choices, sound | Done | `PlayerView`, `runner.ts`, locale switching, `playSound` from template |
+| 9 | Polish: drag-drop, start/stop on load, invoke sound | Done | Drag-drop in AssetsPanel; start/stop on load and `rt.PlaySound(...)` wired |
 
-All planned steps are implemented.
+All planned steps are implemented. Post-plan work includes multi-story projects, locales, `.mlvn` archives, undo/redo, themes, and unit tests.
 
 ---
 
@@ -27,52 +27,41 @@ All planned steps are implemented.
 ```
 MuseLab/
 ├── docs/
-│   ├── PLAN.md           # Original plan (this snapshot)
-│   └── PROJECT_STATUS.md  # This file
+│   ├── PLAN.md              # Original plan (historical)
+│   ├── PROJECT_STATUS.md    # This file
+│   ├── cito-templates.md    # Cito template syntax reference
+│   └── prompts/             # AI agent prompts (e.g. story generator)
 ├── electron/
-│   ├── main.ts           # Window, IPC: open-file-dialog, resolve-asset-url
-│   └── preload.ts        # contextBridge: electronAPI
+│   ├── main.ts              # Window, menu, IPC: file dialogs, cito transpile, .mlvn
+│   ├── preload.ts           # contextBridge: electronAPI
+│   ├── citoTranspile.ts     # Invoke bundled cito subprocess
+│   ├── assetProtocol.ts     # asset:// URL handler
+│   └── userSettings.ts      # Persisted theme preference
+├── scripts/
+│   └── build-cito.sh        # Build third_party/cito → tools/cito/
 ├── src/
+│   ├── cito/                # MuseLabRuntime.ci, Format.ci (cito compile stubs)
 │   ├── core/
-│   │   ├── assets/
-│   │   │   └── resolver.ts    # getAssetUrlSync, getAssetUrlAsync
-│   │   ├── model/
-│   │   │   ├── types.ts      # Project, StoryNode, StoryEdge, Asset, SoundConfig
-│   │   │   └── project.ts    # CRUD, serialize/parse, getEntryNodeId
-│   │   ├── runtime/
-│   │   │   └── runner.ts     # createRunner, state, template run, choices
-│   │   └── template/
-│   │       ├── engine.ts     # runTemplate, evaluateCondition
-│   │       ├── sandbox.ts    # evaluateExpression, TemplateContext
-│   │       └── sanitize.ts   # DOMPurify allowlist (b,i,p,div,br,span)
-│   ├── components/
-│   │   ├── AssetsPanel.tsx   # Add/remove assets; drag-drop (web); file picker
-│   │   ├── FlowCanvas.tsx    # AntV X6 graph, project sync, add node, connect
-│   │   ├── StoryNode.tsx     # X6 React shape (label, preview, backdrop)
-│   │   ├── x6/
-│   │   │   ├── registerShapes.ts
-│   │   │   ├── graphOptions.ts
-│   │   │   └── syncProjectToGraph.ts
-│   │   ├── NodeEditor/
-│   │   │   └── NodeEditorPanel.tsx  # Label, backdrop, actors, sounds, template
-│   │   └── EdgeEditor/
-│   │       └── EdgeEditorPanel.tsx  # Option text, condition
-│   ├── hooks/
-│   │   └── useAssetUrl.ts    # Resolve asset ID to URL (sync + async for Electron)
-│   ├── store/
-│   │   └── projectStore.ts   # Zustand: project, selection, CRUD, localStorage
-│   ├── views/
-│   │   ├── DesignerView.tsx  # AssetsPanel + FlowCanvas + Node/Edge panels
-│   │   └── PlayerView.tsx    # Stage, choices, SoundManager
-│   ├── App.tsx               # Routes: /, /play
-│   ├── main.tsx
-│   ├── index.css
-│   └── vite-env.d.ts
-├── index.html
-├── package.json
-├── tsconfig.json
-├── tsconfig.node.json
-├── vite.config.ts            # React + conditional vite-plugin-electron
+│   │   ├── assets/          # resolver, hydration, web storage, default backdrop
+│   │   ├── cito/            # compileTemplate, compileCondition, transpile, formatRuntime
+│   │   ├── history/         # Undo/redo for project edits
+│   │   ├── locale/          # Locale tags, prompts.<locale>.json read/write
+│   │   ├── model/           # Project, Story, StoryNode, StoryEdge, Asset
+│   │   ├── project/         # .mlvn archive pack/unpack, file actions
+│   │   ├── runtime/         # runner.ts – player state, choices, template run
+│   │   ├── template/        # engine.ts, sanitize.ts
+│   │   └── view/            # theme, player resolution, scene stage helpers
+│   ├── components/          # FlowCanvas, panels, StoryNode, MenuBar, etc.
+│   ├── x6/                  # X6 graph config, shape registration, project sync
+│   ├── views/               # DesignerView, PlayerView
+│   ├── store/               # projectStore, themeStore, aboutStore
+│   └── hooks/               # useAssetUrl, useActiveStory
+├── third_party/cito/        # Marco012/cito (git submodule)
+├── tools/cito/              # Built transpiler output (gitignored)
+├── muselab.story.schema.json
+├── muselab.prompts.schema.json
+├── muselab.bundle.schema.json
+├── muselab.mlvn.schema.json
 └── README.md
 ```
 
@@ -80,16 +69,22 @@ MuseLab/
 
 ## How to run
 
-- **Web**: `npm run dev` → open app, use Designer at `/`, Player at `/play`.
-- **Build**: `npm run build` → `dist/` (web).
-- **Electron**: `npm run electron:dev` → one window, file dialogs and asset paths via main process.
+- **Web:** `npm run dev` → Designer at `/`, Player at `/play`. Save/load via browser download and file picker (`.mlvn` or legacy `.json`).
+- **Build:** `npm run build` → `dist/` (web).
+- **Electron:** `npm run electron:dev` → native file dialogs, cito transpilation, `asset://` URLs.
+- **Tests:** `npm run test` (Vitest).
+- **Cito transpiler:** `npm run build:cito` (requires .NET 6 SDK and `third_party/cito` submodule).
+
+Template evaluation requires Electron (cito runs in the main process). Browser-only `npm run dev` cannot evaluate Cito templates.
 
 ---
 
 ## Data and persistence
 
-- **Project**: Stored in Zustand; persisted to `localStorage` under key `muselab-project` (web). Electron can be extended later to save/load files via IPC.
-- **Assets**: Web = blob/object URLs in project JSON; Electron = file paths, resolved to `file://` URLs via main process.
+- **Project model:** `Project` contains `assets`, `stories[]` (each with `nodes`, `edges`, `globalState`), and `locales`. Dialogue and choice labels live in per-locale `prompts.<locale>.json` files, not inline on nodes/edges.
+- **Web:** Zustand state persisted to `localStorage` (`muselab-project`). Assets stored in IndexedDB. Save exports a `.mlvn` zip download.
+- **Electron:** Save/load `.mlvn` via native dialogs; legacy plain `.json` import supported. Assets resolved via `asset://` protocol or file paths.
+- **`.mlvn` archive:** `project.json` manifest + `prompts.<locale>.json` + `assets/{backdrops,actors,sounds}/`.
 
 ---
 
@@ -102,15 +97,32 @@ Cito expressions in `{{ }}` blocks and edge conditions. Runtime bridge `rt`:
 - `rt.Emit(eventName)` – fire event
 - `rt.Call(name)` – call registered handler
 - `rt.PlaySound(assetId)` / `rt.PlaySoundTrim(assetId, start, end)` – play sound
-- `Format.BoldStart()`, `Format.ColorStart("#hex")`, etc. – markup directives
+- `Format.BoldStart()`, `Format.ColorStart("#hex")`, shake helpers, etc. – markup directives
 
-See [docs/cito-templates.md](cito-templates.md). HTML output allowlist: `b`, `i`, `p`, `div`, `br`, `span` (DOMPurify).
+See [docs/cito-templates.md](cito-templates.md). HTML output allowlist: `b`, `i`, `p`, `div`, `br`, `span` with `class` and `style` (DOMPurify).
 
 ---
 
-## Possible next steps (not in original plan)
+## Features beyond the original plan
 
-- Save/load project file in Electron (dialog + path).
-- Designate explicit “entry node” in the UI.
+| Feature | Status |
+|---------|--------|
+| `.mlvn` zip save/load (web + desktop) | Done |
+| Multi-story projects (`stories[]`) | Done |
+| Locales + `prompts.<locale>.json` | Done |
+| Cito templates (replaced JS sandbox) | Done |
+| Undo/redo (Ctrl/Cmd+Z, Shift+Z) | Done |
+| Light/dark theme | Done |
+| Play validation (entry node, reachability) | Done |
+| Unit tests (cito compile, locale, archive) | Done |
+| Scene speaker field (per locale) | Done |
+| Player locale picker | Done |
+
+---
+
+## Possible next steps
+
+- Browser-side cito transpilation (WASM) so templates work without Electron.
 - Export project to a standalone player bundle.
-- Tests for core (model, template, runner).
+- Broader test coverage (runner, model CRUD).
+- Explicit entry-node picker in the designer UI.
