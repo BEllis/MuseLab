@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import electron from "vite-plugin-electron/simple";
 import path from "path";
@@ -24,16 +24,55 @@ function getAppVersion(): string {
   }
 }
 
+function buildVersionPayload(): string {
+  return JSON.stringify(
+    {
+      version: getAppVersion(),
+      gitDescribe: getGitDescribe(),
+    },
+    null,
+    2
+  );
+}
+
+function versionJsonPlugin(): Plugin {
+  return {
+    name: "version-json",
+    configureServer(server) {
+      server.middlewares.use("/version.json", (_req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(buildVersionPayload());
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: buildVersionPayload(),
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const isElectron = mode === "electron";
+  const define: Record<string, string> = {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(getAppVersion()),
+  };
+
+  if (isElectron) {
+    define["import.meta.env.VITE_GIT_DESCRIBE"] = JSON.stringify(getGitDescribe());
+  }
+
   return {
     envPrefix: ["VITE_"],
-    define: {
-      "import.meta.env.VITE_APP_VERSION": JSON.stringify(getAppVersion()),
-      "import.meta.env.VITE_GIT_DESCRIBE": JSON.stringify(getGitDescribe()),
-    },
+    define,
     plugins: [
       react(),
+      ...(isElectron
+        ? []
+        : [versionJsonPlugin()]),
       ...(isElectron
         ? [
             electron({

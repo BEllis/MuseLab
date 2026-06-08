@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import logoUrl from "@/assets/logo.png";
 import {
   APP_DESCRIPTION,
@@ -7,14 +7,18 @@ import {
   APP_URL,
   APP_VERSION,
   COPYRIGHT_NOTICE,
-  GIT_DESCRIBE,
 } from "@/appInfo";
+import { getCompileTimeGitDescribe, resolveGitDescribe } from "@/gitDescribe";
 import { useAboutStore } from "@/store/aboutStore";
+import { isElectron } from "@/utils/isElectron";
 import "./AboutDialog.css";
 
 export function AboutDialog() {
   const open = useAboutStore((s) => s.open);
   const hide = useAboutStore((s) => s.hide);
+  const [gitDescribe, setGitDescribe] = useState(() =>
+    isElectron() ? getCompileTimeGitDescribe() : "…"
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -24,6 +28,19 @@ export function AboutDialog() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, hide]);
+
+  useEffect(() => {
+    if (!open || isElectron()) return;
+
+    let cancelled = false;
+    void resolveGitDescribe().then((value) => {
+      if (!cancelled) setGitDescribe(value);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -47,7 +64,7 @@ export function AboutDialog() {
           <span className="about-dialog-meta-separator" aria-hidden="true">
             ·
           </span>
-          {GIT_DESCRIBE}
+          {gitDescribe}
         </p>
         <p className="about-dialog-link-row">
           <a href={APP_URL} target="_blank" rel="noopener noreferrer" className="about-dialog-link">

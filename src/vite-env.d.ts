@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_VERSION: string;
-  readonly VITE_GIT_DESCRIBE: string;
+  readonly VITE_GIT_DESCRIBE?: string;
 }
 
 interface ImportMeta {
