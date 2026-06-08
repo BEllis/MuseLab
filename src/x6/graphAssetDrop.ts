@@ -1,6 +1,6 @@
 import type { Graph } from "@antv/x6";
 import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
-import { useProjectStore } from "@/store/projectStore";
+import { selectActiveStory, useProjectStore } from "@/store/projectStore";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 
 const ASSET_DROP_TARGET_KEY = "assetDropTarget";
@@ -69,7 +69,8 @@ export function bindGraphAssetDrop(graph: Graph): () => void {
     if (!nodeId) return;
 
     const state = useProjectStore.getState();
-    const domainNode = state.project.nodes.find((node) => node.id === nodeId);
+    const story = selectActiveStory(state.project, state.activeStoryId);
+    const domainNode = story.nodes.find((node) => node.id === nodeId);
     if (!domainNode) return;
 
     const patch = patchNodeForAssetDrop(domainNode, data);

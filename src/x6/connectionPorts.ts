@@ -1,5 +1,5 @@
 import type { Graph, Node } from "@antv/x6";
-import type { Project, StoryEdge } from "@/core/model/types";
+import type { Story, StoryEdge } from "@/core/model/types";
 import {
   FREE_IN_PORT,
   FREE_OUT_PORT,
@@ -59,10 +59,10 @@ function syncOutPorts(node: Node, connectedOutPortIds: string[], graph: Graph): 
   }
 }
 
-export function syncNodeEdgePorts(node: Node, project: Project, graph: Graph): void {
+export function syncNodeEdgePorts(node: Node, story: Story, graph: Graph): void {
   const connectedOutPortIds: string[] = [];
 
-  for (const edge of project.edges) {
+  for (const edge of story.edges) {
     if (edge.sourceNodeId !== node.id) continue;
     const outId = edge.sourcePortId ?? sourcePortId(edge.id);
     if (!connectedOutPortIds.includes(outId)) {

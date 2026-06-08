@@ -52,10 +52,26 @@ export interface StoryEdge {
   manualRoute?: boolean;
 }
 
+/** Per-story graph: scenes, links, and runtime initial state. */
+export interface Story {
+  id: string;
+  name: string;
+  nodes: StoryNode[];
+  edges: StoryEdge[];
+  /** Initial state for the runtime (variables, flags) */
+  globalState: Record<string, unknown>;
+  /** Optional: id of the entry node; otherwise first node */
+  entryNodeId?: string;
+}
+
 /** Localized text content stored in prompts.<locale>.json */
-export interface LocalePrompts {
-  nodes: Record<string, { textTemplate?: string }>;
+export interface StoryPrompts {
+  nodes: Record<string, { textTemplate?: string; speaker?: string }>;
   edges: Record<string, { optionText?: string }>;
+}
+
+export interface LocalePrompts {
+  stories: Record<string, StoryPrompts>;
 }
 
 /** Aspect ratio stored as width:height integers (e.g. 16:9). */
@@ -68,16 +84,21 @@ export interface AspectRatio {
 export interface Project {
   name: string;
   assets: Asset[];
-  nodes: StoryNode[];
-  edges: StoryEdge[];
-  /** Initial state for the runtime (variables, flags) */
-  globalState: Record<string, unknown>;
+  stories: Story[];
   /** Supported locale tags; first entry is the default */
   locales: string[];
-  /** Optional: id of the entry node; otherwise first node */
-  entryNodeId?: string;
   /** Scene thumbnail aspect ratio in the designer canvas */
   thumbnailAspectRatio?: AspectRatio;
   /** Target resolution for play mode (logical pixels) */
   playerResolution?: AspectRatio;
+}
+
+/** Slice passed to runtime and play validation for one story. */
+export interface StoryRuntimeContext {
+  nodes: StoryNode[];
+  edges: StoryEdge[];
+  globalState: Record<string, unknown>;
+  entryNodeId?: string;
+  assets: Asset[];
+  locales: string[];
 }

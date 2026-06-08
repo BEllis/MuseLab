@@ -35,6 +35,8 @@ export function TemplateTextEditor({
   value,
   onChange,
   onBlurCommit,
+  onFocus,
+  onDraftChange,
   syncKey,
   placeholder = "",
   style,
@@ -42,6 +44,8 @@ export function TemplateTextEditor({
   value: string;
   onChange: (markup: string) => void;
   onBlurCommit?: () => void;
+  onFocus?: () => void;
+  onDraftChange?: (draft: string) => void;
   syncKey: string | undefined;
   placeholder?: string;
   style?: React.CSSProperties;
@@ -55,11 +59,12 @@ export function TemplateTextEditor({
     const next = value ?? "";
     committedValueRef.current = next;
     setDraft(next);
+    onDraftChange?.(next);
     const el = textareaRef.current;
     if (el && syncKey !== undefined && el.value !== next) {
       el.value = next;
     }
-  }, [syncKey, value]);
+  }, [syncKey, value, onDraftChange]);
 
   useEffect(
     () => () => {
@@ -95,9 +100,10 @@ export function TemplateTextEditor({
   const handleDraftChange = useCallback(
     (next: string) => {
       setDraft(next);
+      onDraftChange?.(next);
       scheduleCommit(next);
     },
-    [scheduleCommit]
+    [onDraftChange, scheduleCommit]
   );
 
   const handleBlur = useCallback(() => {
@@ -111,28 +117,30 @@ export function TemplateTextEditor({
       if (!el) return;
       const next = insertAroundSelection(el, open, close);
       setDraft(next);
+      onDraftChange?.(next);
       commit(next);
       el.focus();
       const cursor = el.selectionStart;
       el.setSelectionRange(cursor, cursor);
     },
-    [commit]
+    [commit, onDraftChange]
   );
 
   const applyColor = useCallback(
     (color: string) => {
       const el = textareaRef.current;
       if (!el) return;
-      const open = `{{color_start(${color})}}`;
+      const open = `{{ Format.ColorStart("${color}") }}`;
       const hasSelection = el.selectionStart !== el.selectionEnd;
       const next = hasSelection
-        ? insertAroundSelection(el, open, "{{color_end()}}")
+        ? insertAroundSelection(el, open, "{{ Format.ColorEnd() }}")
         : insertAtSelection(el, open);
       setDraft(next);
+      onDraftChange?.(next);
       commit(next);
       el.focus();
     },
-    [commit]
+    [commit, onDraftChange]
   );
 
   return (
@@ -150,7 +158,7 @@ export function TemplateTextEditor({
       >
         <button
           type="button"
-          onClick={() => applyWrap("{{bold_start()}}", "{{bold_end()}}")}
+          onClick={() => applyWrap("{{ Format.BoldStart() }}", "{{ Format.BoldEnd() }}")}
           title="Bold"
           style={{ ...toolbarButtonStyle, fontWeight: "bold" }}
         >
@@ -158,7 +166,7 @@ export function TemplateTextEditor({
         </button>
         <button
           type="button"
-          onClick={() => applyWrap("{{italic_start()}}", "{{italic_end()}}")}
+          onClick={() => applyWrap("{{ Format.ItalicStart() }}", "{{ Format.ItalicEnd() }}")}
           title="Italic"
           style={{ ...toolbarButtonStyle, fontStyle: "italic" }}
         >
@@ -186,6 +194,7 @@ export function TemplateTextEditor({
         value={draft}
         placeholder={placeholder}
         onChange={(e) => handleDraftChange(e.target.value)}
+        onFocus={onFocus}
         onBlur={handleBlur}
         style={{
           display: "block",

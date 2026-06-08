@@ -45,8 +45,10 @@ export function ensureDefaultBackdrop(project: Project): void {
     }
   }
 
-  for (const node of project.nodes) {
-    node.backdropId = resolveBackdropId(project, node.backdropId);
+  for (const story of project.stories) {
+    for (const node of story.nodes) {
+      node.backdropId = resolveBackdropId(project, node.backdropId);
+    }
   }
 }
 

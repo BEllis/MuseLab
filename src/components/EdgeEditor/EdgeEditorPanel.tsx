@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
+import { useActiveStory } from "@/hooks/useActiveStory";
 import { getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { CloseButton } from "../CloseButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
@@ -8,6 +9,7 @@ export function EdgeEditorPanel() {
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
   const project = useProjectStore((s) => s.project);
   const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
+  const { story, storyId } = useActiveStory();
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateEdge = useProjectStore((s) => s.updateEdge);
   const updateEdgePrompt = useProjectStore((s) => s.updateEdgePrompt);
@@ -20,13 +22,13 @@ export function EdgeEditorPanel() {
 
   const edge =
     selectedEdgeIds.length === 1
-      ? project.edges.find((e) => e.id === selectedEdgeIds[0])
+      ? story.edges.find((e) => e.id === selectedEdgeIds[0])
       : null;
 
   if (!edge) return null;
 
-  const sourceLabel = project.nodes.find((n) => n.id === edge.sourceNodeId)?.label ?? edge.sourceNodeId;
-  const targetLabel = project.nodes.find((n) => n.id === edge.targetNodeId)?.label ?? edge.targetNodeId;
+  const sourceLabel = story.nodes.find((n) => n.id === edge.sourceNodeId)?.label ?? edge.sourceNodeId;
+  const targetLabel = story.nodes.find((n) => n.id === edge.targetNodeId)?.label ?? edge.targetNodeId;
 
   return (
     <div
@@ -58,7 +60,7 @@ export function EdgeEditorPanel() {
             Option text ({locale})
             <input
               type="text"
-              value={getEdgeOptionTextForLocale(promptsByLocale, locale, edge.id) ?? ""}
+              value={getEdgeOptionTextForLocale(promptsByLocale, locale, storyId, edge.id) ?? ""}
               onChange={(e) =>
                 updateEdgePrompt(
                   locale,
@@ -76,7 +78,7 @@ export function EdgeEditorPanel() {
       </div>
 
       <label style={{ display: "block" }}>
-        Condition (TypeScript expression; leave empty to always show)
+        Condition (Cito expression; leave empty to always show)
         <textarea
           value={edge.condition ?? ""}
           onChange={(e) =>

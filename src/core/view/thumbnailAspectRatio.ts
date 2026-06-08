@@ -107,6 +107,21 @@ export function getProjectThumbnailAspectRatio(project: Project): AspectRatio {
   return parseAspectRatio(project.thumbnailAspectRatio) ?? DEFAULT_THUMBNAIL_ASPECT_RATIO;
 }
 
+/** Largest width/height that fits `ratio` inside a box without cropping. */
+export function fitAspectRatioInBox(
+  boxWidth: number,
+  boxHeight: number,
+  ratio: AspectRatio
+): { width: number; height: number } {
+  if (boxWidth <= 0 || boxHeight <= 0) return { width: 0, height: 0 };
+  const contentAspect = ratio.width / ratio.height;
+  const boxAspect = boxWidth / boxHeight;
+  if (boxAspect > contentAspect) {
+    return { width: boxHeight * contentAspect, height: boxHeight };
+  }
+  return { width: boxWidth, height: boxWidth / contentAspect };
+}
+
 export function findPresetKey(ratio: AspectRatio): string {
   const preset = THUMBNAIL_ASPECT_RATIO_PRESETS.find((item) =>
     aspectRatioEquals(item.ratio, ratio)

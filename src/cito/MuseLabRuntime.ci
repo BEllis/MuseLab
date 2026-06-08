@@ -1,0 +1,46 @@
+public class MuseLabRuntime
+{
+    public string GetString(string key)
+    {
+        return "";
+    }
+
+    public bool GetBool(string key)
+    {
+        return false;
+    }
+
+    public int GetInt(string key)
+    {
+        return 0;
+    }
+
+    public void SetString(string key, string value)
+    {
+    }
+
+    public void SetBool(string key, bool value)
+    {
+    }
+
+    public void SetInt(string key, int value)
+    {
+    }
+
+    public void Emit(string eventName)
+    {
+    }
+
+    public string Call(string name)
+    {
+        return "";
+    }
+
+    public void PlaySound(string assetId)
+    {
+    }
+
+    public void PlaySoundTrim(string assetId, double startTime, double endTime)
+    {
+    }
+}

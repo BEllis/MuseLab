@@ -18,9 +18,9 @@ function getAppVersion(): string {
     const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8")) as {
       version?: string;
     };
-    return pkg.version ?? "0.0.0";
+    return pkg.version ?? "0.1";
   } catch {
-    return "0.0.0";
+    return "0.1";
   }
 }
 

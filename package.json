@@ -1,13 +1,14 @@
 {
   "name": "muselab",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "build:cito": "bash scripts/build-cito.sh",
     "preview": "vite preview",
     "electron:dev": "vite --mode electron",
     "electron:build": "vite build --mode electron && electron-builder",
@@ -28,6 +29,11 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "tools/cito",
+        "to": "cito",
+        "filter": ["**/*"]
       }
     ],
     "linux": {

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
+import { useActiveStory } from "@/hooks/useActiveStory";
+import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import type { MutationOptions } from "@/store/projectStore";
 import type { Project, SoundConfig, StoryNode } from "@/core/model/types";
-import { getNodeTextTemplateForLocale } from "@/core/locale/prompts";
+import { getNodeSpeakerForLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
@@ -20,11 +22,13 @@ function SoundConfigRow({
   soundAssetIds,
   onChange,
   onRemove,
+  onSelectFocus,
 }: {
   config: SoundConfig;
   soundAssetIds: Array<{ id: string; name: string }>;
   onChange: (patch: Partial<SoundConfig>) => void;
   onRemove: () => void;
+  onSelectFocus: () => void;
 }) {
   return (
     <div
@@ -40,6 +44,7 @@ function SoundConfigRow({
         <select
           value={config.assetId}
           onChange={(e) => onChange({ assetId: e.target.value })}
+          onFocus={onSelectFocus}
           style={{ flex: 1, marginRight: "8px" }}
         >
           <option value="">— Select sound —</option>
@@ -123,6 +128,7 @@ function ActorRow({
   onReorderDragOver,
   onReorderDragLeave,
   isDropTarget,
+  onFocusPreview,
 }: {
   project: Project;
   actorId: string;
@@ -133,6 +139,7 @@ function ActorRow({
   onReorderDragOver: () => void;
   onReorderDragLeave: () => void;
   isDropTarget: boolean;
+  onFocusPreview: () => void;
 }) {
   const thumbUrl = useAssetUrl(project, actorId);
 
@@ -170,6 +177,8 @@ function ActorRow({
   return (
     <div
       draggable
+      tabIndex={0}
+      onFocus={onFocusPreview}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragLeave={onReorderDragLeave}
@@ -225,14 +234,19 @@ export function NodeEditorPanel() {
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const project = useProjectStore((s) => s.project);
   const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
+  const { story, storyId } = useActiveStory();
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateNode = useProjectStore((s) => s.updateNode);
   const updateNodePrompt = useProjectStore((s) => s.updateNodePrompt);
+  const updateNodeSpeaker = useProjectStore((s) => s.updateNodeSpeaker);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
+  const showPreview = useSceneEditorPreviewStore((s) => s.showPreview);
+  const updateDraftTemplate = useSceneEditorPreviewStore((s) => s.updateDraftTemplate);
+  const previewLocale = useSceneEditorPreviewStore((s) => s.locale);
 
   const node =
     selectedNodeIds.length === 1
-      ? project.nodes.find((n) => n.id === selectedNodeIds[0])
+      ? story.nodes.find((n) => n.id === selectedNodeIds[0])
       : null;
 
   const backdrops = project.assets.filter((a) => a.type === "backdrop");
@@ -320,6 +334,37 @@ export function NodeEditorPanel() {
     [node, update]
   );
 
+  const openScenePreview = useCallback(() => {
+    showPreview();
+  }, [showPreview]);
+
+  const openScenePreviewForLocale = useCallback(
+    (locale: string) => {
+      showPreview({ locale });
+    },
+    [showPreview]
+  );
+
+  const openScenePreviewForPrompt = useCallback(
+    (locale: string) => {
+      if (!node) return;
+      showPreview({
+        locale,
+        draftTemplate: getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id),
+      });
+    },
+    [node, promptsByLocale, showPreview, storyId]
+  );
+
+  const handlePromptDraftChange = useCallback(
+    (locale: string, draft: string) => {
+      if (previewLocale === locale) {
+        updateDraftTemplate(draft);
+      }
+    },
+    [previewLocale, updateDraftTemplate]
+  );
+
   if (!node) return null;
 
   const addSoundConfig = () => {
@@ -383,6 +428,7 @@ export function NodeEditorPanel() {
           onChange={(e) =>
             update({ label: e.target.value || undefined }, { mergeKey: `node-label:${node.id}` })
           }
+          onFocus={openScenePreview}
           onBlur={() => flushHistoryCoalesce()}
           placeholder="Scene name"
           style={{ display: "block", width: "100%", marginTop: "4px", padding: "6px" }}
@@ -392,6 +438,8 @@ export function NodeEditorPanel() {
       <div style={{ marginBottom: "8px" }}>
         <div style={{ marginBottom: "4px" }}>Backdrop</div>
         <div
+          tabIndex={0}
+          onFocus={openScenePreview}
           onDragOver={onBackdropDragOver}
           onDragLeave={onBackdropDragLeave}
           onDrop={onBackdropDrop}
@@ -496,6 +544,7 @@ export function NodeEditorPanel() {
                     onReorderDragOver={() => setActorReorderDropIndex(index)}
                     onReorderDragLeave={() => setActorReorderDropIndex(null)}
                     isDropTarget={actorReorderDropIndex === index}
+                    onFocusPreview={openScenePreview}
                   />
                 );
               })}
@@ -523,6 +572,7 @@ export function NodeEditorPanel() {
             soundAssetIds={sounds.map((a) => ({ id: a.id, name: a.name }))}
             onChange={(patch) => updateSoundConfig(i, patch)}
             onRemove={() => removeSoundConfig(i)}
+            onSelectFocus={openScenePreview}
           />
         ))}
       </div>
@@ -534,21 +584,40 @@ export function NodeEditorPanel() {
           onChange={setVisibleLocales}
         />
         {visibleLocales.map((locale) => (
-          <label key={locale} style={{ display: "block", marginBottom: "12px" }}>
-            <div style={{ marginBottom: "4px" }}>Text template ({locale})</div>
-            <TemplateTextEditor
-              value={getNodeTextTemplateForLocale(promptsByLocale, locale, node.id)}
-              onChange={(markup) =>
-                updateNodePrompt(locale, node.id, markup, {
-                  mergeKey: `node-text:${node.id}:${locale}`,
-                })
-              }
-              onBlurCommit={() => flushHistoryCoalesce()}
-              syncKey={`${node.id}:${locale}`}
-              placeholder="Hello world… Use the toolbar for style tags, or {{ state.x }} for logic."
-              style={{ marginTop: "4px", width: "100%" }}
-            />
-          </label>
+          <div key={locale} style={{ marginBottom: "12px" }}>
+            <label style={{ display: "block", marginBottom: "8px" }}>
+              <div style={{ marginBottom: "4px" }}>Speaker ({locale})</div>
+              <input
+                type="text"
+                value={getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)}
+                onChange={(e) =>
+                  updateNodeSpeaker(locale, node.id, e.target.value, {
+                    mergeKey: `node-speaker:${node.id}:${locale}`,
+                  })
+                }
+                onFocus={() => openScenePreviewForLocale(locale)}
+                placeholder="Optional — supports Cito, e.g. {{ rt.GetString('name') }}"
+                style={{ width: "100%", boxSizing: "border-box" }}
+              />
+            </label>
+            <label style={{ display: "block" }}>
+              <div style={{ marginBottom: "4px" }}>Text template ({locale})</div>
+              <TemplateTextEditor
+                value={getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)}
+                onChange={(markup) =>
+                  updateNodePrompt(locale, node.id, markup, {
+                    mergeKey: `node-text:${node.id}:${locale}`,
+                  })
+                }
+                onFocus={() => openScenePreviewForPrompt(locale)}
+                onDraftChange={(draft) => handlePromptDraftChange(locale, draft)}
+                onBlurCommit={() => flushHistoryCoalesce()}
+                syncKey={`${node.id}:${locale}`}
+                placeholder='Hello world… Use the toolbar for Format.* tags, or {{ rt.GetString("key") }} for logic.'
+                style={{ marginTop: "4px", width: "100%" }}
+              />
+            </label>
+          </div>
         ))}
       </div>
     </div>

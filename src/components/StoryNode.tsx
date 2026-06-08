@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { Node } from "@antv/x6";
 import { useProjectStore } from "@/store/projectStore";
+import { useActiveStory } from "@/hooks/useActiveStory";
 import { getProjectThumbnailAspectRatio } from "@/core/view/thumbnailAspectRatio";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
@@ -18,10 +19,11 @@ export function StoryNodeView({ node }: { node: Node }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const project = useProjectStore((s) => s.project);
   const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
+  const { story, storyId } = useActiveStory();
   const thumbnailAspectRatio = getProjectThumbnailAspectRatio(project);
   const data = node.getData<StoryNodeData>();
 
-  const domainNode = project.nodes.find((n) => n.id === node.id);
+  const domainNode = story.nodes.find((n) => n.id === node.id);
   const label = data?.label ?? domainNode?.label ?? "Scene";
   const selected = data?.selected ?? false;
   const invalidRoot = data?.invalidRoot ?? false;
@@ -80,9 +82,12 @@ export function StoryNodeView({ node }: { node: Node }) {
       </div>
       <SceneStagePreview
         project={project}
+        story={story}
+        storyId={storyId}
         promptsByLocale={promptsByLocale}
         node={stageNode}
         variant="compact"
+        disableShake
         thumbnailAspectRatio={thumbnailAspectRatio}
         style={{
           borderRadius: "6px",

@@ -6,6 +6,8 @@ import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { loadUserSettings, resolveStartupTheme, saveUserSettings, getPlayerLocale, setPlayerLocale, type AppTheme } from "./userSettings";
+import { transpileCiToJs } from "./citoTranspile";
+import { handleAssetProtocolRequest, readAssetFile } from "./assetProtocol";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -189,7 +191,10 @@ function buildApplicationMenu(): void {
 }
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: ASSET_PROTOCOL, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  {
+    scheme: ASSET_PROTOCOL,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
 ]);
 
 function resolveAppIconPath(): string | undefined {
@@ -235,21 +240,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   currentTheme = await resolveStartupTheme();
-  protocol.registerFileProtocol(ASSET_PROTOCOL, (request, callback) => {
-    try {
-      const pathname = decodeURIComponent(new URL(request.url).pathname);
-      const filePath = process.platform === "win32"
-        ? path.win32.normalize(pathname.replace(/^\//, "").replace(/\//g, "\\"))
-        : path.normalize(pathname);
-      if (!path.isAbsolute(filePath)) {
-        callback({ error: -2 });
-        return;
-      }
-      callback({ path: filePath });
-    } catch {
-      callback({ error: -2 });
-    }
-  });
+  protocol.handle(ASSET_PROTOCOL, (request) => handleAssetProtocolRequest(request));
 
   ipcMain.handle("open-file-dialog", async (_, options: { type: "backdrop" | "actor" | "sound"; multiple?: boolean }) => {
     const filters =
@@ -267,6 +258,8 @@ app.whenReady().then(async () => {
     const pathname = path.posix.join("/", path.normalize(filePath).replace(/\\/g, "/"));
     return `${ASSET_PROTOCOL}://localhost${encodeURI(pathname)}`;
   });
+
+  ipcMain.handle("read-asset-file", async (_, filePath: string) => readAssetFile(filePath));
 
   ipcMain.handle("show-save-dialog", async () => {
     const win = BrowserWindow.getFocusedWindow();
@@ -343,6 +336,14 @@ app.whenReady().then(async () => {
   ipcMain.handle("set-player-locale", (_, projectKey: string, locale: string) =>
     setPlayerLocale(projectKey, locale)
   );
+
+  ipcMain.handle("cito:transpile", async (_, request: { ciSource: string }) => {
+    if (!request?.ciSource || typeof request.ciSource !== "string") {
+      throw new Error("cito:transpile requires ciSource string");
+    }
+    const js = await transpileCiToJs(request.ciSource);
+    return { js };
+  });
 
   ipcMain.on("sync-theme", (_, theme: AppTheme) => {
     setAppTheme(theme, "renderer");

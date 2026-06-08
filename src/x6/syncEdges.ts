@@ -1,5 +1,5 @@
 import type { Edge, Graph } from "@antv/x6";
-import type { Project, StoryEdge } from "@/core/model/types";
+import type { Project, Story, StoryEdge } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { getDefaultLocale, getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { buildEdgeSourceTerminal, buildEdgeTargetTerminal } from "./connectionPorts";
@@ -50,11 +50,13 @@ export function syncProjectEdge(
   projectEdge: StoryEdge,
   selected: boolean,
   project: Project,
+  storyId: string,
   promptsByLocale: PromptsByLocale
 ): void {
   const optionText = getEdgeOptionTextForLocale(
     promptsByLocale,
     getDefaultLocale(project),
+    storyId,
     projectEdge.id
   );
   const existing = graph.getCellById(projectEdge.id);
@@ -89,14 +91,14 @@ export type PurgeDanglingEdgesOptions = {
 /** Remove preview edges and any graph edge not backed by the project model. */
 export function purgeDanglingEdges(
   graph: Graph,
-  project: Project,
+  story: Story,
   options?: PurgeDanglingEdgesOptions
 ): void {
-  const projectEdgeIds = new Set(project.edges.map((edge) => edge.id));
+  const projectEdgeIds = new Set(story.edges.map((edge) => edge.id));
   const retainEdgeIds = options?.retainEdgeIds;
   const canonicalIds = new Map<string, string>();
 
-  for (const projectEdge of project.edges) {
+  for (const projectEdge of story.edges) {
     const key = edgeConnectionKey(
       projectEdge.sourceNodeId,
       projectEdge.sourcePortId,
@@ -139,8 +141,8 @@ export function removeStaleEdges(graph: Graph, projectEdgeIds: ReadonlySet<strin
 }
 
 /** Drop cancelled drag previews still attached to the free out port. */
-export function purgeFreeOutPreviews(graph: Graph, project: Project): void {
-  const projectEdgeIds = new Set(project.edges.map((edge) => edge.id));
+export function purgeFreeOutPreviews(graph: Graph, story: Story): void {
+  const projectEdgeIds = new Set(story.edges.map((edge) => edge.id));
 
   for (const edge of [...graph.getEdges()]) {
     if (edge.getSourcePortId() !== FREE_OUT_PORT) continue;

@@ -5,32 +5,47 @@
   "description": "Localized scene text and choice labels stored as prompts.<locale>.json inside a .mlvn zip archive.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nodes", "edges"],
+  "required": ["stories"],
   "properties": {
-    "nodes": {
+    "stories": {
       "type": "object",
-      "description": "Scene dialogue keyed by node id.",
+      "description": "Localized prompts keyed by story id.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
+        "required": ["nodes", "edges"],
         "properties": {
-          "textTemplate": {
-            "type": "string",
-            "description": "Scene dialogue/narration template (HTML subset in the designer)."
-          }
-        }
-      }
-    },
-    "edges": {
-      "type": "object",
-      "description": "Player choice labels keyed by edge id.",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "optionText": {
-            "type": "string",
-            "description": "Player-facing choice label. Omit or leave empty for auto-advance."
+          "nodes": {
+            "type": "object",
+            "description": "Scene dialogue keyed by node id within the story.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "textTemplate": {
+                  "type": "string",
+                  "description": "Scene dialogue/narration template (HTML subset with embedded Cito in {{ }} blocks)."
+                },
+                "speaker": {
+                  "type": "string",
+                  "description": "Optional speaker name shown above dialogue. Supports template expressions."
+                }
+              }
+            }
+          },
+          "edges": {
+            "type": "object",
+            "description": "Player choice labels keyed by edge id within the story.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "optionText": {
+                  "type": "string",
+                  "description": "Player-facing choice label. Omit or leave empty for auto-advance."
+                }
+              }
+            }
           }
         }
       }

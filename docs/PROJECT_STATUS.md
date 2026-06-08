@@ -13,7 +13,7 @@ Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) 
 | 3 | AntV X6: custom node, native edges, persist positions | Done | `FlowCanvas`, `StoryNode`, `src/x6/`; project is source of truth |
 | 4 | Node editor: backdrop, actors, sounds, template | Done | `NodeEditorPanel` with sound config (start/stop/loop/start/end time) |
 | 5 | Edge editor: option text and condition | Done | `EdgeEditorPanel`; option text on edge label |
-| 6 | Template engine: sandbox, API, sanitized HTML | Done | `src/core/template/` – `{{ expr }}`, `{{#if}}`, DOMPurify allowlist |
+| 6 | Template engine: Cito compile + cito transpile, sanitized HTML | Done | `src/core/cito/`, `src/core/template/engine.ts` – Cito in `{{ }}`, DOMPurify allowlist |
 | 7 | Asset layer: resolver, file picker (Electron + Web) | Done | `resolver.ts`, `AssetsPanel`, Electron IPC for dialogs and path→URL |
 | 8 | Player: navigation, conditions, choices, sound | Done | `PlayerView`, `runner.ts`, SoundManager, `playSound` from template |
 | 9 | Polish: drag-drop, start/stop on load, invoke sound | Done | Drag-drop in AssetsPanel; start/stop on load and `playSound('id')` wired |
@@ -95,15 +95,16 @@ MuseLab/
 
 ## Template API (player)
 
-Available in `{{ }}` and conditions:
+Cito expressions in `{{ }}` blocks and edge conditions. Runtime bridge `rt`:
 
-- `state` – read/write story state.
-- `setState(path, value)` – update state when node is entered.
-- `emit(eventName)` – fire event (e.g. for analytics).
-- `call(name, ...args)` – call registered handler.
-- `playSound(assetId, { startTime?, endTime? })` – play sound from template.
+- `rt.GetString(key)` / `rt.GetBool(key)` / `rt.GetInt(key)` – read state
+- `rt.SetString(key, value)` / `rt.SetBool` / `rt.SetInt` – write state on node enter
+- `rt.Emit(eventName)` – fire event
+- `rt.Call(name)` – call registered handler
+- `rt.PlaySound(assetId)` / `rt.PlaySoundTrim(assetId, start, end)` – play sound
+- `Format.BoldStart()`, `Format.ColorStart("#hex")`, etc. – markup directives
 
-HTML allowed in output: `b`, `i`, `p`, `div`, `br`, `span` (sanitized with DOMPurify).
+See [docs/cito-templates.md](cito-templates.md). HTML output allowlist: `b`, `i`, `p`, `div`, `br`, `span` (DOMPurify).
 
 ---
 

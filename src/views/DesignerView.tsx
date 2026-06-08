@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { FlowCanvas } from "@/components/FlowCanvas";
 import { AssetEditorPanel } from "@/components/AssetEditor/AssetEditorPanel";
 import { NodeEditorPanel } from "@/components/NodeEditor/NodeEditorPanel";
 import { EdgeEditorPanel } from "@/components/EdgeEditor/EdgeEditorPanel";
 import { LeftPanel } from "@/components/LeftPanel";
 import { useProjectStore } from "@/store/projectStore";
+import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 
 function useSingleSelectionInspector():
   | { kind: "asset" }
@@ -28,6 +30,13 @@ function useSingleSelectionInspector():
 
 export default function DesignerView() {
   const inspector = useSingleSelectionInspector();
+  const hidePreview = useSceneEditorPreviewStore((s) => s.hidePreview);
+
+  useEffect(() => {
+    if (inspector?.kind !== "node") {
+      hidePreview();
+    }
+  }, [inspector?.kind, hidePreview]);
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>

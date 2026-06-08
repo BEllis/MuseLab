@@ -9,6 +9,11 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+declare module "*?raw" {
+  const content: string;
+  export default content;
+}
+
 type OpenProjectFileResult =
   | { type: "archive"; data: Uint8Array; path: string }
   | { type: "json"; data: string; path: string };
@@ -17,6 +22,7 @@ interface Window {
   electronAPI?: {
     openFileDialog: (options: { type: "backdrop" | "actor" | "sound"; multiple?: boolean }) => Promise<string[]>;
     resolveAssetUrl: (filePath: string) => Promise<string>;
+    readAssetFile: (filePath: string) => Promise<{ data: Uint8Array; mime: string }>;
     showSaveDialog: () => Promise<string | null>;
     openProjectFile: () => Promise<OpenProjectFileResult | null>;
     writeProjectFile: (filePath: string, data: Uint8Array) => Promise<void>;
@@ -36,6 +42,7 @@ interface Window {
     getUserSettings?: () => Promise<{ theme?: "light" | "dark" }>;
     getPlayerLocale?: (projectKey: string) => Promise<string | null>;
     setPlayerLocale?: (projectKey: string, locale: string) => Promise<void>;
+    transpileCito?: (request: { ciSource: string }) => Promise<{ js: string }>;
     syncTheme?: (theme: "light" | "dark") => void;
     usesInAppMenuBar?: boolean;
     onSetTheme?: (callback: (theme: "light" | "dark") => void) => (() => void) | void;

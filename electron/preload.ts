@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("open-file-dialog", options),
   resolveAssetUrl: (filePath: string) =>
     ipcRenderer.invoke("resolve-asset-url", filePath),
+  readAssetFile: (filePath: string) =>
+    ipcRenderer.invoke("read-asset-file", filePath) as Promise<{ data: Uint8Array; mime: string }>,
   showSaveDialog: () => ipcRenderer.invoke("show-save-dialog") as Promise<string | null>,
   openProjectFile: () => ipcRenderer.invoke("open-project-file") as Promise<OpenProjectFileResult | null>,
   writeProjectFile: (filePath: string, data: Uint8Array) =>
@@ -59,6 +61,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-player-locale", projectKey) as Promise<string | null>,
   setPlayerLocale: (projectKey: string, locale: string) =>
     ipcRenderer.invoke("set-player-locale", projectKey, locale) as Promise<void>,
+  transpileCito: (request: { ciSource: string }) =>
+    ipcRenderer.invoke("cito:transpile", request) as Promise<{ js: string }>,
   syncTheme: (theme: "light" | "dark") => ipcRenderer.send("sync-theme", theme),
   usesInAppMenuBar: process.platform === "linux",
   onSetTheme: (callback: (theme: "light" | "dark") => void) => {

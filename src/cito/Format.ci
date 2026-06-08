@@ -1,0 +1,62 @@
+public static class Format
+{
+    public static string BoldStart()
+    {
+        return "<b>";
+    }
+
+    public static string BoldEnd()
+    {
+        return "</b>";
+    }
+
+    public static string ItalicStart()
+    {
+        return "<i>";
+    }
+
+    public static string ItalicEnd()
+    {
+        return "</i>";
+    }
+
+    public static string ColorStart(string colorHex)
+    {
+        return $"<span style=\"color:{colorHex}\">";
+    }
+
+    public static string ColorEnd()
+    {
+        return "</span>";
+    }
+
+    public static string ShakeCharsStart()
+    {
+        return "";
+    }
+
+    public static string ShakeCharsEnd()
+    {
+        return "";
+    }
+
+    public static string ShakePhraseStart()
+    {
+        return "";
+    }
+
+    public static string ShakePhraseEnd()
+    {
+        return "";
+    }
+
+    public static string ShakeCharsText(string text)
+    {
+        return text;
+    }
+
+    public static string ShakePhraseText(string text)
+    {
+        return text;
+    }
+}

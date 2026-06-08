@@ -5,7 +5,7 @@
   "description": "MuseLab story manifest (project.json inside a .mlvn zip archive). Media files live under assets/backdrops, assets/actors, and assets/sounds and are referenced by relative path. Legacy plain JSON imports may still embed base64 in imageData.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["name", "assets", "nodes", "edges", "globalState", "locales"],
+  "required": ["name", "assets", "stories", "locales"],
   "properties": {
     "name": {
       "type": "string",
@@ -17,20 +17,11 @@
       "description": "Backdrops, actor sprites, and sounds referenced by scenes.",
       "items": { "$ref": "#/$defs/asset" }
     },
-    "nodes": {
+    "stories": {
       "type": "array",
-      "description": "Scenes in the story graph.",
-      "items": { "$ref": "#/$defs/storyNode" }
-    },
-    "edges": {
-      "type": "array",
-      "description": "Directed links between scenes (player choices or auto-advance).",
-      "items": { "$ref": "#/$defs/storyEdge" }
-    },
-    "globalState": {
-      "type": "object",
-      "description": "Initial runtime variables and flags (key/value JSON).",
-      "additionalProperties": true
+      "minItems": 1,
+      "description": "Branching story graphs; each story owns its own scenes and links.",
+      "items": { "$ref": "#/$defs/story" }
     },
     "locales": {
       "type": "array",
@@ -44,7 +35,22 @@
     "entryNodeId": {
       "type": "string",
       "minLength": 1,
-      "description": "Optional explicit starting scene id. If omitted, play mode uses the sole scene with no incoming links."
+      "description": "Legacy flat manifest only: optional starting scene id."
+    },
+    "nodes": {
+      "type": "array",
+      "description": "Legacy flat manifest only: scenes at project root.",
+      "items": { "$ref": "#/$defs/storyNode" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Legacy flat manifest only: links at project root.",
+      "items": { "$ref": "#/$defs/storyEdge" }
+    },
+    "globalState": {
+      "type": "object",
+      "description": "Legacy flat manifest only: initial runtime state at project root.",
+      "additionalProperties": true
     },
     "thumbnailAspectRatio": {
       "$ref": "#/$defs/aspectRatio",
@@ -167,6 +173,43 @@
         }
       }
     },
+    "story": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "nodes", "edges", "globalState"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable story identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the Stories panel."
+        },
+        "nodes": {
+          "type": "array",
+          "description": "Scenes in this story graph.",
+          "items": { "$ref": "#/$defs/storyNode" }
+        },
+        "edges": {
+          "type": "array",
+          "description": "Directed links between scenes in this story.",
+          "items": { "$ref": "#/$defs/storyEdge" }
+        },
+        "globalState": {
+          "type": "object",
+          "description": "Initial runtime variables and flags for this story.",
+          "additionalProperties": true
+        },
+        "entryNodeId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional explicit starting scene id for this story."
+        }
+      }
+    },
     "storyNode": {
       "type": "object",
       "additionalProperties": false,
@@ -233,7 +276,7 @@
         },
         "condition": {
           "type": "string",
-          "description": "TypeScript expression; link is offered only when this evaluates truthy."
+          "description": "Cito expression; link is offered only when this evaluates truthy."
         },
         "vertices": {
           "type": "array",
@@ -265,18 +308,24 @@
           "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
         }
       ],
-      "nodes": [
+      "stories": [
         {
-          "id": "scene1",
-          "position": { "x": 100, "y": 100 },
-          "label": "Opening",
-          "backdropId": "muselab-default-backdrop",
-          "actorIds": ["hero1"],
-          "soundConfigs": []
+          "id": "main",
+          "name": "Main",
+          "nodes": [
+            {
+              "id": "scene1",
+              "position": { "x": 100, "y": 100 },
+              "label": "Opening",
+              "backdropId": "muselab-default-backdrop",
+              "actorIds": ["hero1"],
+              "soundConfigs": []
+            }
+          ],
+          "edges": [],
+          "globalState": {}
         }
       ],
-      "edges": [],
-      "globalState": {},
       "locales": ["en"]
     }
   ]

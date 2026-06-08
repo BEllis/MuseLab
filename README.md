@@ -22,7 +22,7 @@ A **visual novel / interactive story** designer and player. Build branching narr
 
 - **Flow-based designer** – Place scene nodes on a canvas and connect them. Add option text and conditions so players see different choices depending on the story state.
 - **Rich scenes** – Each node can have a backdrop image, one or more actor images, sounds (with start/stop, loop, trim), and a text template for dialogue and narrative.
-- **Text templates** – Use `{{ expression }}` for dynamic text and `{{#if condition}}...{{/if}}` for conditional blocks. You can use `state`, `setState`, `emit`, `call`, and `playSound` in expressions.
+- **Text templates** – Embed **Cito** (Ć language) in `{{ expression }}` blocks and `{{#if condition}}...{{/if}}` for conditionals. Use `rt.GetString("key")`, `rt.SetBool(...)`, `rt.Emit(...)`, `rt.Call(...)`, `rt.PlaySound(...)`, and `Format.*` markup helpers. See [docs/cito-templates.md](docs/cito-templates.md).
 - **Assets** – Add backdrops, actors, and sounds from your computer. In the desktop app, use the file picker; in the browser, drag and drop.
 - **Player** – Run your story from the designer (Play button). The player shows your scenes with dialogue, choices, and branching based on conditions and state.
 - **Save and load** – In the desktop app, save your project as a `.mlvn` file (a zip archive) and load it later. Legacy plain `.json` projects can still be opened for migration. The app will prompt you to save before creating a new project or closing.
@@ -31,7 +31,7 @@ A **visual novel / interactive story** designer and player. Build branching narr
 
 ### Option 1: Run from source (web or desktop)
 
-You need **Node.js 18 or newer** (and npm) installed.
+You need **Node.js 18 or newer** (and npm) installed. For template evaluation in the desktop app, you also need the **.NET 6 SDK** to build the bundled [cito](https://github.com/Marco012/cito) transpiler (`npm run build:cito`).
 
 1. Clone the repository and go into the project folder:
    ```bash
@@ -65,8 +65,8 @@ If a desktop release is provided for your platform, download and run the install
    - Choose a **backdrop** image.
    - Add **actors** (character images). You can add multiple; they appear at the bottom of the play area.
    - Add **sounds** and set whether they start on load, loop, or trim to a time range.
-   - Write the **text template** – your dialogue and narrative. Use `{{ state.name }}` and similar for dynamic text.
-4. **Set up choices** – Select an edge (the line between two nodes). You can add **option text** (what the player sees, e.g. “Go left”) and an optional **condition** so the choice only appears when the condition is true.
+   - Write the **text template** – your dialogue and narrative. Use Cito in `{{ }}` blocks, e.g. `{{ rt.GetString("name") }}`. See [docs/cito-templates.md](docs/cito-templates.md).
+4. **Set up choices** – Select an edge (the line between two nodes). You can add **option text** (what the player sees, e.g. “Go left”) and an optional **Cito condition** (e.g. `rt.GetBool("hasKey")`) so the choice only appears when true.
 5. **Add assets** – In the assets panel, add backdrops, actors, and sounds. Then assign them to your nodes.
 6. **Play** – Click **Play** to open the player. The first node in the flow is the entry. Click through dialogue and choices to test your story.
 

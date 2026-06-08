@@ -1,4 +1,4 @@
-import type { Project, StoryNode, StoryEdge, Asset } from "./types";
+import type { Project, Story, StoryNode, StoryEdge, Asset } from "./types";
 import { getPlayEntryNodeId } from "./graphHierarchy";
 import {
   DEFAULT_BACKDROP_ID,
@@ -8,14 +8,46 @@ import {
 } from "../assets/defaultBackdrop";
 import { assertValidLocaleTag, normalizeLocales } from "../locale/localeTag";
 
-/** Create a new empty project */
+/** Generate a unique id (simple nanoid-style) */
+export function generateId(): string {
+  return Math.random().toString(36).slice(2, 11);
+}
+
+export function getStory(project: Project, storyId: string): Story {
+  const story = project.stories.find((entry) => entry.id === storyId);
+  if (!story) {
+    throw new Error(`Story "${storyId}" not found`);
+  }
+  return story;
+}
+
+export function getStoryOrNull(project: Project, storyId: string): Story | null {
+  return project.stories.find((entry) => entry.id === storyId) ?? null;
+}
+
+export function getFirstStoryId(project: Project): string {
+  const story = project.stories[0];
+  if (!story) {
+    throw new Error("Project has no stories");
+  }
+  return story.id;
+}
+
+/** Create a new empty project with one empty story. */
 export function createEmptyProject(name: string = "Untitled"): Project {
+  const storyId = generateId();
   const project: Project = {
     name,
     assets: [],
-    nodes: [],
-    edges: [],
-    globalState: {},
+    stories: [
+      {
+        id: storyId,
+        name: "Main",
+        nodes: [],
+        edges: [],
+        globalState: {},
+      },
+    ],
     locales: [...normalizeLocales(undefined)],
   };
   ensureDefaultBackdrop(project);
@@ -25,18 +57,54 @@ export function createEmptyProject(name: string = "Untitled"): Project {
 /** Blank slate for File → New: default backdrop asset and one empty scene. */
 export function createStarterProject(name: string = "Untitled"): Project {
   const project = createEmptyProject(name);
-  addNode(project, { x: 100, y: 100 });
+  const storyId = getFirstStoryId(project);
+  addNode(project, storyId, { x: 100, y: 100 });
   return project;
 }
 
-/** Generate a unique id (simple nanoid-style) */
-function generateId(): string {
-  return Math.random().toString(36).slice(2, 11);
+export function createStarterStory(name: string = "Untitled"): Story {
+  const story: Story = {
+    id: generateId(),
+    name,
+    nodes: [],
+    edges: [],
+    globalState: {},
+  };
+  addNodeToStory(story, { x: 100, y: 100 });
+  return story;
 }
 
-/** Add a node to the project; returns the new node */
-export function addNode(project: Project, position?: { x: number; y: number }): StoryNode {
-  ensureDefaultBackdrop(project);
+export function addStory(project: Project, name?: string): Story {
+  const story = createStarterStory(name ?? `Story ${project.stories.length + 1}`);
+  project.stories.push(story);
+  return story;
+}
+
+export function removeStory(project: Project, storyId: string): void {
+  if (project.stories.length <= 1) {
+    throw new Error("Cannot remove the last story");
+  }
+  project.stories = project.stories.filter((story) => story.id !== storyId);
+}
+
+export function updateStory(
+  project: Project,
+  storyId: string,
+  patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState">>
+): void {
+  const story = getStory(project, storyId);
+  if (patch.name !== undefined) {
+    story.name = patch.name;
+  }
+  if (patch.entryNodeId !== undefined) {
+    story.entryNodeId = patch.entryNodeId || undefined;
+  }
+  if (patch.globalState !== undefined) {
+    story.globalState = patch.globalState;
+  }
+}
+
+function addNodeToStory(story: Story, position?: { x: number; y: number }): StoryNode {
   const id = generateId();
   const node: StoryNode = {
     id,
@@ -45,17 +113,29 @@ export function addNode(project: Project, position?: { x: number; y: number }): 
     actorIds: [],
     soundConfigs: [],
   };
-  project.nodes.push(node);
+  story.nodes.push(node);
   return node;
+}
+
+/** Add a node to a story; returns the new node */
+export function addNode(
+  project: Project,
+  storyId: string,
+  position?: { x: number; y: number }
+): StoryNode {
+  ensureDefaultBackdrop(project);
+  return addNodeToStory(getStory(project, storyId), position);
 }
 
 /** Duplicate a node with a new id; does not copy edges. */
 export function cloneNode(
   project: Project,
+  storyId: string,
   nodeId: string,
   position: { x: number; y: number }
 ): StoryNode | null {
-  const source = project.nodes.find((n) => n.id === nodeId);
+  const story = getStory(project, storyId);
+  const source = story.nodes.find((n) => n.id === nodeId);
   if (!source) return null;
 
   ensureDefaultBackdrop(project);
@@ -68,14 +148,15 @@ export function cloneNode(
     actorIds: [...source.actorIds],
     soundConfigs: source.soundConfigs.map((config) => ({ ...config })),
   };
-  project.nodes.push(node);
+  story.nodes.push(node);
   return node;
 }
 
 /** Remove a node and all edges connected to it */
-export function removeNode(project: Project, nodeId: string): void {
-  project.nodes = project.nodes.filter((n) => n.id !== nodeId);
-  project.edges = project.edges.filter(
+export function removeNode(project: Project, storyId: string, nodeId: string): void {
+  const story = getStory(project, storyId);
+  story.nodes = story.nodes.filter((n) => n.id !== nodeId);
+  story.edges = story.edges.filter(
     (e) => e.sourceNodeId !== nodeId && e.targetNodeId !== nodeId
   );
 }
@@ -83,20 +164,22 @@ export function removeNode(project: Project, nodeId: string): void {
 /** Update node position (e.g. after drag) */
 export function updateNodePosition(
   project: Project,
+  storyId: string,
   nodeId: string,
   position: { x: number; y: number }
 ): void {
-  const node = project.nodes.find((n) => n.id === nodeId);
+  const node = getStory(project, storyId).nodes.find((n) => n.id === nodeId);
   if (node) node.position = position;
 }
 
 /** Update a node's fields (partial) */
 export function updateNode(
   project: Project,
+  storyId: string,
   nodeId: string,
   patch: Partial<Omit<StoryNode, "id">>
 ): void {
-  const node = project.nodes.find((n) => n.id === nodeId);
+  const node = getStory(project, storyId).nodes.find((n) => n.id === nodeId);
   if (!node) return;
   if ("backdropId" in patch) {
     patch = { ...patch, backdropId: resolveBackdropId(project, patch.backdropId) };
@@ -107,6 +190,7 @@ export function updateNode(
 /** Add an edge between two nodes */
 export function addEdge(
   project: Project,
+  storyId: string,
   sourceNodeId: string,
   targetNodeId: string,
   options?: {
@@ -116,8 +200,9 @@ export function addEdge(
     targetPortId?: string | null;
   }
 ): StoryEdge {
+  const story = getStory(project, storyId);
   const id = options?.id ?? generateId();
-  const existing = project.edges.find((edge) => edge.id === id);
+  const existing = story.edges.find((edge) => edge.id === id);
   if (existing) return existing;
 
   const edge: StoryEdge = {
@@ -128,7 +213,7 @@ export function addEdge(
     targetPortId: resolveNewEdgeTargetPort(),
     condition: options?.condition,
   };
-  project.edges.push(edge);
+  story.edges.push(edge);
   return edge;
 }
 
@@ -148,23 +233,33 @@ function resolveNewEdgeTargetPort(): string {
 
 /** All incoming edges use the single shared in port id. */
 export function normalizeEdgeTargetPorts(project: Project): void {
-  for (const edge of project.edges) {
+  for (const story of project.stories) {
+    for (const edge of story.edges) {
+      edge.targetPortId = FREE_IN_PORT;
+    }
+  }
+}
+
+export function normalizeStoryEdgeTargetPorts(story: Story): void {
+  for (const edge of story.edges) {
     edge.targetPortId = FREE_IN_PORT;
   }
 }
 
 /** Remove an edge */
-export function removeEdge(project: Project, edgeId: string): void {
-  project.edges = project.edges.filter((e) => e.id !== edgeId);
+export function removeEdge(project: Project, storyId: string, edgeId: string): void {
+  const story = getStory(project, storyId);
+  story.edges = story.edges.filter((e) => e.id !== edgeId);
 }
 
 /** Update edge condition and routing metadata */
 export function updateEdge(
   project: Project,
+  storyId: string,
   edgeId: string,
   patch: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>
 ): void {
-  const edge = project.edges.find((e) => e.id === edgeId);
+  const edge = getStory(project, storyId).edges.find((e) => e.id === edgeId);
   if (!edge) return;
   Object.assign(edge, patch);
   if ("vertices" in patch && patch.vertices === undefined) {
@@ -243,28 +338,19 @@ export function removeAsset(project: Project, assetId: string): void {
 }
 
 /** Starting scene: the sole node with no incoming edges, if unambiguous. */
-export function getEntryNodeId(project: Project): string | null {
-  return getPlayEntryNodeId(project);
+export function getEntryNodeId(project: Project, storyId: string): string | null {
+  return getPlayEntryNodeId(getStory(project, storyId));
 }
 
 /** Update top-level project fields. */
 export function updateProject(
   project: Project,
   patch: Partial<
-    Pick<
-      Project,
-      "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution" | "locales"
-    >
+    Pick<Project, "name" | "thumbnailAspectRatio" | "playerResolution" | "locales">
   >
 ): void {
   if (patch.name !== undefined) {
     project.name = patch.name;
-  }
-  if (patch.entryNodeId !== undefined) {
-    project.entryNodeId = patch.entryNodeId || undefined;
-  }
-  if (patch.globalState !== undefined) {
-    project.globalState = patch.globalState;
   }
   if (patch.thumbnailAspectRatio !== undefined) {
     project.thumbnailAspectRatio = patch.thumbnailAspectRatio;
@@ -277,11 +363,18 @@ export function updateProject(
   }
 }
 
-function toManifestProject(project: Project): Project {
+type LegacyProjectJson = Project & {
+  nodes?: StoryNode[];
+  edges?: StoryEdge[];
+  globalState?: Record<string, unknown>;
+  entryNodeId?: string;
+};
+
+function toManifestStory(story: Story): Story {
   return {
-    name: project.name,
-    assets: project.assets,
-    nodes: project.nodes.map((node) => ({
+    id: story.id,
+    name: story.name,
+    nodes: story.nodes.map((node) => ({
       id: node.id,
       position: node.position,
       label: node.label,
@@ -289,7 +382,7 @@ function toManifestProject(project: Project): Project {
       actorIds: node.actorIds,
       soundConfigs: node.soundConfigs,
     })),
-    edges: project.edges.map((edge) => ({
+    edges: story.edges.map((edge) => ({
       id: edge.id,
       sourceNodeId: edge.sourceNodeId,
       targetNodeId: edge.targetNodeId,
@@ -299,9 +392,17 @@ function toManifestProject(project: Project): Project {
       vertices: edge.vertices,
       manualRoute: edge.manualRoute,
     })),
-    globalState: project.globalState,
+    globalState: story.globalState,
+    entryNodeId: story.entryNodeId,
+  };
+}
+
+function toManifestProject(project: Project): Project {
+  return {
+    name: project.name,
+    assets: project.assets,
+    stories: project.stories.map(toManifestStory),
     locales: normalizeLocales(project.locales),
-    entryNodeId: project.entryNodeId,
     thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
   };
@@ -317,23 +418,49 @@ export function serializeProjectForSave(project: Project): string {
   return serializeProject(project);
 }
 
+function migrateLegacyProjectData(data: LegacyProjectJson): Project {
+  if (Array.isArray(data.stories) && data.stories.length > 0) {
+    return data as Project;
+  }
+
+  const storyId = generateId();
+  const story: Story = {
+    id: storyId,
+    name: data.name || "Main",
+    nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
+    globalState: data.globalState ?? {},
+    entryNodeId: data.entryNodeId,
+  };
+
+  return {
+    name: data.name,
+    assets: data.assets ?? [],
+    stories: [story],
+    locales: data.locales ?? [...normalizeLocales(undefined)],
+    thumbnailAspectRatio: data.thumbnailAspectRatio,
+    playerResolution: data.playerResolution,
+  };
+}
 
 /** Parse project manifest from JSON string */
 export function parseProject(json: string): Project {
-  const data = JSON.parse(json) as Project;
-  if (
-    !data.name ||
-    !Array.isArray(data.assets) ||
-    !Array.isArray(data.nodes) ||
-    !Array.isArray(data.edges)
-  ) {
+  const data = JSON.parse(json) as LegacyProjectJson;
+  const hasStories = Array.isArray(data.stories) && data.stories.length > 0;
+  const hasLegacyGraph = Array.isArray(data.nodes) && Array.isArray(data.edges);
+
+  if (!data.name || !Array.isArray(data.assets) || (!hasStories && !hasLegacyGraph)) {
     throw new Error("Invalid project JSON");
   }
-  data.globalState = data.globalState ?? {};
-  data.locales = normalizeLocales(data.locales);
-  ensureDefaultBackdrop(data);
-  normalizeEdgeTargetPorts(data);
-  return data;
+
+  const project = migrateLegacyProjectData(data);
+  project.locales = normalizeLocales(project.locales);
+  for (const story of project.stories) {
+    story.globalState = story.globalState ?? {};
+    normalizeStoryEdgeTargetPorts(story);
+  }
+  ensureDefaultBackdrop(project);
+  return project;
 }
 
 export function addLocaleToProject(project: Project, locale: string): void {

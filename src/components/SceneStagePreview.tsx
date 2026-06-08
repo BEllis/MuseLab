@@ -1,16 +1,23 @@
-import { useMemo } from "react";
-import type { Project, StoryNode } from "@/core/model/types";
+import { useEffect, useState } from "react";
+import type { Project, Story, StoryNode } from "@/core/model/types";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { ActorRow } from "@/components/ActorImage";
-import { getNodeChoices, renderNodePreviewHtmlForLocale, type SceneStageChoice } from "@/core/view/sceneStage";
+import {
+  getNodeChoices,
+  renderNodePreviewHtmlForLocale,
+  renderNodeSpeakerForLocale,
+  type SceneStageChoice,
+} from "@/core/view/sceneStage";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import {
   compactVnBoxStyle,
   compactVnButtonStyle,
+  compactVnSpeakerStyle,
   DIALOGUE_PANEL_FRACTION,
   DIALOGUE_PANEL_HEIGHT,
   vnBoxStyle,
   vnButtonStyle,
+  vnSpeakerStyle,
 } from "@/core/view/vnStyles";
 import {
   aspectRatioToCss,
@@ -20,50 +27,116 @@ import {
 
 type SceneStagePreviewProps = {
   project: Project;
+  story: Story;
+  storyId: string;
   promptsByLocale: PromptsByLocale;
   node: Pick<StoryNode, "id" | "backdropId" | "actorIds">;
   locale?: string;
   variant?: "compact" | "full";
   dialogueHtml?: string;
+  dialogueSpeaker?: string;
   choices?: SceneStageChoice[];
   singleChoice?: boolean;
   onChoice?: (targetNodeId: string) => void;
   onRestart?: () => void;
   thumbnailAspectRatio?: AspectRatio;
+  /** Canvas thumbnails: skip shake animation markup for a static preview. */
+  disableShake?: boolean;
   style?: React.CSSProperties;
 };
 
 export function SceneStagePreview({
   project,
+  story,
+  storyId,
   promptsByLocale,
   node,
   locale,
   variant = "compact",
   dialogueHtml,
+  dialogueSpeaker,
   choices: choicesProp,
   singleChoice: singleChoiceProp,
   onChoice,
   onRestart,
   thumbnailAspectRatio = DEFAULT_THUMBNAIL_ASPECT_RATIO,
+  disableShake = false,
   style,
 }: SceneStagePreviewProps) {
   const backdropUrl = useAssetUrl(project, node.backdropId);
-  const choices = useMemo(
-    () => choicesProp ?? getNodeChoices(project, node.id, promptsByLocale, locale),
-    [choicesProp, project, node.id, promptsByLocale, locale]
-  );
-  const html = useMemo(
-    () =>
-      dialogueHtml ??
-      renderNodePreviewHtmlForLocale(project, promptsByLocale, node.id, locale),
-    [dialogueHtml, project, promptsByLocale, node.id, locale]
-  );
+  const [previewHtml, setPreviewHtml] = useState(dialogueHtml ?? "");
+  const [previewSpeaker, setPreviewSpeaker] = useState(dialogueSpeaker ?? "");
+  const [previewChoices, setPreviewChoices] = useState<SceneStageChoice[]>(choicesProp ?? []);
+
+  useEffect(() => {
+    if (choicesProp !== undefined) {
+      setPreviewChoices(choicesProp);
+      return;
+    }
+    let cancelled = false;
+    void getNodeChoices(story, storyId, node.id, project, promptsByLocale, locale).then((next) => {
+      if (!cancelled) setPreviewChoices(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [choicesProp, story, storyId, project, node.id, promptsByLocale, locale]);
+
+  useEffect(() => {
+    if (dialogueHtml !== undefined) {
+      setPreviewHtml(dialogueHtml);
+      return;
+    }
+    let cancelled = false;
+    void renderNodePreviewHtmlForLocale(
+      story,
+      storyId,
+      project,
+      promptsByLocale,
+      node.id,
+      locale,
+      { disableShake }
+    ).then((next) => {
+      if (!cancelled) setPreviewHtml(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogueHtml, story, storyId, project, promptsByLocale, node.id, locale, disableShake]);
+
+  useEffect(() => {
+    if (dialogueSpeaker !== undefined) {
+      setPreviewSpeaker(dialogueSpeaker);
+      return;
+    }
+    let cancelled = false;
+    void renderNodeSpeakerForLocale(
+      story,
+      storyId,
+      project,
+      promptsByLocale,
+      node.id,
+      locale,
+      { disableShake }
+    ).then((next) => {
+      if (!cancelled) setPreviewSpeaker(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogueSpeaker, story, storyId, project, promptsByLocale, node.id, locale, disableShake]);
+
+  const html = dialogueHtml ?? previewHtml;
+  const speakerHtml = dialogueSpeaker ?? previewSpeaker;
+  const choices = choicesProp ?? previewChoices;
+  const hasSpeaker = !!speakerHtml;
   const hasOptions = choices.some((choice) => choice.optionText);
   const singleChoice = singleChoiceProp ?? (choices.length === 1 && !hasOptions);
   const compact = variant === "compact";
 
   const boxStyle = compact ? compactVnBoxStyle : vnBoxStyle;
   const buttonStyle = compact ? compactVnButtonStyle : vnButtonStyle;
+  const speakerStyle = compact ? compactVnSpeakerStyle : vnSpeakerStyle;
 
   return (
     <div
@@ -185,7 +258,21 @@ export function SceneStagePreview({
               },
             })}
         >
-          <div dangerouslySetInnerHTML={{ __html: html }} style={{ lineHeight: compact ? 1.25 : 1.6 }} />
+          {hasSpeaker && (
+            <div
+              dangerouslySetInnerHTML={{ __html: speakerHtml }}
+              style={speakerStyle}
+            />
+          )}
+          <div
+            dangerouslySetInnerHTML={{ __html: html }}
+            style={{
+              lineHeight: compact ? 1.25 : 1.6,
+              ...(hasSpeaker && {
+                paddingTop: compact ? "1.2em" : "1.4em",
+              }),
+            }}
+          />
           {singleChoice && (
             <span
               style={{

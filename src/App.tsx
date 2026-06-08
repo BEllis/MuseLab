@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import DesignerView from "./views/DesignerView";
 import PlayerView from "./views/PlayerView";
 import { MenuBar } from "./components/MenuBar/MenuBar";
@@ -13,9 +13,8 @@ import { useAboutStore } from "./store/aboutStore";
 import { runProjectEditCommand } from "./core/view/viewCommands";
 
 function App() {
-  const location = useLocation();
   const usesInAppMenuBar = isElectron() && Boolean(window.electronAPI?.usesInAppMenuBar);
-  const showMenuBar = (!isElectron() || usesInAppMenuBar) && location.pathname !== "/play";
+  const showMenuBar = !isElectron() || usesInAppMenuBar;
 
   useEffect(() => {
     void useProjectStore.getState().hydrateAssets();

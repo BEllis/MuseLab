@@ -41,6 +41,7 @@ Thumbs.db
 # Electron
 release/
 *.blockmap
+tools/cito/
 
 # Optional: keep if you want to ignore local project files
 # *.muselab

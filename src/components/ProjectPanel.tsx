@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
+import { useActiveStory } from "@/hooks/useActiveStory";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
 import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
@@ -28,6 +29,7 @@ function StatRow({ label, value }: { label: string; value: number | string }) {
 
 export function ProjectPanel() {
   const project = useProjectStore((s) => s.project);
+  const { story } = useActiveStory();
   const updateProject = useProjectStore((s) => s.updateProject);
   const addLocale = useProjectStore((s) => s.addLocale);
   const removeLocale = useProjectStore((s) => s.removeLocale);
@@ -48,10 +50,10 @@ export function ProjectPanel() {
     updateProject({ name: trimmed });
   }, [name, project.name, updateProject]);
 
-  const validation = validatePlayEntry(project);
+  const validation = validatePlayEntry(story);
   const entryLabel =
     validation.ok
-      ? project.nodes.find((node) => node.id === validation.entryNodeId)?.label ??
+      ? story.nodes.find((node) => node.id === validation.entryNodeId)?.label ??
         validation.entryNodeId
       : null;
 
@@ -112,8 +114,9 @@ export function ProjectPanel() {
 
       <div style={{ marginBottom: "16px" }}>
         <strong style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>Summary</strong>
-        <StatRow label="Scenes" value={project.nodes.length} />
-        <StatRow label="Links" value={project.edges.length} />
+        <StatRow label="Stories" value={project.stories.length} />
+        <StatRow label="Scenes" value={story.nodes.length} />
+        <StatRow label="Links" value={story.edges.length} />
         <StatRow label="Assets" value={project.assets.length} />
       </div>
 

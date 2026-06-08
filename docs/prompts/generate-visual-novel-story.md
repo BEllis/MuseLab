@@ -102,18 +102,19 @@ Each scene is a `StoryNode`:
 ```html
 <p><i>The door creaks open.</i></p>
 <p><b>Maya:</b> You came back.</p>
-<p>{{ state.playerName || "Stranger" }}, she whispers.</p>
+<p>{{ rt.GetString("playerName") != null ? rt.GetString("playerName") : "Stranger" }}, she whispers.</p>
 ```
 
-**Template syntax:**
+**Template syntax (Cito in `{{ }}` blocks):**
 
 | Syntax | Meaning |
 |--------|---------|
-| `{{ state.flag }}` | Insert a value from runtime state |
-| `{{ setState("flag", true) }}` | Set state (expression evaluates to the assigned value) |
-| `{{#if state.metMaya}}...{{/if}}` | Conditional block |
+| `{{ rt.GetString("flag") }}` | Insert a string from runtime state |
+| `{{ rt.SetBool("flag", true) }}` | Set state (side effect) |
+| `{{#if rt.GetBool("metMaya")}}...{{/if}}` | Conditional block |
+| `{{ Format.BoldStart() }}` … `{{ Format.BoldEnd() }}` | Bold markup |
 
-Available in expressions: `state`, `setState`, `emit`, `call`, `playSound`.
+Available in expressions: `rt.GetString`, `rt.GetBool`, `rt.GetInt`, `rt.SetString`, `rt.SetBool`, `rt.SetInt`, `rt.Emit`, `rt.Call`, `rt.PlaySound`, `Format.*`. See [docs/cito-templates.md](../cito-templates.md).
 
 ### Links (`edges[]`)
 
@@ -148,7 +149,7 @@ Each link is a `StoryEdge`:
 
 Use **empty / omitted `optionText`** for linear “next” beats. Use **distinct `optionText`** for real branches.
 
-**Conditions:** Optional `condition` is a TypeScript expression evaluated against `state`, e.g. `"state.hasKey"`, `"state.trust >= 3"`. Omit for always-available links.
+**Conditions:** Optional `condition` is a Cito expression, e.g. `"rt.GetBool(\"hasKey\")"`, `"rt.GetInt(\"trust\") >= 3"`. Omit for always-available links.
 
 ### Assets (`assets[]`)
 

@@ -1,8 +1,8 @@
-import { useRef, useState, useMemo, useEffect } from "react";
+import { useRef, useState, useMemo, useEffect, useCallback } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { useProjectStore } from "@/store/projectStore";
+import { useProjectStore, selectActiveStory } from "@/store/projectStore";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
-import { createRunner, type RuntimeChoice } from "@/core/runtime/runner";
+import { createRunner, type RuntimeChoice, type RuntimeState } from "@/core/runtime/runner";
 import {
   getStoredPlayerLocale,
   readElectronPlayerLocale,
@@ -11,7 +11,7 @@ import {
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
-import type { Project, StoryNode } from "@/core/model/types";
+import type { Project, Story, StoryNode } from "@/core/model/types";
 import {
   clampPlayerResolution,
   CUSTOM_PLAYER_RESOLUTION_KEY,
@@ -22,20 +22,36 @@ import {
 
 export default function PlayerView() {
   const project = useProjectStore((s) => s.project);
-  const playValidation = useMemo(() => validatePlayEntry(project), [project]);
+  const activeStoryId = useProjectStore((s) => s.activeStoryId);
+  const story = useMemo(
+    () => selectActiveStory(project, activeStoryId),
+    [project, activeStoryId]
+  );
+  const playValidation = useMemo(() => validatePlayEntry(story), [story]);
 
   if (!playValidation.ok) {
     return <Navigate to="/" replace />;
   }
 
-  return <PlayerViewInner project={project} entryId={playValidation.entryNodeId} />;
+  return (
+    <PlayerViewInner
+      project={project}
+      story={story}
+      storyId={story.id}
+      entryId={playValidation.entryNodeId}
+    />
+  );
 }
 
 function PlayerViewInner({
   project,
+  story,
+  storyId,
   entryId,
 }: {
   project: Project;
+  story: Story;
+  storyId: string;
   entryId: string;
 }) {
   const updateProject = useProjectStore((s) => s.updateProject);
@@ -46,7 +62,14 @@ function PlayerViewInner({
   const [activeLocale, setActiveLocale] = useState(() =>
     getStoredPlayerLocale(project.name, project.locales, loadedMlvnPath)
   );
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
+  const [runtime, setRuntime] = useState<RuntimeState | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [resolutionKey, setResolutionKey] = useState(storedPresetKey);
+  const [customWidth, setCustomWidth] = useState(storedResolution.width);
+  const [customHeight, setCustomHeight] = useState(storedResolution.height);
+  const [contentAreaSize, setContentAreaSize] = useState({ width: 1280, height: 720 });
+  const contentAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,15 +90,37 @@ function PlayerViewInner({
 
   const runner = useMemo(
     () =>
-      createRunner(project, promptsByLocale, activeLocale, {
+      createRunner(project, story, storyId, promptsByLocale, activeLocale, {
         onPlaySound: (assetId, options) => {
           window.__playerPlaySound?.(assetId, options);
         },
       }),
-    [project, promptsByLocale, activeLocale]
+    [project, story, storyId, promptsByLocale, activeLocale]
   );
 
-  const runtime = runner.getRuntimeState();
+  useEffect(() => {
+    runner.setActiveLocale(activeLocale);
+  }, [runner, activeLocale]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void runner
+      .getRuntimeState()
+      .then((state) => {
+        if (!cancelled) {
+          setRuntime(state);
+          setRuntimeError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setRuntimeError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [runner, tick]);
 
   // Start at entry when project has nodes and we don't have a current node
   useEffect(() => {
@@ -101,11 +146,45 @@ function PlayerViewInner({
     [entryId, runner]
   );
 
-  if (!project.nodes.length) {
+  useEffect(() => {
+    setResolutionKey(storedPresetKey);
+    setCustomWidth(storedResolution.width);
+    setCustomHeight(storedResolution.height);
+  }, [storedPresetKey, storedResolution.width, storedResolution.height]);
+
+  useEffect(() => {
+    const el = contentAreaRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setContentAreaSize({ width: el.clientWidth, height: el.clientHeight });
+    });
+    ro.observe(el);
+    setContentAreaSize({ width: el.clientWidth, height: el.clientHeight });
+    return () => ro.disconnect();
+  }, [runtime?.currentNodeId]);
+
+  if (!story.nodes.length) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
-        <p>No nodes in the project. Add nodes in the designer.</p>
+        <p>No scenes in this story. Add scenes in the designer.</p>
         <Link to="/">Back to designer</Link>
+      </div>
+    );
+  }
+
+  if (runtimeError) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Template error: {runtimeError}</p>
+        <Link to="/">Back to designer</Link>
+      </div>
+    );
+  }
+
+  if (!runtime) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Loading story…</p>
       </div>
     );
   }
@@ -119,27 +198,16 @@ function PlayerViewInner({
     );
   }
 
-  const node = project.nodes.find((n) => n.id === runtime.currentNodeId)!;
+  const node = story.nodes.find((n) => n.id === runtime.currentNodeId)!;
   const hasOptions = runtime.choices.some((c) => c.optionText);
   const singleChoice = runtime.choices.length === 1 && !hasOptions;
 
   const handleLocaleChange = (locale: string) => {
     setActiveLocale(locale);
+    runner.setActiveLocale(locale);
     setStoredPlayerLocale(project.name, locale, loadedMlvnPath);
     setTick((t) => t + 1);
   };
-
-  const [resolutionKey, setResolutionKey] = useState(storedPresetKey);
-  const [customWidth, setCustomWidth] = useState(storedResolution.width);
-  const [customHeight, setCustomHeight] = useState(storedResolution.height);
-  const [contentAreaSize, setContentAreaSize] = useState({ width: 1280, height: 720 });
-  const contentAreaRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setResolutionKey(storedPresetKey);
-    setCustomWidth(storedResolution.width);
-    setCustomHeight(storedResolution.height);
-  }, [storedPresetKey, storedResolution.width, storedResolution.height]);
 
   const persistResolution = (width: number, height: number) => {
     updateProject({ playerResolution: clampPlayerResolution({ width, height }) }, { record: false });
@@ -153,17 +221,6 @@ function PlayerViewInner({
     resolutionKey === CUSTOM_PLAYER_RESOLUTION_KEY
       ? customHeight
       : (STANDARD_PLAYER_RESOLUTIONS.find((r) => r.key === resolutionKey)?.height ?? 720);
-
-  useEffect(() => {
-    const el = contentAreaRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setContentAreaSize({ width: el.clientWidth, height: el.clientHeight });
-    });
-    ro.observe(el);
-    setContentAreaSize({ width: el.clientWidth, height: el.clientHeight });
-    return () => ro.disconnect();
-  }, []);
 
   const scale = Math.min(
     contentAreaSize.width / frameWidth,
@@ -188,8 +245,7 @@ function PlayerViewInner({
   return (
     <div
       style={{
-        position: "fixed",
-        inset: 0,
+        height: "100%",
         background: "#0a0a12",
         display: "flex",
         flexDirection: "column",
@@ -340,6 +396,8 @@ function PlayerViewInner({
           >
             <PlayerStage
               project={project}
+              story={story}
+              storyId={storyId}
               promptsByLocale={promptsByLocale}
               locale={activeLocale}
               node={node}
@@ -359,6 +417,8 @@ function PlayerViewInner({
 
 function PlayerStage({
   project,
+  story,
+  storyId,
   promptsByLocale,
   locale,
   node,
@@ -368,10 +428,12 @@ function PlayerStage({
   onRestart,
 }: {
   project: Project;
+  story: Story;
+  storyId: string;
   promptsByLocale: PromptsByLocale;
   locale: string;
   node: Pick<StoryNode, "id" | "backdropId" | "actorIds">;
-  runtime: { currentHtml: string; choices: RuntimeChoice[] };
+  runtime: { currentHtml: string; currentSpeaker: string; choices: RuntimeChoice[] };
   singleChoice: boolean;
   handleChoice: (targetId: string) => void;
   onRestart?: () => void;
@@ -379,11 +441,14 @@ function PlayerStage({
   return (
     <SceneStagePreview
       project={project}
+      story={story}
+      storyId={storyId}
       promptsByLocale={promptsByLocale}
       locale={locale}
       node={node}
       variant="full"
       dialogueHtml={runtime.currentHtml}
+      dialogueSpeaker={runtime.currentSpeaker}
       choices={runtime.choices}
       singleChoice={singleChoice}
       onChoice={handleChoice}
@@ -404,39 +469,84 @@ function SoundManager({
 }) {
   const configs = runner.getSoundConfigsForCurrentNode();
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const pendingPlays = useRef<Map<string, { startTime?: number; endTime?: number }>>(new Map());
+  const activeNodeIdRef = useRef(node.id);
+  activeNodeIdRef.current = node.id;
+  const [onDemandAssetIds, setOnDemandAssetIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    window.__playerPlaySound = (assetId: string, options?: { startTime?: number; endTime?: number }) => {
+  const playAsset = useCallback(
+    (assetId: string, options?: { startTime?: number; endTime?: number }) => {
       const el = audioRefs.current.get(assetId);
       if (el) {
         if (options?.startTime != null) el.currentTime = options.startTime;
         el.play().catch(() => {});
+        pendingPlays.current.delete(assetId);
+        return;
       }
-    };
+
+      pendingPlays.current.set(assetId, options ?? {});
+      setOnDemandAssetIds((current) => (current.includes(assetId) ? current : [...current, assetId]));
+    },
+    []
+  );
+
+  useEffect(() => {
+    window.__playerPlaySound = playAsset;
     return () => {
       delete (window as unknown as { __playerPlaySound?: unknown }).__playerPlaySound;
     };
-  }, []);
+  }, [playAsset]);
 
   useEffect(() => {
     configs.forEach((config) => {
-      if (config.stopOnLoad) {
-        const el = audioRefs.current.get(config.assetId);
-        if (el) {
-          el.pause();
-          el.currentTime = 0;
-        }
-      }
-      if (config.startOnLoad) {
-        const el = audioRefs.current.get(config.assetId);
-        if (el) {
-          if (config.startTime != null) el.currentTime = config.startTime;
-          if (config.loop) el.loop = true;
-          el.play().catch(() => {});
-        }
+      if (!config.stopOnLoad) return;
+      const el = audioRefs.current.get(config.assetId);
+      if (el) {
+        el.pause();
+        el.currentTime = 0;
       }
     });
   }, [node.id, configs]);
+
+  const tryStartOnLoad = useCallback(() => {
+    if (activeNodeIdRef.current !== node.id) return;
+    configs.forEach((config) => {
+      if (!config.startOnLoad) return;
+      const el = audioRefs.current.get(config.assetId);
+      if (!el) return;
+      if (config.startTime != null) el.currentTime = config.startTime;
+      if (config.loop) el.loop = true;
+      el.play().catch(() => {});
+    });
+  }, [configs, node.id]);
+
+  useEffect(() => {
+    tryStartOnLoad();
+  }, [node.id, tryStartOnLoad]);
+
+  const handleAudioReady = useCallback(
+    (assetId: string, el: HTMLAudioElement) => {
+      audioRefs.current.set(assetId, el);
+
+      const pending = pendingPlays.current.get(assetId);
+      if (pending) {
+        if (pending.startTime != null) el.currentTime = pending.startTime;
+        el.play().catch(() => {});
+        pendingPlays.current.delete(assetId);
+        return;
+      }
+
+      tryStartOnLoad();
+    },
+    [tryStartOnLoad]
+  );
+
+  const handleAudioUnmount = useCallback((assetId: string) => {
+    audioRefs.current.delete(assetId);
+  }, []);
+
+  const configuredAssetIds = new Set(configs.map((config) => config.assetId));
+  const extraAssetIds = onDemandAssetIds.filter((assetId) => !configuredAssetIds.has(assetId));
 
   return (
     <div style={{ display: "none" }} aria-hidden>
@@ -446,9 +556,18 @@ function SoundManager({
           project={project}
           assetId={config.assetId}
           loop={config.loop}
-          startTime={config.startTime}
           endTime={config.endTime}
-          audioRefs={audioRefs}
+          onReady={handleAudioReady}
+          onUnmount={handleAudioUnmount}
+        />
+      ))}
+      {extraAssetIds.map((assetId) => (
+        <SoundElement
+          key={`on-demand-${assetId}`}
+          project={project}
+          assetId={assetId}
+          onReady={handleAudioReady}
+          onUnmount={handleAudioUnmount}
         />
       ))}
     </div>
@@ -460,30 +579,39 @@ function SoundElement({
   assetId,
   loop,
   endTime,
-  audioRefs,
+  onReady,
+  onUnmount,
 }: {
   project: Project;
   assetId: string;
   loop?: boolean;
-  startTime?: number;
   endTime?: number;
-  audioRefs: React.MutableRefObject<Map<string, HTMLAudioElement>>;
+  onReady: (assetId: string, el: HTMLAudioElement) => void;
+  onUnmount: (assetId: string) => void;
 }) {
   const url = useAssetUrl(project, assetId);
   const ref = useRef<HTMLAudioElement>(null);
+  const onReadyRef = useRef(onReady);
+  const onUnmountRef = useRef(onUnmount);
+  onReadyRef.current = onReady;
+  onUnmountRef.current = onUnmount;
+
   useEffect(() => {
-    if (ref.current && url) audioRefs.current.set(assetId, ref.current);
+    const el = ref.current;
+    if (!el || !url) return;
+    onReadyRef.current(assetId, el);
     return () => {
-      audioRefs.current.delete(assetId);
+      onUnmountRef.current(assetId);
     };
-  }, [assetId, url, audioRefs]);
+  }, [assetId, url]);
+
   if (!url) return null;
   return (
     <audio
       ref={ref}
       src={url}
       loop={loop}
-      preload="metadata"
+      preload="auto"
       onTimeUpdate={() => {
         const el = ref.current;
         if (el && endTime != null && el.currentTime >= endTime) el.pause();

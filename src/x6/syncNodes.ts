@@ -1,5 +1,5 @@
 import type { Graph, Node } from "@antv/x6";
-import type { Project } from "@/core/model/types";
+import type { Project, Story, StoryNode } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { getDefaultLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
 import { syncNodeEdgePorts } from "./connectionPorts";
@@ -7,7 +7,7 @@ import { STORY_NODE_SHAPE } from "./constants";
 import { applyNodeBoundaryTool } from "./nodeConfig";
 
 function buildNodeData(
-  node: Project["nodes"][number],
+  node: StoryNode,
   selectedNodeIds: ReadonlySet<string>,
   highlightedRootNodeIds: ReadonlySet<string>,
   preview: string
@@ -23,20 +23,27 @@ function buildNodeData(
 
 export function syncProjectNode(
   graph: Graph,
-  projectNode: Project["nodes"][number],
+  projectNode: StoryNode,
   selectedNodeIds: ReadonlySet<string>,
   highlightedRootNodeIds: ReadonlySet<string>,
   project: Project,
+  story: Story,
+  storyId: string,
   promptsByLocale: PromptsByLocale
 ): void {
   const locale = getDefaultLocale(project);
-  const preview = getNodeTextTemplateForLocale(promptsByLocale, locale, projectNode.id);
+  const preview = getNodeTextTemplateForLocale(
+    promptsByLocale,
+    locale,
+    storyId,
+    projectNode.id
+  );
   const data = buildNodeData(projectNode, selectedNodeIds, highlightedRootNodeIds, preview);
   const existing = graph.getCellById(projectNode.id);
 
   if (existing?.isNode()) {
     const node = existing as Node;
-    syncNodeEdgePorts(node, project, graph);
+    syncNodeEdgePorts(node, story, graph);
     const pos = node.getPosition();
     if (pos.x !== projectNode.position.x || pos.y !== projectNode.position.y) {
       node.setPosition(projectNode.position, { silent: true });
@@ -56,7 +63,7 @@ export function syncProjectNode(
 
   const created = graph.getCellById(projectNode.id);
   if (created?.isNode()) {
-    syncNodeEdgePorts(created, project, graph);
+    syncNodeEdgePorts(created, story, graph);
     applyNodeBoundaryTool(created, selectedNodeIds.has(projectNode.id));
   }
 }

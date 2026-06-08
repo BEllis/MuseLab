@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { AssetsPanel } from "./AssetsPanel";
 import { ProjectPanel } from "./ProjectPanel";
+import { StoriesPanel } from "./StoriesPanel";
 
-type LeftPanelTab = "project" | "assets";
+type LeftPanelTab = "project" | "stories" | "assets";
 
 export function LeftPanel() {
   const [tab, setTab] = useState<LeftPanelTab>("project");
@@ -24,6 +25,17 @@ export function LeftPanel() {
         <button
           type="button"
           role="tab"
+          id="left-panel-tab-stories"
+          aria-selected={tab === "stories"}
+          aria-controls="left-panel-panel-stories"
+          className={`app-side-panel-tab${tab === "stories" ? " is-active" : ""}`}
+          onClick={() => setTab("stories")}
+        >
+          Stories
+        </button>
+        <button
+          type="button"
+          role="tab"
           id="left-panel-tab-assets"
           aria-selected={tab === "assets"}
           aria-controls="left-panel-panel-assets"
@@ -41,6 +53,15 @@ export function LeftPanel() {
             aria-labelledby="left-panel-tab-project"
           >
             <ProjectPanel />
+          </div>
+        )}
+        {tab === "stories" && (
+          <div
+            role="tabpanel"
+            id="left-panel-panel-stories"
+            aria-labelledby="left-panel-tab-stories"
+          >
+            <StoriesPanel />
           </div>
         )}
         {tab === "assets" && (

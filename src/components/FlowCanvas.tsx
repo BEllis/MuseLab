@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Graph, Keyboard, MiniMap, Selection } from "@antv/x6";
-import { useProjectStore } from "@/store/projectStore";
+import { selectActiveStory, useProjectStore } from "@/store/projectStore";
 import { AddButton } from "./AddButton";
 import { PlayButton } from "./PlayButton";
 import { PlayValidationDialog } from "./PlayValidationDialog";
@@ -21,6 +21,7 @@ import { syncProjectToGraph } from "@/x6/syncProjectToGraph";
 import { VIEW_COMMANDS } from "@/core/view/viewCommands";
 import { THEME_CHANGE_EVENT, getThemeCssVar } from "@/core/view/theme";
 import { ThumbnailAspectRatioControl } from "@/components/ThumbnailAspectRatioControl";
+import { ScenePreviewOverlay } from "@/components/NodeEditor/ScenePreviewOverlay";
 
 type ContextMenu =
   | { type: "node"; id: string; x: number; y: number }
@@ -94,23 +95,37 @@ export function FlowCanvas() {
     const unbindAssetDrop = bindGraphAssetDrop(graph);
     applyGraphTheme(graph);
 
-    const syncGraphFromStore = () => {
+    const syncGraphFromStore = (fullRefresh = false) => {
       const state = useProjectStore.getState();
+      const story = selectActiveStory(state.project, state.activeStoryId);
       syncProjectToGraph(
         graph,
         state.project,
+        story,
+        state.activeStoryId,
         state.promptsByLocale,
         new Set(state.selectedNodeIds),
         new Set(state.selectedEdgeIds),
         new Set(state.highlightedRootNodeIds),
-        isSyncingRef
+        isSyncingRef,
+        fullRefresh ? { fullRefresh: true } : undefined
       );
 
       if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
         graph.cleanSelection();
+      } else if (fullRefresh) {
+        graph.cleanSelection();
+        for (const nodeId of state.selectedNodeIds) {
+          const cell = graph.getCellById(nodeId);
+          if (cell) graph.select(cell);
+        }
+        for (const edgeId of state.selectedEdgeIds) {
+          const cell = graph.getCellById(edgeId);
+          if (cell) graph.select(cell);
+        }
       }
 
-      if (!hasFitRef.current && state.project.nodes.length > 0) {
+      if (!hasFitRef.current && story.nodes.length > 0) {
         graph.zoomToFit({ padding: 20 });
         hasFitRef.current = true;
       }
@@ -119,7 +134,11 @@ export function FlowCanvas() {
     syncGraphFromStore();
 
     const unsubscribeProject = useProjectStore.subscribe((state, prevState) => {
+      const fullRefresh =
+        state.graphRevision !== prevState.graphRevision ||
+        state.activeStoryId !== prevState.activeStoryId;
       if (
+        !fullRefresh &&
         state.project === prevState.project &&
         state.promptsByLocale === prevState.promptsByLocale &&
         state.selectedNodeIds === prevState.selectedNodeIds &&
@@ -128,7 +147,10 @@ export function FlowCanvas() {
       ) {
         return;
       }
-      syncGraphFromStore();
+      if (fullRefresh) {
+        hasFitRef.current = false;
+      }
+      syncGraphFromStore(fullRefresh);
     });
 
     graph.on("blank:click", () => {
@@ -190,7 +212,8 @@ export function FlowCanvas() {
 
   const onPlay = useCallback(() => {
     const state = useProjectStore.getState();
-    const validation = validatePlayEntry(state.project);
+    const story = selectActiveStory(state.project, state.activeStoryId);
+    const validation = validatePlayEntry(story);
 
     if (validation.ok) {
       clearPlayValidationHighlight();
@@ -219,11 +242,11 @@ export function FlowCanvas() {
     store.beginHistoryTransaction();
     try {
       const newNode = store.addNode({ x: 100, y: 100 });
-      const projectState = useProjectStore.getState().project;
+      const story = selectActiveStory(store.project, store.activeStoryId);
       const resolved = findNonOverlappingPosition(
         newNode.id,
         newNode.position,
-        projectState.nodes as NodeWithPosition[]
+        story.nodes as NodeWithPosition[]
       );
       if (
         resolved.x !== newNode.position.x ||
@@ -241,7 +264,8 @@ export function FlowCanvas() {
       if (!contextMenu || contextMenu.type !== "node") return;
 
       const store = useProjectStore.getState();
-      const source = store.project.nodes.find((node) => node.id === sourceNodeId);
+      const story = selectActiveStory(store.project, store.activeStoryId);
+      const source = story.nodes.find((node) => node.id === sourceNodeId);
       if (!source) return;
 
       const proposedPosition = {
@@ -257,11 +281,14 @@ export function FlowCanvas() {
           return;
         }
 
-        const projectState = useProjectStore.getState().project;
+        const nextStory = selectActiveStory(
+          useProjectStore.getState().project,
+          useProjectStore.getState().activeStoryId
+        );
         const resolved = findNonOverlappingPosition(
           cloned.id,
           cloned.position,
-          projectState.nodes as NodeWithPosition[]
+          nextStory.nodes as NodeWithPosition[]
         );
         if (
           resolved.x !== cloned.position.x ||
@@ -364,6 +391,7 @@ export function FlowCanvas() {
       </div>
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+        <ScenePreviewOverlay />
         <div
           style={{
             position: "absolute",

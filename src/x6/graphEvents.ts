@@ -1,6 +1,6 @@
 import type { Graph } from "@antv/x6";
 import type { MutableRefObject } from "react";
-import { useProjectStore } from "@/store/projectStore";
+import { selectActiveStory, useProjectStore } from "@/store/projectStore";
 import {
   findNonOverlappingPosition,
   type NodeWithPosition,
@@ -18,11 +18,18 @@ type PendingConnection = {
 
 const pendingConnectionEdgeIds = new Set<string>();
 
+function getActiveGraphContext() {
+  const state = useProjectStore.getState();
+  const story = selectActiveStory(state.project, state.activeStoryId);
+  return { state, story };
+}
+
 function cleanupDanglingEdges(graph: Graph): void {
-  purgeDanglingEdges(graph, useProjectStore.getState().project, {
+  const { story } = getActiveGraphContext();
+  purgeDanglingEdges(graph, story, {
     retainEdgeIds: pendingConnectionEdgeIds,
   });
-  purgeFreeOutPreviews(graph, useProjectStore.getState().project);
+  purgeFreeOutPreviews(graph, story);
 }
 
 function finalizeConnection(
@@ -32,8 +39,8 @@ function finalizeConnection(
 ): void {
   if (isSyncingRef.current) return;
 
-  const state = useProjectStore.getState();
-  if (!state.project.edges.some((stored) => stored.id === connection.edgeId)) {
+  const { state, story } = getActiveGraphContext();
+  if (!story.edges.some((stored) => stored.id === connection.edgeId)) {
     state.addEdge(connection.sourceId, connection.targetId, {
       id: connection.edgeId,
       sourcePortId: connection.sourcePort,
@@ -41,9 +48,12 @@ function finalizeConnection(
   }
 
   const nextState = useProjectStore.getState();
+  const nextStory = selectActiveStory(nextState.project, nextState.activeStoryId);
   syncProjectToGraph(
     graph,
     nextState.project,
+    nextStory,
+    nextState.activeStoryId,
     nextState.promptsByLocale,
     new Set(nextState.selectedNodeIds),
     new Set(nextState.selectedEdgeIds),
@@ -51,8 +61,8 @@ function finalizeConnection(
     isSyncingRef
   );
 
-  purgeDanglingEdges(graph, nextState.project);
-  purgeFreeOutPreviews(graph, nextState.project);
+  purgeDanglingEdges(graph, nextStory);
+  purgeFreeOutPreviews(graph, nextStory);
 }
 
 function scheduleConnectionFinalize(
@@ -62,8 +72,6 @@ function scheduleConnectionFinalize(
 ): void {
   pendingConnectionEdgeIds.add(connection.edgeId);
 
-  // edge:connected fires before X6's add-edge batch ends; defer until after
-  // stopBatch so we keep the connected edge and can retarget it to out-{id}.
   queueMicrotask(() => {
     try {
       finalizeConnection(graph, isSyncingRef, connection);
@@ -124,8 +132,8 @@ export function bindGraphEvents(
     if (isSyncingRef.current) return;
 
     const position = node.getPosition();
-    const projectState = useProjectStore.getState().project;
-    const allNodes: NodeWithPosition[] = projectState.nodes.map((nn) => ({
+    const { story } = getActiveGraphContext();
+    const allNodes: NodeWithPosition[] = story.nodes.map((nn) => ({
       id: nn.id,
       position: nn.id === node.id ? position : (nn.position ?? { x: 0, y: 0 }),
     }));

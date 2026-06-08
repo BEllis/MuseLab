@@ -1,5 +1,6 @@
 import type { Project, Asset } from "../model/types";
 import { actorImageDataUrl } from "./actorImageSerialization";
+import { getElectronAssetBlobUrl } from "./electronAssetBlob";
 import { getWebAssetObjectUrl } from "./webAssetStorage";
 import { isArchiveRelativePath } from "../project/assetArchivePaths";
 import { getProjectArchiveBaseDir } from "../project/projectRuntimeContext";
@@ -35,7 +36,8 @@ function isPersistableWebUrl(url: string): boolean {
 /**
  * Resolve an asset to a URL the renderer can use for <img> or <audio>.
  * - Web: uses asset.url (data URL) or IndexedDB blob storage.
- * - Electron: uses asset.url if set, else asks main process for file URL (async).
+ * - Electron images: asset:// file protocol URL.
+ * - Electron sounds: blob URL (Chromium cannot reliably decode audio from custom protocols).
  */
 export async function getAssetUrlAsync(
   project: Project,
@@ -55,14 +57,25 @@ export async function getAssetUrlAsync(
   }
 
   const filesystemPath = resolveFilesystemPath(asset);
-  if (typeof window !== "undefined" && window.electronAPI?.resolveAssetUrl && filesystemPath) {
-    if (isAbsoluteFilesystemPath(filesystemPath) || filesystemPath.startsWith("/")) {
+  if (
+    filesystemPath &&
+    (isAbsoluteFilesystemPath(filesystemPath) || filesystemPath.startsWith("/"))
+  ) {
+    if (isElectron() && asset.type === "sound") {
+      return getElectronAssetBlobUrl(filesystemPath);
+    }
+    if (typeof window !== "undefined" && window.electronAPI?.resolveAssetUrl) {
       return window.electronAPI.resolveAssetUrl(filesystemPath);
     }
   }
 
   if (filesystemPath && (filesystemPath.startsWith("http:") || filesystemPath.startsWith("https:"))) {
     return filesystemPath;
+  }
+
+  if (isElectron() && asset.type === "sound") {
+    const webUrl = await getWebAssetObjectUrl(assetId);
+    if (webUrl) return webUrl;
   }
 
   return "";

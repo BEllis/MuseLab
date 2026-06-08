@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Project } from "@/core/model/types";
+import type { Project, Story } from "@/core/model/types";
 import {
   createEmptyProject,
   createStarterProject,
@@ -21,6 +21,11 @@ import {
   normalizeEdgeTargetPorts,
   addLocaleToProject,
   removeLocaleFromProject,
+  addStory as addStoryInProject,
+  removeStory as removeStoryInProject,
+  updateStory as updateStoryInProject,
+  getStory,
+  getFirstStoryId,
 } from "@/core/model/project";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import type { StoryNode, StoryEdge, Asset } from "@/core/model/types";
@@ -38,6 +43,7 @@ import {
   unpackProjectArchive,
 } from "@/core/project/projectArchive";
 import { setProjectArchiveBaseDir } from "@/core/project/projectRuntimeContext";
+import { fileToStoredBlob } from "@/core/assets/fileBlob";
 import { isElectron } from "@/utils/isElectron";
 import {
   beginHistoryTransaction as beginHistoryTransactionState,
@@ -69,10 +75,13 @@ import {
   createEmptyLocalePrompts,
   ensureLocalePrompts,
   ensurePromptsForProjectLocales,
+  ensureStoryPromptsForAllLocales,
   removeEdgeFromAllLocales,
   removeLocaleFromPrompts,
   removeNodeFromAllLocales,
+  removeStoryFromAllLocales,
   setEdgeOptionText,
+  setNodeSpeaker,
   setNodeTextTemplate,
   type PromptsByLocale,
 } from "@/core/locale/prompts";
@@ -170,6 +179,7 @@ function scheduleAssetBlobGc(history: HistoryState, project: Project): void {
 
 function clampSelectionForProject(
   project: Project,
+  activeStoryId: string,
   selectedNodeIds: string[],
   selectedEdgeIds: string[],
   selectedAssetId: string | null
@@ -178,14 +188,33 @@ function clampSelectionForProject(
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
 } {
-  const nodeIds = new Set(project.nodes.map((node) => node.id));
-  const edgeIds = new Set(project.edges.map((edge) => edge.id));
+  const story = project.stories.find((entry) => entry.id === activeStoryId);
+  if (!story) {
+    return { selectedNodeIds: [], selectedEdgeIds: [], selectedAssetId: null };
+  }
+  const nodeIds = new Set(story.nodes.map((node) => node.id));
+  const edgeIds = new Set(story.edges.map((edge) => edge.id));
   const assetIds = new Set(project.assets.map((asset) => asset.id));
   return {
     selectedNodeIds: selectedNodeIds.filter((id) => nodeIds.has(id)),
     selectedEdgeIds: selectedEdgeIds.filter((id) => edgeIds.has(id)),
     selectedAssetId: selectedAssetId && assetIds.has(selectedAssetId) ? selectedAssetId : null,
   };
+}
+
+export function selectActiveStory(project: Project, activeStoryId: string | null): Story {
+  if (activeStoryId) {
+    const story = project.stories.find((entry) => entry.id === activeStoryId);
+    if (story) return story;
+  }
+  return getStory(project, getFirstStoryId(project));
+}
+
+function resolveActiveStoryId(project: Project, activeStoryId: string | null): string {
+  if (activeStoryId && project.stories.some((story) => story.id === activeStoryId)) {
+    return activeStoryId;
+  }
+  return getFirstStoryId(project);
 }
 
 function historyFlags(history: HistoryState): { canUndo: boolean; canRedo: boolean } {
@@ -198,6 +227,7 @@ function historyFlags(history: HistoryState): { canUndo: boolean; canRedo: boole
 interface ProjectState {
   project: Project;
   promptsByLocale: PromptsByLocale;
+  activeStoryId: string;
   lastSavedSnapshot: string | null;
   projectArchiveBaseDir: string | null;
   loadedMlvnPath: string | null;
@@ -205,17 +235,24 @@ interface ProjectState {
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
   highlightedRootNodeIds: string[];
+  /** Bumped on undo/redo so the graph canvas can force a full resync. */
+  graphRevision: number;
   history: HistoryState;
   canUndo: boolean;
   canRedo: boolean;
   setProject: (project: Project) => void;
   updateProject: (
     patch: Partial<
-      Pick<
-        Project,
-        "name" | "entryNodeId" | "globalState" | "thumbnailAspectRatio" | "playerResolution" | "locales"
-      >
+      Pick<Project, "name" | "thumbnailAspectRatio" | "playerResolution" | "locales">
     >,
+    options?: MutationOptions
+  ) => void;
+  setActiveStoryId: (storyId: string) => void;
+  addStory: (name?: string) => Story;
+  removeStory: (storyId: string) => void;
+  updateStory: (
+    storyId: string,
+    patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState">>,
     options?: MutationOptions
   ) => void;
   setSelection: (nodeIds: string[], edgeIds: string[]) => void;
@@ -252,6 +289,12 @@ interface ProjectState {
     locale: string,
     nodeId: string,
     textTemplate: string,
+    options?: MutationOptions
+  ) => void;
+  updateNodeSpeaker: (
+    locale: string,
+    nodeId: string,
+    speaker: string,
     options?: MutationOptions
   ) => void;
   updateEdgePrompt: (
@@ -295,9 +338,17 @@ interface ProjectState {
   getEntryNodeId: () => string | null;
 }
 
-function getInitialState(): { bundle: ReturnType<typeof migrateProjectBundle>; lastSavedSnapshot: string } {
+function getInitialState(): {
+  bundle: ReturnType<typeof migrateProjectBundle>;
+  lastSavedSnapshot: string;
+  activeStoryId: string;
+} {
   const bundle = loadBundleFromStorage();
-  return { bundle, lastSavedSnapshot: serializeProjectBundleSnapshot(bundle) };
+  return {
+    bundle,
+    lastSavedSnapshot: serializeProjectBundleSnapshot(bundle),
+    activeStoryId: getFirstStoryId(bundle.project),
+  };
 }
 
 const initialState = getInitialState();
@@ -305,11 +356,13 @@ const initialHistory = createHistoryState();
 
 function maybeClearPlayHighlight(
   project: Project,
+  activeStoryId: string,
   get: () => ProjectState,
   set: (partial: Partial<ProjectState>) => void
 ): void {
   if (get().highlightedRootNodeIds.length === 0) return;
-  if (validatePlayEntry(project).ok) {
+  const story = selectActiveStory(project, activeStoryId);
+  if (validatePlayEntry(story).ok) {
     set({ highlightedRootNodeIds: [] });
   }
 }
@@ -338,7 +391,7 @@ function mutateBundle(
     ...historyFlags(history),
   });
   scheduleSaveToStorage(bundle);
-  maybeClearPlayHighlight(bundle.project, get, set);
+  maybeClearPlayHighlight(bundle.project, get().activeStoryId, get, set);
   scheduleAssetBlobGc(history, bundle.project);
   return bundle;
 }
@@ -354,20 +407,24 @@ function applyHistoryRestore(
     const state = get();
     const selection = clampSelectionForProject(
       bundle.project,
+      resolveActiveStoryId(bundle.project, state.activeStoryId),
       state.selectedNodeIds,
       state.selectedEdgeIds,
       state.selectedAssetId
     );
     const restored = cloneProjectBundle(bundle);
+    const activeStoryId = resolveActiveStoryId(restored.project, state.activeStoryId);
     set({
       project: restored.project,
       promptsByLocale: restored.promptsByLocale,
+      activeStoryId,
+      graphRevision: state.graphRevision + 1,
       history,
       ...historyFlags(history),
       ...selection,
     });
     scheduleSaveToStorage(restored);
-    maybeClearPlayHighlight(restored.project, get, set);
+    maybeClearPlayHighlight(restored.project, activeStoryId, get, set);
     scheduleAssetBlobGc(history, restored.project);
   } finally {
     isApplyingHistory = false;
@@ -377,6 +434,7 @@ function applyHistoryRestore(
 export const useProjectStore = create<ProjectState>((set, get) => ({
   project: initialState.bundle.project,
   promptsByLocale: initialState.bundle.promptsByLocale,
+  activeStoryId: initialState.activeStoryId,
   lastSavedSnapshot: initialState.lastSavedSnapshot,
   projectArchiveBaseDir: null,
   loadedMlvnPath: null,
@@ -384,6 +442,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedEdgeIds: [],
   selectedAssetId: null,
   highlightedRootNodeIds: [],
+  graphRevision: 0,
   history: initialHistory,
   canUndo: false,
   canRedo: false,
@@ -391,19 +450,81 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setProject: (project) => {
     const bundle = migrateProjectBundle(project, get().promptsByLocale);
     const history = clearHistory(get().history);
+    const activeStoryId = resolveActiveStoryId(bundle.project, get().activeStoryId);
     set({
       project: bundle.project,
       promptsByLocale: bundle.promptsByLocale,
+      activeStoryId,
       history,
       ...historyFlags(history),
     });
     scheduleSaveToStorage(bundle);
-    maybeClearPlayHighlight(bundle.project, get, set);
+    maybeClearPlayHighlight(bundle.project, activeStoryId, get, set);
     scheduleAssetBlobGc(history, bundle.project);
   },
 
   updateProject: (patch, options) => {
     mutateBundle(get, set, (bundle) => updateProjectInProject(bundle.project, patch), options);
+  },
+
+  setActiveStoryId: (storyId) => {
+    const project = get().project;
+    if (!project.stories.some((story) => story.id === storyId)) return;
+    if (get().activeStoryId === storyId) return;
+    set({
+      activeStoryId: storyId,
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      selectedAssetId: null,
+      highlightedRootNodeIds: [],
+      graphRevision: get().graphRevision + 1,
+    });
+  },
+
+  addStory: (name) => {
+    let story!: Story;
+    mutateBundle(get, set, (bundle) => {
+      story = addStoryInProject(bundle.project, name);
+      ensureStoryPromptsForAllLocales(bundle.promptsByLocale, bundle.project, story.id);
+    });
+    set({
+      activeStoryId: story.id,
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      selectedAssetId: null,
+      graphRevision: get().graphRevision + 1,
+    });
+    return story;
+  },
+
+  removeStory: (storyId) => {
+    const state = get();
+    if (state.project.stories.length <= 1) {
+      throw new Error("Cannot remove the last story");
+    }
+    mutateBundle(get, set, (bundle) => {
+      removeStoryInProject(bundle.project, storyId);
+      removeStoryFromAllLocales(bundle.promptsByLocale, storyId);
+    });
+    const nextActiveStoryId =
+      state.activeStoryId === storyId
+        ? getFirstStoryId(get().project)
+        : state.activeStoryId;
+    set({
+      activeStoryId: nextActiveStoryId,
+      selectedNodeIds: [],
+      selectedEdgeIds: [],
+      selectedAssetId: null,
+    });
+  },
+
+  updateStory: (storyId, patch, options) => {
+    mutateBundle(
+      get,
+      set,
+      (bundle) => updateStoryInProject(bundle.project, storyId, patch),
+      options
+    );
   },
 
   setSelection: (nodeIds, edgeIds) =>
@@ -455,11 +576,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   loadFromStorage: () => {
-    const { bundle, lastSavedSnapshot } = getInitialState();
+    const { bundle, lastSavedSnapshot, activeStoryId } = getInitialState();
     const history = clearHistory(get().history);
     set({
       project: bundle.project,
       promptsByLocale: bundle.promptsByLocale,
+      activeStoryId,
       lastSavedSnapshot,
       history,
       ...historyFlags(history),
@@ -475,10 +597,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const bundle = migrateProjectBundle(project);
     const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
+    const activeStoryId = getFirstStoryId(bundle.project);
     setProjectArchiveBaseDir(null);
     set({
       project: bundle.project,
       promptsByLocale: bundle.promptsByLocale,
+      activeStoryId,
       lastSavedSnapshot: snapshot,
       projectArchiveBaseDir: null,
       loadedMlvnPath: null,
@@ -511,10 +635,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await hydrateLegacyEmbeddedAssets(bundle.project);
     const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
+    const activeStoryId = getFirstStoryId(bundle.project);
     setProjectArchiveBaseDir(null);
     set({
       project: bundle.project,
       promptsByLocale: bundle.promptsByLocale,
+      activeStoryId,
       lastSavedSnapshot: snapshot,
       projectArchiveBaseDir: null,
       loadedMlvnPath: null,
@@ -541,10 +667,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const baseDir = await hydrateProjectAssets(bundle.project, { files, mlvnPath });
     const snapshot = serializeProjectBundleSnapshot(bundle);
     const history = clearHistory(get().history);
+    const activeStoryId = getFirstStoryId(bundle.project);
     setProjectArchiveBaseDir(baseDir);
     set({
       project: bundle.project,
       promptsByLocale: bundle.promptsByLocale,
+      activeStoryId,
       lastSavedSnapshot: snapshot,
       projectArchiveBaseDir: baseDir,
       loadedMlvnPath: mlvnPath ?? null,
@@ -568,52 +696,75 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   addNode: (position) => {
+    const storyId = get().activeStoryId;
     let node!: StoryNode;
     mutateBundle(get, set, (bundle) => {
-      node = addNodeInProject(bundle.project, position);
+      node = addNodeInProject(bundle.project, storyId, position);
     });
     return node;
   },
 
   cloneNode: (nodeId, position) => {
+    const storyId = get().activeStoryId;
     let node: StoryNode | null = null;
     mutateBundle(get, set, (bundle) => {
-      node = cloneNodeInProject(bundle.project, nodeId, position);
+      node = cloneNodeInProject(bundle.project, storyId, nodeId, position);
       if (node) {
-        cloneNodePrompts(bundle.promptsByLocale, nodeId, node.id);
+        cloneNodePrompts(bundle.promptsByLocale, storyId, nodeId, node.id);
       }
     });
     return node;
   },
 
   removeNode: (nodeId) => {
+    const storyId = get().activeStoryId;
     mutateBundle(get, set, (bundle) => {
-      removeNodeInProject(bundle.project, nodeId);
-      removeNodeFromAllLocales(bundle.promptsByLocale, nodeId);
+      removeNodeInProject(bundle.project, storyId, nodeId);
+      removeNodeFromAllLocales(bundle.promptsByLocale, storyId, nodeId);
     });
   },
 
   updateNodePosition: (nodeId, position) => {
-    mutateBundle(get, set, (bundle) => updateNodePositionInProject(bundle.project, nodeId, position));
+    const storyId = get().activeStoryId;
+    mutateBundle(get, set, (bundle) =>
+      updateNodePositionInProject(bundle.project, storyId, nodeId, position)
+    );
   },
 
   updateNode: (nodeId, patch, options) => {
-    mutateBundle(get, set, (bundle) => updateNodeInProject(bundle.project, nodeId, patch), options);
+    const storyId = get().activeStoryId;
+    mutateBundle(
+      get,
+      set,
+      (bundle) => updateNodeInProject(bundle.project, storyId, nodeId, patch),
+      options
+    );
   },
 
   updateNodePrompt: (locale, nodeId, textTemplate, options) => {
+    const storyId = get().activeStoryId;
     const tag = assertValidLocaleTag(locale);
     mutateBundle(get, set, (bundle) => {
       const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
-      setNodeTextTemplate(prompts, nodeId, textTemplate);
+      setNodeTextTemplate(prompts, storyId, nodeId, textTemplate);
+    }, options);
+  },
+
+  updateNodeSpeaker: (locale, nodeId, speaker, options) => {
+    const storyId = get().activeStoryId;
+    const tag = assertValidLocaleTag(locale);
+    mutateBundle(get, set, (bundle) => {
+      const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
+      setNodeSpeaker(prompts, storyId, nodeId, speaker);
     }, options);
   },
 
   updateEdgePrompt: (locale, edgeId, optionText, options) => {
+    const storyId = get().activeStoryId;
     const tag = assertValidLocaleTag(locale);
     mutateBundle(get, set, (bundle) => {
       const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
-      setEdgeOptionText(prompts, edgeId, optionText);
+      setEdgeOptionText(prompts, storyId, edgeId, optionText);
     }, options);
   },
 
@@ -621,7 +772,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     mutateBundle(get, set, (bundle) => {
       addLocaleToProject(bundle.project, locale);
       const tag = assertValidLocaleTag(locale);
-      bundle.promptsByLocale[tag] = createEmptyLocalePrompts();
+      const localePrompts = createEmptyLocalePrompts();
+      for (const story of bundle.project.stories) {
+        localePrompts.stories[story.id] = { nodes: {}, edges: {} };
+      }
+      bundle.promptsByLocale[tag] = localePrompts;
     });
   },
 
@@ -634,34 +789,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   addEdge: (sourceNodeId, targetNodeId, options) => {
+    const storyId = get().activeStoryId;
     let edge!: StoryEdge;
     mutateBundle(get, set, (bundle) => {
-      edge = addEdgeInProject(bundle.project, sourceNodeId, targetNodeId, options);
+      edge = addEdgeInProject(bundle.project, storyId, sourceNodeId, targetNodeId, options);
     });
     return edge;
   },
 
   removeEdge: (edgeId) => {
+    const storyId = get().activeStoryId;
     mutateBundle(get, set, (bundle) => {
-      removeEdgeInProject(bundle.project, edgeId);
-      removeEdgeFromAllLocales(bundle.promptsByLocale, edgeId);
+      removeEdgeInProject(bundle.project, storyId, edgeId);
+      removeEdgeFromAllLocales(bundle.promptsByLocale, storyId, edgeId);
     });
   },
 
   updateEdge: (edgeId, patch, options) => {
-    mutateBundle(get, set, (bundle) => updateEdgeInProject(bundle.project, edgeId, patch), options);
+    const storyId = get().activeStoryId;
+    mutateBundle(
+      get,
+      set,
+      (bundle) => updateEdgeInProject(bundle.project, storyId, edgeId, patch),
+      options
+    );
   },
 
   addAsset: async (type, name, options = {}) => {
     let asset!: Asset;
+    const storesBlob = Boolean(options.file && !isElectron());
     mutateBundle(get, set, (bundle) => {
       asset = addAssetInProject(bundle.project, type, name, {
         path: options.path,
         url: options.file ? undefined : options.url,
       });
+      if (storesBlob) {
+        replaceAssetMediaInProject(bundle.project, asset.id, { blobStored: true });
+      }
     });
     if (options.file && !isElectron()) {
-      await putAssetBlob(asset.id, options.file);
+      await putAssetBlob(asset.id, await fileToStoredBlob(options.file));
     }
     return asset;
   },
@@ -681,7 +848,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     });
     if (!isElectron() && options.file) {
       revokeWebAssetObjectUrl(assetId);
-      await putAssetBlob(assetId, options.file);
+      await putAssetBlob(assetId, await fileToStoredBlob(options.file));
     }
   },
 
@@ -694,7 +861,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
   },
 
-  getEntryNodeId: () => getEntryNodeId(get().project),
+  getEntryNodeId: () => getEntryNodeId(get().project, get().activeStoryId),
 }));
 
 export type { PromptsByLocale };

@@ -40,3 +40,20 @@ export const compactVnButtonStyle: CSSProperties = {
   padding: "2px 4px",
   borderRadius: "3px",
 };
+
+export const vnSpeakerStyle: CSSProperties = {
+  position: "absolute",
+  top: "8px",
+  left: "12px",
+  fontWeight: 700,
+  fontSize: "14px",
+  lineHeight: 1.2,
+  color: "#1e5a8a",
+};
+
+export const compactVnSpeakerStyle: CSSProperties = {
+  ...vnSpeakerStyle,
+  top: "1px",
+  left: "3px",
+  fontSize: "4px",
+};
