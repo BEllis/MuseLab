@@ -1,7 +1,9 @@
 import type { Project, StoryNode } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { getNodeSpeaker, getNodeTextTemplate } from "@/core/locale/prompts";
-import { getStory } from "@/core/model/project";
+import { getStory, getStoryGroup } from "@/core/model/project";
+import { collectDescendantGroupIds, getStoryGroups } from "@/core/model/storyTree";
+import type { AppEvent, StoryGroupPatch, StoryPatch } from "./types";
 import {
   createEventMeta,
   getNavigationSnapshot,
@@ -53,15 +55,104 @@ export function captureNodePatch(
 export function captureStoryPatch(
   project: Project,
   storyId: string,
-  patch: Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState">>
-): Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState">> {
+  patch: Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">>
+): Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">> {
   const story = getStory(project, storyId);
-  const before: Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState">> =
-    {};
-  for (const key of Object.keys(patch) as Array<"name" | "entryNodeId" | "globalState">) {
+  const before: Partial<
+    Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">
+  > = {};
+  for (const key of Object.keys(patch) as Array<
+    "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder"
+  >) {
+    if (key === "groupId") {
+      before.groupId = story.groupId;
+      continue;
+    }
+    if (key === "sortOrder") {
+      before.sortOrder = story.sortOrder;
+      continue;
+    }
     before[key] = clone(story[key]) as never;
   }
   return before;
+}
+
+export function captureStoryGroupPatch(
+  project: Project,
+  groupId: string,
+  patch: import("./types").StoryGroupPatch
+): import("./types").StoryGroupPatch {
+  const group = getStoryGroup(project, groupId);
+  const before: import("./types").StoryGroupPatch = {};
+  for (const key of Object.keys(patch) as Array<keyof import("./types").StoryGroupPatch>) {
+    if (key === "parentGroupId") {
+      before.parentGroupId = group.parentGroupId;
+      continue;
+    }
+    if (key === "sortOrder") {
+      before.sortOrder = group.sortOrder;
+      continue;
+    }
+    before[key] = clone(group[key]) as never;
+  }
+  return before;
+}
+
+export function captureRemoveStoryGroupPayload(
+  project: Project,
+  groupId: string
+): import("./types").RemoveStoryGroupPayload {
+  const groups = getStoryGroups(project);
+  const descendantIds = collectDescendantGroupIds(groups, groupId);
+  const removedGroupIds = new Set([groupId, ...descendantIds]);
+  const removedGroups = groups.filter((group) => removedGroupIds.has(group.id)).map(clone);
+  const storyAssignments = project.stories
+    .filter((story) => story.groupId && removedGroupIds.has(story.groupId))
+    .map((story) => ({ storyId: story.id, groupId: story.groupId }));
+
+  return {
+    rootGroupId: groupId,
+    groups: removedGroups,
+    storyAssignments,
+  };
+}
+
+export function buildStoryTreeMoveEvents(before: Project, after: Project): AppEvent[] {
+  const events: AppEvent[] = [];
+
+  for (const story of after.stories) {
+    const prev = before.stories.find((entry) => entry.id === story.id);
+    if (!prev) continue;
+    const patch: StoryPatch = {};
+    if (prev.groupId !== story.groupId) patch.groupId = story.groupId;
+    if (prev.sortOrder !== story.sortOrder) patch.sortOrder = story.sortOrder;
+    if (Object.keys(patch).length === 0) continue;
+    events.push({
+      ...createEventMeta(),
+      type: "updateStory",
+      storyId: story.id,
+      before: captureStoryPatch(before, story.id, patch),
+      after: patch,
+    });
+  }
+
+  for (const group of getStoryGroups(after)) {
+    const prev = getStoryGroups(before).find((entry) => entry.id === group.id);
+    if (!prev) continue;
+    const patch: StoryGroupPatch = {};
+    if (prev.parentGroupId !== group.parentGroupId) patch.parentGroupId = group.parentGroupId;
+    if (prev.sortOrder !== group.sortOrder) patch.sortOrder = group.sortOrder;
+    if (Object.keys(patch).length === 0) continue;
+    events.push({
+      ...createEventMeta(),
+      type: "updateStoryGroup",
+      groupId: group.id,
+      before: captureStoryGroupPatch(before, group.id, patch),
+      after: patch,
+    });
+  }
+
+  return events;
 }
 
 export function captureRemoveNodePayload(

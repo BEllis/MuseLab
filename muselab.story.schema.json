@@ -77,6 +77,11 @@
     "promptRendererTypescriptSource": {
       "type": "string",
       "description": "Optional TypeScript implementation override for IMuseLabPromptRenderer."
+    },
+    "storyGroups": {
+      "type": "array",
+      "description": "Optional hierarchy folders for organizing stories in the designer.",
+      "items": { "$ref": "#/$defs/storyGroup" }
     }
   },
   "$defs": {
@@ -365,6 +370,15 @@
           "minLength": 1,
           "description": "Display name in the Stories panel."
         },
+        "groupId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional story group folder containing this story."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within a folder or at the project root."
+        },
         "nodes": {
           "type": "array",
           "description": "Scenes in this story graph.",
@@ -400,6 +414,31 @@
               "manualRoute": { "type": "boolean" }
             }
           }
+        }
+      }
+    },
+    "storyGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable story group identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the Stories panel tree."
+        },
+        "parentGroupId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional parent group for nested folders."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within a parent folder or at the project root."
         }
       }
     },

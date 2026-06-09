@@ -17,6 +17,8 @@ import {
   updateProject as updateProjectInProject,
   updateModule as updateModuleInProject,
   updateStory as updateStoryInProject,
+  removeStoryGroup as removeStoryGroupInProject,
+  updateStoryGroup as updateStoryGroupInProject,
   addLocaleToProject,
   removeLocaleFromProject,
 } from "@/core/model/project";
@@ -149,6 +151,52 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
       updateStoryInProject(
         state.project,
         event.storyId,
+        useAfter ? event.after : event.before
+      );
+      break;
+
+    case "addStoryGroup": {
+      if (useAfter) {
+        if (!state.project.storyGroups) {
+          state.project.storyGroups = [];
+        }
+        state.project.storyGroups.push(cloneNode(event.after));
+      } else {
+        state.project.storyGroups = (state.project.storyGroups ?? []).filter(
+          (group) => group.id !== event.after.id
+        );
+      }
+      break;
+    }
+
+    case "removeStoryGroup": {
+      if (useAfter) {
+        removeStoryGroupInProject(state.project, event.before.rootGroupId);
+      } else {
+        if (!state.project.storyGroups) {
+          state.project.storyGroups = [];
+        }
+        for (const group of event.before.groups) {
+          if (!state.project.storyGroups.some((entry) => entry.id === group.id)) {
+            state.project.storyGroups.push(cloneNode(group));
+          }
+        }
+        for (const assignment of event.before.storyAssignments) {
+          const story = getStory(state.project, assignment.storyId);
+          if (assignment.groupId) {
+            story.groupId = assignment.groupId;
+          } else {
+            delete story.groupId;
+          }
+        }
+      }
+      break;
+    }
+
+    case "updateStoryGroup":
+      updateStoryGroupInProject(
+        state.project,
+        event.groupId,
         useAfter ? event.after : event.before
       );
       break;

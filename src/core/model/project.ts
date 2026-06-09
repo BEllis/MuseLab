@@ -1,6 +1,7 @@
 import type {
   Project,
   Story,
+  StoryGroup,
   StoryNode,
   StoryEdge,
   Asset,
@@ -39,6 +40,13 @@ import {
 } from "./nodeNames";
 import { isJumpNode, isSceneNode, getStartNodes, migrateStoryNodes, normalizeStoryNode } from "./nodeTypes";
 import { pruneEndNodeLayouts, clearEndNodeLayout, setEndNodeLayout } from "./endNodeLayout";
+import {
+  collectDescendantGroupIds,
+  getStoryGroups,
+  nextStoryTreeSortOrder,
+  normalizeStoryGroups,
+  wouldCreateStoryGroupCycle,
+} from "./storyTree";
 import { generateId } from "./id";
 
 export { generateId } from "./id";
@@ -216,8 +224,90 @@ export function createStarterStory(name: string = "Untitled"): Story {
   return story;
 }
 
-export function addStory(project: Project, name?: string): Story {
+export function getStoryGroup(project: Project, groupId: string): StoryGroup {
+  const group = getStoryGroups(project).find((entry) => entry.id === groupId);
+  if (!group) {
+    throw new Error(`Story group "${groupId}" not found`);
+  }
+  return group;
+}
+
+export function addStoryGroup(
+  project: Project,
+  name?: string,
+  parentGroupId?: string
+): StoryGroup {
+  if (parentGroupId) {
+    getStoryGroup(project, parentGroupId);
+  }
+  if (!project.storyGroups) {
+    project.storyGroups = [];
+  }
+  const group: StoryGroup = {
+    id: generateId(),
+    name: name ?? `Group ${project.storyGroups.length + 1}`,
+    parentGroupId,
+    sortOrder: nextStoryTreeSortOrder(project, parentGroupId),
+  };
+  project.storyGroups.push(group);
+  return group;
+}
+
+export function removeStoryGroup(project: Project, groupId: string): void {
+  const groups = getStoryGroups(project);
+  if (!groups.some((group) => group.id === groupId)) {
+    throw new Error(`Story group "${groupId}" not found`);
+  }
+
+  const rootGroup = getStoryGroup(project, groupId);
+  const removedGroupIds = new Set([groupId, ...collectDescendantGroupIds(groups, groupId)]);
+  const promoteToGroupId = rootGroup.parentGroupId;
+
+  for (const story of project.stories) {
+    if (story.groupId && removedGroupIds.has(story.groupId)) {
+      story.groupId = promoteToGroupId;
+    }
+  }
+
+  project.storyGroups = groups.filter((group) => !removedGroupIds.has(group.id));
+}
+
+export function updateStoryGroup(
+  project: Project,
+  groupId: string,
+  patch: Partial<Pick<StoryGroup, "name" | "parentGroupId" | "sortOrder">>
+): void {
+  const group = getStoryGroup(project, groupId);
+  if (patch.name !== undefined) {
+    group.name = patch.name;
+  }
+  if (patch.sortOrder !== undefined) {
+    group.sortOrder = patch.sortOrder;
+  }
+  if (patch.parentGroupId !== undefined) {
+    const nextParentGroupId = patch.parentGroupId || undefined;
+    if (nextParentGroupId === groupId) {
+      throw new Error("A story group cannot be its own parent");
+    }
+    if (nextParentGroupId) {
+      getStoryGroup(project, nextParentGroupId);
+      if (wouldCreateStoryGroupCycle(getStoryGroups(project), groupId, nextParentGroupId)) {
+        throw new Error("Story group hierarchy cannot contain cycles");
+      }
+    }
+    group.parentGroupId = nextParentGroupId;
+  }
+}
+
+export function addStory(project: Project, name?: string, groupId?: string): Story {
+  if (groupId) {
+    getStoryGroup(project, groupId);
+  }
   const story = createStarterStory(name ?? `Story ${project.stories.length + 1}`);
+  if (groupId) {
+    story.groupId = groupId;
+  }
+  story.sortOrder = nextStoryTreeSortOrder(project, groupId);
   project.stories.push(story);
   return story;
 }
@@ -232,7 +322,7 @@ export function removeStory(project: Project, storyId: string): void {
 export function updateStory(
   project: Project,
   storyId: string,
-  patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState">>
+  patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">>
 ): void {
   const story = getStory(project, storyId);
   if (patch.name !== undefined) {
@@ -243,6 +333,19 @@ export function updateStory(
   }
   if (patch.globalState !== undefined) {
     story.globalState = patch.globalState;
+  }
+  if (patch.sortOrder !== undefined) {
+    story.sortOrder = patch.sortOrder;
+  }
+  if ("groupId" in patch) {
+    if (patch.groupId) {
+      getStoryGroup(project, patch.groupId);
+    }
+    if (patch.groupId) {
+      story.groupId = patch.groupId;
+    } else {
+      delete story.groupId;
+    }
   }
 }
 
@@ -741,7 +844,7 @@ function stripManifestMetadata(data: LegacyProjectJson): LegacyProjectJson {
 }
 
 function toManifestStory(story: Story): Story {
-  return {
+  const manifest: Story = {
     id: story.id,
     name: story.name,
     nodes: story.nodes.map((node) => normalizeStoryNode(node)),
@@ -759,10 +862,27 @@ function toManifestStory(story: Story): Story {
     entryNodeId: story.entryNodeId,
     endNodeLayouts: story.endNodeLayouts,
   };
+  if (story.groupId) {
+    manifest.groupId = story.groupId;
+  }
+  if (story.sortOrder !== undefined) {
+    manifest.sortOrder = story.sortOrder;
+  }
+  return manifest;
+}
+
+function toManifestStoryGroups(groups: StoryGroup[] | undefined): StoryGroup[] | undefined {
+  if (!groups || groups.length === 0) return undefined;
+  return groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    ...(group.parentGroupId ? { parentGroupId: group.parentGroupId } : {}),
+    ...(group.sortOrder !== undefined ? { sortOrder: group.sortOrder } : {}),
+  }));
 }
 
 function toManifestProject(project: Project): Project {
-  return {
+  const manifest: Project = {
     name: project.name,
     assets: project.assets,
     stories: project.stories.map(toManifestStory),
@@ -772,6 +892,11 @@ function toManifestProject(project: Project): Project {
     playerResolution: project.playerResolution,
     promptRendererTypescriptSource: project.promptRendererTypescriptSource,
   };
+  const storyGroups = toManifestStoryGroups(project.storyGroups);
+  if (storyGroups) {
+    manifest.storyGroups = storyGroups;
+  }
+  return manifest;
 }
 
 /** Serialize project manifest to JSON string. */
@@ -839,6 +964,7 @@ export function parseProject(json: string): Project {
   }
   normalizeProjectModules(project);
   ensureDefaultBackdrop(project);
+  normalizeStoryGroups(project);
   return project;
 }
 

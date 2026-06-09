@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Project, Story } from "@/core/model/types";
+import type { Project, Story, StoryGroup } from "@/core/model/types";
 import {
   createEmptyProject,
   createStarterProject,
@@ -16,8 +16,10 @@ import {
   getEntryNodeId,
   normalizeEdgeTargetPorts,
   addStory as addStoryInProject,
+  addStoryGroup as addStoryGroupInProject,
   addModule as addModuleInProject,
   getStory,
+  getStoryGroup,
   getFirstStoryId,
 } from "@/core/model/project";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
@@ -31,6 +33,11 @@ import type {
   EndNodeLayout,
 } from "@/core/model/types";
 import { isSceneNode } from "@/core/model/nodeTypes";
+import {
+  placeStoryTreeItem as placeStoryTreeItemInProject,
+  type StoryTreePlacement,
+  type StoryTreeSibling,
+} from "@/core/model/storyTree";
 import {
   defaultEndNodePosition,
   endNodeLayoutsEqual,
@@ -63,7 +70,10 @@ import {
   captureRemoveEdgePayload,
   captureRemoveNodePayload,
   captureRemoveStoryPayload,
+  captureRemoveStoryGroupPayload,
   captureStoryPatch,
+  captureStoryGroupPatch,
+  buildStoryTreeMoveEvents,
   captureNodePromptsByLocale,
   buildEmptySelection,
   buildNavigationAfterAddStory,
@@ -401,13 +411,21 @@ interface ProjectState {
     options?: MutationOptions
   ) => void;
   setActiveStoryId: (storyId: string) => void;
-  addStory: (name?: string) => Story;
+  addStory: (name?: string, groupId?: string) => Story;
   removeStory: (storyId: string) => void;
   updateStory: (
     storyId: string,
-    patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState">>,
+    patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId">>,
     options?: MutationOptions
   ) => void;
+  addStoryGroup: (name?: string, parentGroupId?: string) => StoryGroup;
+  removeStoryGroup: (groupId: string) => void;
+  updateStoryGroup: (
+    groupId: string,
+    patch: Partial<Pick<StoryGroup, "name" | "parentGroupId" | "sortOrder">>,
+    options?: MutationOptions
+  ) => void;
+  placeStoryTreeItem: (item: StoryTreeSibling, placement: StoryTreePlacement) => void;
   setSelection: (nodeIds: string[], edgeIds: string[]) => void;
   setSelectedAssetId: (assetId: string | null) => void;
   setSelectedModuleId: (moduleId: string | null) => void;
@@ -713,10 +731,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     });
   },
 
-  addStory: (name) => {
+  addStory: (name, groupId) => {
     const state = get();
     const bundle = cloneProjectBundle(getBundle(state));
-    const story = addStoryInProject(bundle.project, name);
+    const story = addStoryInProject(bundle.project, name, groupId);
     ensureStoryPromptsForAllLocales(bundle.promptsByLocale, bundle.project, story.id);
     dispatchEvent(get, set, {
       ...createEventMeta(),
@@ -771,6 +789,58 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       },
       options
     );
+  },
+
+  addStoryGroup: (name, parentGroupId) => {
+    const state = get();
+    const bundle = cloneProjectBundle(getBundle(state));
+    const group = addStoryGroupInProject(bundle.project, name, parentGroupId);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addStoryGroup",
+      before: null,
+      after: group,
+    });
+    return group;
+  },
+
+  removeStoryGroup: (groupId) => {
+    const state = get();
+    getStoryGroup(state.project, groupId);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeStoryGroup",
+      before: captureRemoveStoryGroupPayload(state.project, groupId),
+      after: null,
+    });
+  },
+
+  updateStoryGroup: (groupId, patch, options) => {
+    const state = get();
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateStoryGroup",
+        groupId,
+        before: captureStoryGroupPatch(state.project, groupId, patch),
+        after: patch,
+      },
+      options
+    );
+  },
+
+  placeStoryTreeItem: (item, placement) => {
+    const state = get();
+    const before = state.project;
+    const bundle = cloneProjectBundle(getBundle(state));
+    placeStoryTreeItemInProject(bundle.project, item, placement);
+    const events = buildStoryTreeMoveEvents(before, bundle.project);
+    if (events.length === 0) return;
+    dispatchEventBatch(get, set, events, {
+      mergeKey: `story-tree-move:${item.kind}:${item.id}`,
+    });
   },
 
   setSelection: (nodeIds, edgeIds) => {

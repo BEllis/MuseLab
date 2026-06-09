@@ -107,6 +107,20 @@ export interface Story {
   entryNodeId?: string;
   /** Terminal-scene End node layout keyed by scene id (designer-only). */
   endNodeLayouts?: Record<string, EndNodeLayout>;
+  /** Optional story group for hierarchy in the Stories panel. */
+  groupId?: string;
+  /** Sibling order within a folder or at the project root. */
+  sortOrder?: number;
+}
+
+/** Folder node for organizing stories in the Stories panel tree. */
+export interface StoryGroup {
+  id: string;
+  name: string;
+  /** Parent folder id; omitted for root-level groups. */
+  parentGroupId?: string;
+  /** Sibling order within a parent folder or at the project root. */
+  sortOrder?: number;
 }
 
 /** Localized text content stored in prompts.<locale>.json */
@@ -156,6 +170,8 @@ export interface Project {
   name: string;
   assets: Asset[];
   stories: Story[];
+  /** Optional hierarchy folders for the Stories panel. */
+  storyGroups?: StoryGroup[];
   /** Supported locale tags; first entry is the default */
   locales: string[];
   /** Custom module interfaces available in Cito code */

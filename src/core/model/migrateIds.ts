@@ -30,6 +30,7 @@ function collectMigratableIds(project: Project): Set<string> {
   for (const story of project.stories) {
     if (needsMigration(story.id)) ids.add(story.id);
     if (story.entryNodeId && needsMigration(story.entryNodeId)) ids.add(story.entryNodeId);
+    if (story.groupId && needsMigration(story.groupId)) ids.add(story.groupId);
 
     for (const node of story.nodes) {
       if (needsMigration(node.id)) ids.add(node.id);
@@ -65,6 +66,13 @@ function collectMigratableIds(project: Project): Set<string> {
 
   for (const service of project.modules ?? []) {
     if (needsMigration(service.id)) ids.add(service.id);
+  }
+
+  for (const group of project.storyGroups ?? []) {
+    if (needsMigration(group.id)) ids.add(group.id);
+    if (group.parentGroupId && needsMigration(group.parentGroupId)) {
+      ids.add(group.parentGroupId);
+    }
   }
 
   return ids;
@@ -115,6 +123,7 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
   for (const story of project.stories) {
     story.id = remap(story.id, idMap) ?? story.id;
     story.entryNodeId = remap(story.entryNodeId, idMap);
+    story.groupId = remap(story.groupId, idMap);
 
     for (const node of story.nodes) {
       node.id = remap(node.id, idMap) ?? node.id;
@@ -185,6 +194,11 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
     if (!isReservedObjectId(service.id)) {
       service.id = remap(service.id, idMap) ?? service.id;
     }
+  }
+
+  for (const group of project.storyGroups ?? []) {
+    group.id = remap(group.id, idMap) ?? group.id;
+    group.parentGroupId = remap(group.parentGroupId, idMap);
   }
 }
 

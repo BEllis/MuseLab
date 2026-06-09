@@ -16,6 +16,10 @@ export function getStartNodes(story: Story): StoryNode[] {
   return story.nodes.filter(isStartNode);
 }
 
+export function countSceneNodes(story: Story): number {
+  return story.nodes.filter(isSceneNode).length;
+}
+
 export function normalizeStoryNode(node: StoryNode): StoryNode {
   const type: StoryNodeType = node.type ?? "scene";
   if (type === "start") {

@@ -6,6 +6,7 @@ import type {
   ModuleInterface,
   Story,
   StoryEdge,
+  StoryGroup,
   StoryNode,
 } from "@/core/model/types";
 import type { LocalePrompts, StoryPrompts } from "@/core/model/types";
@@ -23,7 +24,9 @@ export type ProjectPatch = Partial<
   >
 >;
 
-export type StoryPatch = Partial<Pick<Story, "name" | "entryNodeId" | "globalState">>;
+export type StoryPatch = Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">>;
+
+export type StoryGroupPatch = Partial<Pick<StoryGroup, "name" | "parentGroupId" | "sortOrder">>;
 
 export type NodePatch = Partial<Omit<StoryNode, "id">>;
 
@@ -101,6 +104,31 @@ export type UpdateStoryEvent = AppEventBase & {
   storyId: string;
   before: StoryPatch;
   after: StoryPatch;
+};
+
+export type AddStoryGroupEvent = AppEventBase & {
+  type: "addStoryGroup";
+  before: null;
+  after: StoryGroup;
+};
+
+export type RemoveStoryGroupPayload = {
+  rootGroupId: string;
+  groups: StoryGroup[];
+  storyAssignments: Array<{ storyId: string; groupId?: string }>;
+};
+
+export type RemoveStoryGroupEvent = AppEventBase & {
+  type: "removeStoryGroup";
+  before: RemoveStoryGroupPayload;
+  after: null;
+};
+
+export type UpdateStoryGroupEvent = AppEventBase & {
+  type: "updateStoryGroup";
+  groupId: string;
+  before: StoryGroupPatch;
+  after: StoryGroupPatch;
 };
 
 export type AddNodeEvent = AppEventBase & {
@@ -339,6 +367,9 @@ export type AppEvent =
   | AddStoryEvent
   | RemoveStoryEvent
   | UpdateStoryEvent
+  | AddStoryGroupEvent
+  | RemoveStoryGroupEvent
+  | UpdateStoryGroupEvent
   | AddNodeEvent
   | CloneNodeEvent
   | RemoveNodeEvent

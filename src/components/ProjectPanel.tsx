@@ -4,7 +4,7 @@ import { useActiveStory } from "@/hooks/useActiveStory";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
-import { getStartNodes } from "@/core/model/nodeTypes";
+import { getStartNodes, countSceneNodes } from "@/core/model/nodeTypes";
 import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
 import { CloseButton } from "./CloseButton";
 import { AddButton } from "./AddButton";
@@ -111,7 +111,7 @@ export function ProjectPanel() {
       <div style={{ marginBottom: "16px" }}>
         <strong style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>Summary</strong>
         <StatRow label="Stories" value={project.stories.length} />
-        <StatRow label="Scenes" value={story.nodes.length} />
+        <StatRow label="Scenes" value={countSceneNodes(story)} />
         <StatRow label="Links" value={story.edges.length} />
         <StatRow label="Assets" value={project.assets.length} />
       </div>
