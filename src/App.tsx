@@ -10,6 +10,7 @@ import { useThemeStore } from "./store/themeStore";
 import { isAppTheme } from "./core/view/theme";
 import { AboutDialog } from "./components/AboutDialog";
 import { LoadWarningBanner } from "./components/LoadWarningBanner";
+import { PwaStatusBanner } from "./components/PwaStatusBanner";
 import { useAboutStore } from "./store/aboutStore";
 import { runProjectEditCommand } from "./core/view/viewCommands";
 
@@ -117,6 +118,7 @@ function App() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       {showMenuBar && <MenuBar />}
+      {!isElectron() && <PwaStatusBanner />}
       <LoadWarningBanner />
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         <Routes>

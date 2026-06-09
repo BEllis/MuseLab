@@ -34,6 +34,7 @@ Version 0.1
 - **Locales** – Support multiple languages. Dialogue and choice labels are stored per locale (`prompts.<locale>.json` inside `.mlvn` archives). Switch locale in the player; edit visible locales in the project panel.
 - **Multiple stories** – A project can contain several branching story graphs. Use the Stories panel to add, rename, and switch between them.
 - **Save and load** – Save your project as a `.mlvn` file (a zip archive with manifest, locale prompts, and media). In the desktop app, use File → Save/Load; in the browser, use the project panel buttons (downloads/uploads the archive). Legacy plain `.json` projects can still be opened for migration. The app will prompt you to save before creating a new project or closing.
+- **Offline (browser PWA)** – The deployed web app at `/app/` can be installed as a Progressive Web App. After one online visit, the app shell and Cito WASM are cached so you can keep editing offline; project data is auto-saved to localStorage and IndexedDB in the browser.
 
 ## How to Install
 
@@ -61,7 +62,7 @@ If a desktop release is provided for your platform, download and run the install
 
 ### Running the app
 
-- **In the browser:** Run `npm run dev`, then open the URL shown (e.g. `http://localhost:5173`). Use the Designer to build your story and click **Play** to open the player.
+- **In the browser:** Run `npm run dev`, then open the URL shown (e.g. `http://localhost:5173`). Use the Designer to build your story and click **Play** to open the player. Offline/PWA caching is enabled only in the production web deploy (`npm run build:web-deploy`), not in dev mode.
 - **Desktop app:** Run `npm run electron:dev`. Use **File → New / Save / Load** to manage project files.
 
 ### Creating your first story

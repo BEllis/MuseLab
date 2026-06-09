@@ -70,6 +70,7 @@ MuseLab/
 ## How to run
 
 - **Web:** `npm run dev` → Designer at `/`, Player at `/play`. Save/load via browser download and file picker (`.mlvn` or legacy `.json`).
+- **Web deploy (PWA):** `npm run build:web-deploy` → `dist-deploy/` with service worker precaching app shell + Cito WASM for offline use at `/app/` after first visit.
 - **Build:** `npm run build` → `dist/` (web).
 - **Electron:** `npm run electron:dev` → native file dialogs, cito transpilation, `asset://` URLs.
 - **Tests:** `npm run test` (Vitest).
@@ -82,7 +83,7 @@ Template evaluation requires Electron (cito runs in the main process). Browser-o
 ## Data and persistence
 
 - **Project model:** `Project` contains `assets`, `stories[]` (each with `nodes`, `edges`, `globalState`), and `locales`. Dialogue and choice labels live in per-locale `prompts.<locale>.json` files, not inline on nodes/edges.
-- **Web:** Zustand state persisted to `localStorage` (`muselab-project`). Assets stored in IndexedDB. Save exports a `.mlvn` zip download.
+- **Web:** Zustand state persisted to `localStorage` (`muselab-project`). Assets stored in IndexedDB. Save exports a `.mlvn` zip download. Deployed web build (`build:web-deploy`) registers a service worker that precaches the app and WASM for offline editing.
 - **Electron:** Save/load `.mlvn` via native dialogs; legacy plain `.json` import supported. Assets resolved via `asset://` protocol or file paths.
 - **`.mlvn` archive:** `project.json` manifest + `prompts.<locale>.json` + `assets/{backdrops,actors,sounds}/`.
 
@@ -115,6 +116,7 @@ See [docs/cito-templates.md](cito-templates.md). HTML output allowlist: `b`, `i`
 | Light/dark theme | Done |
 | Play validation (entry node, reachability) | Done |
 | Unit tests (cito compile, locale, archive) | Done |
+| Browser PWA offline (service worker + installable manifest) | Done |
 | Scene speaker field (per locale) | Done |
 | Player locale picker | Done |
 
@@ -122,7 +124,7 @@ See [docs/cito-templates.md](cito-templates.md). HTML output allowlist: `b`, `i`
 
 ## Possible next steps
 
-- Browser-side cito transpilation (WASM) so templates work without Electron.
+- ~~Browser-side cito transpilation (WASM) so templates work without Electron.~~ Done (WASM + PWA precache for offline).
 - Export project to a standalone player bundle.
 - Broader test coverage (runner, model CRUD).
 - Explicit entry-node picker in the designer UI.

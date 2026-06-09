@@ -9,7 +9,9 @@ import {
   type CitoWasmLoadProgress,
 } from "./core/cito/citoWasmLoader";
 import { initTheme } from "./core/view/theme";
+import { registerServiceWorker } from "./core/pwa/registerServiceWorker";
 import { useThemeStore } from "./store/themeStore";
+import { isElectron } from "./utils/isElectron";
 import logoUrl from "./assets/logo.png";
 import "./index.css";
 
@@ -65,6 +67,10 @@ async function bootstrap() {
       </BrowserRouter>
     </StrictMode>
   );
+
+  if (!isElectron() && import.meta.env.PROD) {
+    void registerServiceWorker();
+  }
 }
 
 if (import.meta.hot) {

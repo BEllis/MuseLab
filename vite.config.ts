@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import electron from "vite-plugin-electron/simple";
+import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
@@ -78,6 +79,53 @@ export default defineConfig(({ mode }) => {
       ...(isElectron
         ? []
         : [versionJsonPlugin()]),
+      ...(isWebDeploy
+        ? [
+            VitePWA({
+              registerType: "prompt",
+              injectRegister: false,
+              scope: "/app/",
+              workbox: {
+                globPatterns: [
+                  "**/*.{js,css,html,ico,png,svg,wasm,json,dat,blat,bin,woff2}",
+                  "cito-wasm/**/*",
+                ],
+                navigateFallback: "index.html",
+                navigateFallbackDenylist: [/^\/cito-wasm\//],
+                maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
+              },
+              manifest: {
+                name: "MuseLab",
+                short_name: "MuseLab",
+                description: "Visual novel designer",
+                start_url: "/app/",
+                scope: "/app/",
+                display: "standalone",
+                background_color: "#1a1a1a",
+                theme_color: "#1a1a1a",
+                icons: [
+                  {
+                    src: "pwa-192.png",
+                    sizes: "192x192",
+                    type: "image/png",
+                  },
+                  {
+                    src: "pwa-512.png",
+                    sizes: "512x512",
+                    type: "image/png",
+                  },
+                  {
+                    src: "pwa-512.png",
+                    sizes: "512x512",
+                    type: "image/png",
+                    purpose: "maskable",
+                  },
+                ],
+              },
+              devOptions: { enabled: false },
+            }),
+          ]
+        : []),
       ...(isElectron
         ? [
             electron({
