@@ -1,100 +1,90 @@
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import { AssetsPanel } from "./AssetsPanel";
 import { ProjectPanel } from "./ProjectPanel";
 import { ModulesPanel } from "./ModulesPanel";
 import { StoriesPanel } from "./StoriesPanel";
+import {
+  AssetsTabIcon,
+  ModulesTabIcon,
+  ProjectTabIcon,
+  StoriesTabIcon,
+} from "./LeftPanelTabIcons";
+import { useHorizontalResize } from "@/hooks/useHorizontalResize";
 
 type LeftPanelTab = "project" | "stories" | "assets" | "modules";
 
+const LEFT_PANEL_TABS: ReadonlyArray<{
+  id: LeftPanelTab;
+  label: string;
+  Icon: typeof ProjectTabIcon;
+  Panel: ComponentType;
+}> = [
+  { id: "project", label: "Project", Icon: ProjectTabIcon, Panel: ProjectPanel },
+  { id: "stories", label: "Stories", Icon: StoriesTabIcon, Panel: StoriesPanel },
+  { id: "assets", label: "Assets", Icon: AssetsTabIcon, Panel: AssetsPanel },
+  { id: "modules", label: "Modules", Icon: ModulesTabIcon, Panel: ModulesPanel },
+];
+
+const LEFT_PANEL_WIDTH_KEY = "muselab-left-panel-width";
+const DEFAULT_LEFT_PANEL_WIDTH = 240;
+const MIN_LEFT_PANEL_WIDTH = 160;
+const MAX_LEFT_PANEL_WIDTH = 480;
+
 export function LeftPanel() {
   const [tab, setTab] = useState<LeftPanelTab>("project");
+  const { width, isResizing, onResizePointerDown } = useHorizontalResize({
+    initialWidth: DEFAULT_LEFT_PANEL_WIDTH,
+    minWidth: MIN_LEFT_PANEL_WIDTH,
+    maxWidth: MAX_LEFT_PANEL_WIDTH,
+    storageKey: LEFT_PANEL_WIDTH_KEY,
+  });
+
+  const activeTab = LEFT_PANEL_TABS.find((entry) => entry.id === tab) ?? LEFT_PANEL_TABS[0];
 
   return (
-    <aside className="app-side-panel">
-      <div className="app-side-panel-tabs" role="tablist" aria-label="Left panel">
-        <button
-          type="button"
-          role="tab"
-          id="left-panel-tab-project"
-          aria-selected={tab === "project"}
-          aria-controls="left-panel-panel-project"
-          className={`app-side-panel-tab${tab === "project" ? " is-active" : ""}`}
-          onClick={() => setTab("project")}
-        >
-          Project
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="left-panel-tab-stories"
-          aria-selected={tab === "stories"}
-          aria-controls="left-panel-panel-stories"
-          className={`app-side-panel-tab${tab === "stories" ? " is-active" : ""}`}
-          onClick={() => setTab("stories")}
-        >
-          Stories
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="left-panel-tab-assets"
-          aria-selected={tab === "assets"}
-          aria-controls="left-panel-panel-assets"
-          className={`app-side-panel-tab${tab === "assets" ? " is-active" : ""}`}
-          onClick={() => setTab("assets")}
-        >
-          Assets
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="left-panel-tab-modules"
-          aria-selected={tab === "modules"}
-          aria-controls="left-panel-panel-modules"
-          className={`app-side-panel-tab${tab === "modules" ? " is-active" : ""}`}
-          onClick={() => setTab("modules")}
-        >
-          Modules
-        </button>
-      </div>
-      <div className="app-side-panel-content">
-        {tab === "project" && (
-          <div
-            role="tabpanel"
-            id="left-panel-panel-project"
-            aria-labelledby="left-panel-tab-project"
-          >
-            <ProjectPanel />
-          </div>
-        )}
-        {tab === "stories" && (
-          <div
-            role="tabpanel"
-            id="left-panel-panel-stories"
-            aria-labelledby="left-panel-tab-stories"
-          >
-            <StoriesPanel />
-          </div>
-        )}
-        {tab === "assets" && (
-          <div
-            role="tabpanel"
-            id="left-panel-panel-assets"
-            aria-labelledby="left-panel-tab-assets"
-          >
-            <AssetsPanel />
-          </div>
-        )}
-        {tab === "modules" && (
-          <div
-            role="tabpanel"
-            id="left-panel-panel-modules"
-            aria-labelledby="left-panel-tab-modules"
-          >
-            <ModulesPanel />
-          </div>
-        )}
-      </div>
-    </aside>
+    <div className="app-side-panel-shell" style={{ width }}>
+      <aside className="app-side-panel">
+        <div className="app-side-panel-tabs" role="tablist" aria-label="Left panel">
+          {LEFT_PANEL_TABS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`left-panel-tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`left-panel-panel-${id}`}
+              aria-label={label}
+              title={label}
+              className={`app-side-panel-tab${tab === id ? " is-active" : ""}`}
+              onClick={() => setTab(id)}
+            >
+              <Icon />
+            </button>
+          ))}
+        </div>
+        <div className="app-side-panel-title">{activeTab.label}</div>
+        <div className="app-side-panel-content">
+          {LEFT_PANEL_TABS.map(({ id, Panel }) =>
+            tab === id ? (
+              <div
+                key={id}
+                role="tabpanel"
+                id={`left-panel-panel-${id}`}
+                aria-labelledby={`left-panel-tab-${id}`}
+              >
+                <Panel />
+              </div>
+            ) : null
+          )}
+        </div>
+      </aside>
+      <div
+        className={`app-side-panel-resize-handle${isResizing ? " is-active" : ""}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize left panel"
+        onPointerDown={onResizePointerDown}
+      />
+    </div>
   );
 }

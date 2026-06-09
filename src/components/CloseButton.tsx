@@ -1,14 +1,16 @@
 type CloseButtonProps = {
   onClick: () => void;
   title?: string;
+  disabled?: boolean;
 };
 
-export function CloseButton({ onClick, title = "Close" }: CloseButtonProps) {
+export function CloseButton({ onClick, title = "Close", disabled = false }: CloseButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
+      disabled={disabled}
       className="app-icon-button"
       style={{
         width: "22px",

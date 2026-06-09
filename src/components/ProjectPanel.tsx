@@ -6,6 +6,8 @@ import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
 import { getStartNodes } from "@/core/model/nodeTypes";
 import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
+import { CloseButton } from "./CloseButton";
+import { AddButton } from "./AddButton";
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
   return (
@@ -132,15 +134,11 @@ export function ProjectPanel() {
                 {locale}
                 {index === 0 ? " (default)" : ""}
               </span>
-              <button
-                type="button"
-                className="app-side-panel-button"
+              <CloseButton
+                title="Remove locale"
                 disabled={project.locales.length <= 1}
                 onClick={() => removeLocale(locale)}
-                style={{ padding: "2px 8px", fontSize: "11px" }}
-              >
-                Remove
-              </button>
+              />
             </li>
           ))}
         </ul>
@@ -169,9 +167,7 @@ export function ProjectPanel() {
               color: "var(--app-text)",
             }}
           />
-          <button type="button" className="app-side-panel-button" onClick={commitNewLocale}>
-            Add
-          </button>
+          <AddButton onClick={commitNewLocale} title="Add locale" />
         </div>
         {localeError && (
           <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--app-node-invalid-border)" }}>
