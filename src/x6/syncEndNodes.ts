@@ -22,6 +22,7 @@ import {
   isEndNodeId,
 } from "./constants";
 import { storyEdgeConnector } from "./edgeConfig";
+import { applyGraphNodePosition } from "./syncNodes";
 
 export { getTerminalSceneIds };
 
@@ -111,10 +112,7 @@ export function syncEndNodes(graph: Graph, story: Story): void {
         graph.removeNode(endId);
         addEndGraphNode(graph, endId, endPosition);
       } else {
-        const pos = endNode.getPosition();
-        if (pos.x !== endPosition.x || pos.y !== endPosition.y) {
-          endNode.setPosition(endPosition, { silent: true });
-        }
+        applyGraphNodePosition(endNode, endPosition);
       }
     }
 

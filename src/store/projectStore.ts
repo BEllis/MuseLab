@@ -99,7 +99,7 @@ import {
   type StoredProjectSession,
 } from "@/core/events/persistedSession";
 import type { AppEvent } from "@/core/events/types";
-import { eventTouchesActiveStory } from "@/core/events/types";
+import { eventTouchesActiveStory, eventNeedsFullGraphRefresh } from "@/core/events/types";
 import {
   cloneProjectBundle,
   migrateProjectBundle,
@@ -445,6 +445,9 @@ interface ProjectState {
   cloneNode: (nodeId: string, position: { x: number; y: number }) => StoryNode | null;
   removeNode: (nodeId: string) => void;
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
+  updateNodePositions: (
+    updates: ReadonlyArray<{ nodeId: string; position: { x: number; y: number } }>
+  ) => void;
   updateEndNodeLayout: (
     sceneId: string,
     patch: Partial<EndNodeLayout>,
@@ -546,6 +549,7 @@ function maybeClearPlayHighlight(
   get: () => ProjectState,
   set: (partial: Partial<ProjectState>) => void
 ): void {
+  if (isApplyingEvent) return;
   if (get().highlightedRootNodeIds.length === 0) return;
   const story = selectActiveStory(project, activeStoryId);
   if (validatePlayEntry(story).ok) {
@@ -559,20 +563,40 @@ function dispatchEvent(
   event: AppEvent,
   options?: MutationOptions
 ): AppState {
-  if (isApplyingEvent) {
+  return dispatchEventBatch(get, set, [event], options);
+}
+
+function dispatchEventBatch(
+  get: () => ProjectState,
+  set: (partial: Partial<ProjectState>) => void,
+  events: AppEvent[],
+  options?: MutationOptions
+): AppState {
+  if (isApplyingEvent || events.length === 0) {
     return getAppState(get());
   }
 
   const state = get();
-  const before = getAppState(state);
-  const after = applyEvent(before, event, "forward");
-
-  let eventLog = state.eventLog;
-  if (!isApplyingEvent && shouldRecordEvent(eventLog, options)) {
-    eventLog = recordEvent(eventLog, event, { mergeKey: options?.mergeKey });
+  let after = getAppState(state);
+  for (const event of events) {
+    after = applyEvent(after, event, "forward");
   }
 
-  const graphRevision = eventTouchesActiveStory(event)
+  const recordedEvent: AppEvent =
+    events.length === 1
+      ? events[0]
+      : {
+          ...createEventMeta(),
+          type: "batch",
+          events,
+        };
+
+  let eventLog = state.eventLog;
+  if (shouldRecordEvent(eventLog, options)) {
+    eventLog = recordEvent(eventLog, recordedEvent, { mergeKey: options?.mergeKey });
+  }
+
+  const graphRevision = events.some((event) => eventTouchesActiveStory(event))
     ? state.graphRevision + 1
     : undefined;
   set(applyAppStateToStore(after, eventLog, graphRevision));
@@ -597,7 +621,10 @@ function applyEventStep(
     const before = getAppState(state);
     const after = applyEvent(before, event, direction === "backward" ? "backward" : "forward");
     const eventLog = stepEventLogCursor(state.eventLog, direction === "backward" ? -1 : 1);
-    set(applyAppStateToStore(after, eventLog, state.graphRevision + 1));
+    const graphRevision = eventNeedsFullGraphRefresh(event)
+      ? state.graphRevision + 1
+      : undefined;
+    set(applyAppStateToStore(after, eventLog, graphRevision));
     scheduleSaveToStorage(get);
     maybeClearPlayHighlight(after.project, after.activeStoryId, get, set);
     scheduleAssetBlobGc(eventLog, after.project);
@@ -1086,24 +1113,40 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   updateNodePosition: (nodeId, position) => {
+    get().updateNodePositions([{ nodeId, position }]);
+  },
+
+  updateNodePositions: (updates) => {
     const state = get();
     const storyId = state.activeStoryId;
-    const node = getStory(state.project, storyId).nodes.find((entry) => entry.id === nodeId);
-    if (!node) return;
-    if (node.position.x === position.x && node.position.y === position.y) return;
-    dispatchEvent(
-      get,
-      set,
-      {
+    const story = getStory(state.project, storyId);
+    const events: Extract<AppEvent, { type: "updateNodePosition" }>[] = [];
+
+    for (const { nodeId, position } of updates) {
+      const node = story.nodes.find((entry) => entry.id === nodeId);
+      if (!node) continue;
+      if (node.position.x === position.x && node.position.y === position.y) continue;
+      events.push({
         ...createEventMeta(),
         type: "updateNodePosition",
         storyId,
         nodeId,
         before: { ...node.position },
         after: position,
-      },
-      { mergeKey: `node-position:${nodeId}` }
-    );
+      });
+    }
+
+    if (events.length === 0) return;
+
+    const mergeKey =
+      events.length === 1
+        ? `node-position:${events[0].nodeId}`
+        : `node-positions:${events
+            .map((event) => event.nodeId)
+            .sort()
+            .join(",")}`;
+
+    dispatchEventBatch(get, set, events, { mergeKey });
   },
 
   updateEndNodeLayout: (sceneId, patch, options) => {

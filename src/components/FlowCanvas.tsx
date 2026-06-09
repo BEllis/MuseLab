@@ -150,7 +150,8 @@ export function FlowCanvas() {
         }
 
         if (!hasFitRef.current && story.nodes.length > 0) {
-          graph.zoomToFit({ padding: 20 });
+          // Cap zoom so a lone start node is not blown up to fill the canvas.
+          graph.zoomToFit({ padding: 20, maxScale: 1 });
           hasFitRef.current = true;
         }
       } finally {

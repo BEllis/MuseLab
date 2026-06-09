@@ -52,7 +52,6 @@ export function shouldRecordEvent(
   options?: { record?: boolean }
 ): boolean {
   if (options?.record === false) return false;
-  if (log.transactionDepth > 0) return false;
   return true;
 }
 
@@ -217,6 +216,9 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
         return null;
       }
       return { ...existing, after: incoming.after };
+    case "batch":
+      if (existing.type !== "batch") return null;
+      return incoming;
     default:
       return null;
   }

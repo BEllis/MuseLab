@@ -59,6 +59,13 @@ function nativeNodeCreateOptions(shape: string, label: string) {
   };
 }
 
+/** Views only re-translate when the store emits position changes (not silent). */
+export function applyGraphNodePosition(node: Node, position: { x: number; y: number }): void {
+  const current = node.getPosition();
+  if (current.x === position.x && current.y === position.y) return;
+  node.setPosition(position);
+}
+
 function addGraphNode(
   graph: Graph,
   project: Project,
@@ -153,10 +160,7 @@ export function syncProjectNode(
     }
 
     syncNodeEdgePorts(node, projectNode, story, graph);
-    const pos = node.getPosition();
-    if (pos.x !== projectNode.position.x || pos.y !== projectNode.position.y) {
-      node.setPosition(projectNode.position, { silent: true });
-    }
+    applyGraphNodePosition(node, projectNode.position);
     if (isNativeNonSceneShape(expectedShape)) {
       syncNativeNodePresentation(
         node,

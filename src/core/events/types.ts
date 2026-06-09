@@ -409,3 +409,17 @@ export function eventTouchesActiveStory(event: AppEvent): boolean {
       return false;
   }
 }
+
+/** Full canvas rebuild — only for story switches; incremental sync handles node moves. */
+export function eventNeedsFullGraphRefresh(event: AppEvent): boolean {
+  switch (event.type) {
+    case "setActiveStoryId":
+    case "addStory":
+    case "removeStory":
+      return true;
+    case "batch":
+      return event.events.some(eventNeedsFullGraphRefresh);
+    default:
+      return false;
+  }
+}

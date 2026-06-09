@@ -1,4 +1,4 @@
-import type { Edge, Graph } from "@antv/x6";
+import type { Edge, Graph, Node } from "@antv/x6";
 import type { MutableRefObject } from "react";
 import {
   isProjectHistoryReplayActive,
@@ -160,6 +160,36 @@ function offerBlankConnectionDrop(
   return true;
 }
 
+function commitStoryNodeMove(graph: Graph, movedNode: Node): void {
+  const selectedStoryNodes = graph
+    .getSelectedCells()
+    .filter((cell): cell is Node => cell.isNode() && !isEndNodeId(cell.id));
+
+  const nodesToCommit =
+    selectedStoryNodes.length > 1 && selectedStoryNodes.some((cell) => cell.id === movedNode.id)
+      ? selectedStoryNodes
+      : [movedNode];
+
+  if (nodesToCommit.length > 1) {
+    useProjectStore.getState().updateNodePositions(
+      nodesToCommit.map((cell) => ({
+        nodeId: cell.id,
+        position: cell.getPosition(),
+      }))
+    );
+    return;
+  }
+
+  const position = movedNode.getPosition();
+  const { story } = getActiveGraphContext();
+  const allNodes: NodeWithPosition[] = story.nodes.map((nn) => ({
+    id: nn.id,
+    position: nn.id === movedNode.id ? position : (nn.position ?? { x: 0, y: 0 }),
+  }));
+  const resolved = findNonOverlappingPosition(movedNode.id, position, allNodes);
+  useProjectStore.getState().updateNodePosition(movedNode.id, resolved);
+}
+
 export function bindGraphEvents(
   graph: Graph,
   isSyncingRef: MutableRefObject<boolean>,
@@ -254,14 +284,7 @@ export function bindGraphEvents(
       return;
     }
 
-    const position = node.getPosition();
-    const { story } = getActiveGraphContext();
-    const allNodes: NodeWithPosition[] = story.nodes.map((nn) => ({
-      id: nn.id,
-      position: nn.id === node.id ? position : (nn.position ?? { x: 0, y: 0 }),
-    }));
-    const resolved = findNonOverlappingPosition(node.id, position, allNodes);
-    useProjectStore.getState().updateNodePosition(node.id, resolved);
+    commitStoryNodeMove(graph, node);
   });
 
   graph.on("selection:changed", ({ selected }) => {

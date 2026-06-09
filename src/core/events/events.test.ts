@@ -110,6 +110,53 @@ describe("applyEvent round trips", () => {
     });
   });
 
+  it("restores batched node position updates", () => {
+    const state = starterAppState();
+    const storyId = state.activeStoryId;
+    const first = {
+      id: "node-1",
+      type: "scene" as const,
+      position: { x: 10, y: 20 },
+    };
+    const second = {
+      id: "node-2",
+      type: "scene" as const,
+      position: { x: 40, y: 60 },
+    };
+    state.project.stories[0]!.nodes.push(first, second);
+    const event = {
+      ...createEventMeta(),
+      type: "batch" as const,
+      events: [
+        {
+          ...createEventMeta(),
+          type: "updateNodePosition" as const,
+          storyId,
+          nodeId: first.id,
+          before: { x: 10, y: 20 },
+          after: { x: 110, y: 120 },
+        },
+        {
+          ...createEventMeta(),
+          type: "updateNodePosition" as const,
+          storyId,
+          nodeId: second.id,
+          before: { x: 40, y: 60 },
+          after: { x: 140, y: 160 },
+        },
+      ],
+    };
+    const restored = roundTrip(state, event);
+    expect(restored.project.stories[0]!.nodes.find((entry) => entry.id === first.id)?.position).toEqual({
+      x: 10,
+      y: 20,
+    });
+    expect(restored.project.stories[0]!.nodes.find((entry) => entry.id === second.id)?.position).toEqual({
+      x: 40,
+      y: 60,
+    });
+  });
+
   it("restores end node layout updates", () => {
     const state = starterAppState();
     const storyId = state.activeStoryId;
