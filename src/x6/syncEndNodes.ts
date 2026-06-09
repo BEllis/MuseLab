@@ -1,7 +1,12 @@
 import type { Graph, Node } from "@antv/x6";
 import type { Story } from "@/core/model/types";
-import { isSceneNode } from "@/core/model/nodeTypes";
-import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, MIN_NODE_GAP } from "@/utils/nodeOverlap";
+import {
+  getEndEdgeRouter,
+  getEndEdgeVertices,
+  getEndNodeLayout,
+  getTerminalSceneIds,
+  resolveEndNodePosition,
+} from "@/core/model/endNodeLayout";
 import {
   applyEndCircleStyle,
   CIRCLE_NODE_SIZE,
@@ -16,16 +21,65 @@ import {
   endNodeIdForScene,
   isEndNodeId,
 } from "./constants";
-import { autoEdgeRouter, storyEdgeConnector } from "./edgeConfig";
+import { storyEdgeConnector } from "./edgeConfig";
 
-function sceneHasOutgoingLink(story: Story, sceneId: string): boolean {
-  return story.edges.some((edge) => edge.sourceNodeId === sceneId);
+export { getTerminalSceneIds };
+
+function syncSyntheticEndEdge(
+  graph: Graph,
+  sceneId: string,
+  endId: string,
+  story: Story
+): void {
+  const syntheticEdgeId = `${END_NODE_ID_PREFIX}edge:${sceneId}`;
+  const layout = getEndNodeLayout(story, sceneId);
+  const router = getEndEdgeRouter(layout);
+  const vertices = getEndEdgeVertices(layout);
+  const existingEdge = graph.getCellById(syntheticEdgeId);
+
+  if (!existingEdge) {
+    graph.addEdge({
+      id: syntheticEdgeId,
+      shape: STORY_EDGE_SHAPE,
+      source: { cell: sceneId, port: FREE_OUT_PORT },
+      target: { cell: endId, port: FREE_IN_PORT },
+      router,
+      connector: storyEdgeConnector,
+      vertices,
+      attrs: {
+        line: {
+          stroke: SYNTHETIC_END_EDGE_STROKE,
+          strokeWidth: 1.5,
+          strokeDasharray: "6 4",
+          targetMarker: { name: "block", width: 8, height: 5 },
+        },
+      },
+      zIndex: -1,
+    });
+    return;
+  }
+
+  if (!existingEdge.isEdge()) return;
+
+  existingEdge.setRouter(router);
+  existingEdge.setConnector(storyEdgeConnector);
+  existingEdge.setVertices(vertices, { silent: true });
+  existingEdge.setSource({ cell: sceneId, port: FREE_OUT_PORT });
+  existingEdge.setTarget({ cell: endId, port: FREE_IN_PORT });
+  existingEdge.attr("line/stroke", SYNTHETIC_END_EDGE_STROKE);
 }
 
-export function getTerminalSceneIds(story: Story): string[] {
-  return story.nodes
-    .filter((node) => isSceneNode(node) && !sceneHasOutgoingLink(story, node.id))
-    .map((node) => node.id);
+function addEndGraphNode(graph: Graph, endId: string, position: { x: number; y: number }): void {
+  graph.addNode({
+    id: endId,
+    shape: END_NODE_SHAPE,
+    width: CIRCLE_NODE_SIZE,
+    height: CIRCLE_NODE_SIZE,
+    x: position.x,
+    y: position.y,
+    label: "End",
+    data: { virtual: true },
+  });
 }
 
 export function syncEndNodes(graph: Graph, story: Story): void {
@@ -45,39 +99,17 @@ export function syncEndNodes(graph: Graph, story: Story): void {
     const sceneCell = graph.getCellById(sceneId);
     if (!sceneCell?.isNode()) continue;
 
-    const scenePos = sceneCell.getPosition();
-    const endPosition = {
-      x: scenePos.x + DEFAULT_NODE_WIDTH + MIN_NODE_GAP,
-      y: scenePos.y + (DEFAULT_NODE_HEIGHT - CIRCLE_NODE_SIZE) / 2,
-    };
+    const endPosition = resolveEndNodePosition(story, sceneId, sceneCell.getPosition());
 
     let endCell = graph.getCellById(endId);
     if (!endCell?.isNode()) {
-      graph.addNode({
-        id: endId,
-        shape: END_NODE_SHAPE,
-        width: CIRCLE_NODE_SIZE,
-        height: CIRCLE_NODE_SIZE,
-        x: endPosition.x,
-        y: endPosition.y,
-        label: "End",
-        data: { virtual: true },
-      });
+      addEndGraphNode(graph, endId, endPosition);
       endCell = graph.getCellById(endId);
     } else {
       const endNode = endCell as Node;
       if (endNode.shape !== END_NODE_SHAPE) {
         graph.removeNode(endId);
-        graph.addNode({
-          id: endId,
-          shape: END_NODE_SHAPE,
-          width: CIRCLE_NODE_SIZE,
-          height: CIRCLE_NODE_SIZE,
-          x: endPosition.x,
-          y: endPosition.y,
-          label: "End",
-          data: { virtual: true },
-        });
+        addEndGraphNode(graph, endId, endPosition);
       } else {
         const pos = endNode.getPosition();
         if (pos.x !== endPosition.x || pos.y !== endPosition.y) {
@@ -95,29 +127,7 @@ export function syncEndNodes(graph: Graph, story: Story): void {
       endNode.addPort({ id: FREE_IN_PORT, group: "in" });
     }
 
-    const syntheticEdgeId = `${END_NODE_ID_PREFIX}edge:${sceneId}`;
-    const existingEdge = graph.getCellById(syntheticEdgeId);
-    if (!existingEdge) {
-      graph.addEdge({
-        id: syntheticEdgeId,
-        shape: STORY_EDGE_SHAPE,
-        source: { cell: sceneId, port: FREE_OUT_PORT },
-        target: { cell: endId, port: FREE_IN_PORT },
-        router: autoEdgeRouter,
-        connector: storyEdgeConnector,
-        attrs: {
-          line: {
-            stroke: SYNTHETIC_END_EDGE_STROKE,
-            strokeWidth: 1.5,
-            strokeDasharray: "6 4",
-            targetMarker: { name: "block", width: 8, height: 5 },
-          },
-        },
-        zIndex: -1,
-      });
-    } else if (existingEdge.isEdge()) {
-      existingEdge.attr("line/stroke", SYNTHETIC_END_EDGE_STROKE);
-    }
+    syncSyntheticEndEdge(graph, sceneId, endId, story);
   }
 
   for (const edge of graph.getEdges()) {

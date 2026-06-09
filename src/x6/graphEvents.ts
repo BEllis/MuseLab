@@ -1,6 +1,10 @@
 import type { Edge, Graph } from "@antv/x6";
 import type { MutableRefObject } from "react";
-import { selectActiveStory, useProjectStore } from "@/store/projectStore";
+import {
+  isProjectHistoryReplayActive,
+  selectActiveStory,
+  useProjectStore,
+} from "@/store/projectStore";
 import {
   findNonOverlappingPosition,
   type NodeWithPosition,
@@ -14,7 +18,12 @@ import {
 import { verticesFromGraphEdge } from "./edgeConfig";
 import { purgeDanglingEdges, purgeFreeOutPreviews } from "./syncEdges";
 import { syncProjectToGraph } from "./syncProjectToGraph";
-import { isEndNodeId, isSyntheticEndEdgeId } from "./constants";
+import {
+  isEndNodeId,
+  isSyntheticEndEdgeId,
+  sceneIdFromEndNodeId,
+  sceneIdFromSyntheticEndEdgeId,
+} from "./constants";
 
 export type { ConnectionDropOnBlank };
 
@@ -200,6 +209,22 @@ export function bindGraphEvents(
   graph.on("edge:change:vertices", ({ edge, options }) => {
     if (isSyncingRef.current || options?.silent) return;
 
+    if (isSyntheticEndEdgeId(edge.id)) {
+      const sceneId = sceneIdFromSyntheticEndEdgeId(edge.id);
+      if (!sceneId) return;
+      const vertices = verticesFromGraphEdge(edge);
+      const manualRoute = vertices.length > 0;
+      useProjectStore.getState().updateEndNodeLayout(
+        sceneId,
+        {
+          vertices: manualRoute ? vertices : undefined,
+          manualRoute: manualRoute || undefined,
+        },
+        { mergeKey: `end-node-edge:${sceneId}` }
+      );
+      return;
+    }
+
     const vertices = verticesFromGraphEdge(edge);
     const manualRoute = vertices.length > 0;
     useProjectStore.getState().updateEdge(
@@ -219,7 +244,15 @@ export function bindGraphEvents(
   });
 
   graph.on("node:moved", ({ node }) => {
-    if (isSyncingRef.current || isEndNodeId(node.id)) return;
+    if (isSyncingRef.current || isProjectHistoryReplayActive()) return;
+
+    if (isEndNodeId(node.id)) {
+      const sceneId = sceneIdFromEndNodeId(node.id);
+      if (!sceneId) return;
+      const position = node.getPosition();
+      useProjectStore.getState().updateEndNodeLayout(sceneId, { position });
+      return;
+    }
 
     const position = node.getPosition();
     const { story } = getActiveGraphContext();
@@ -232,6 +265,8 @@ export function bindGraphEvents(
   });
 
   graph.on("selection:changed", ({ selected }) => {
+    if (isSyncingRef.current || isProjectHistoryReplayActive()) return;
+
     const nodeIds = selected
       .filter((cell) => cell.isNode() && !isEndNodeId(cell.id))
       .map((cell) => cell.id);

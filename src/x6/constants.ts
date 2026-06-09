@@ -23,6 +23,11 @@ export function isSyntheticEndEdgeId(edgeId: string): boolean {
   return edgeId.startsWith(`${END_NODE_ID_PREFIX}edge:`);
 }
 
+export function sceneIdFromSyntheticEndEdgeId(edgeId: string): string | null {
+  if (!isSyntheticEndEdgeId(edgeId)) return null;
+  return edgeId.slice(`${END_NODE_ID_PREFIX}edge:`.length);
+}
+
 /** Unconnected out port used to start a new edge (right side). */
 export const FREE_OUT_PORT = "__free_out__";
 /** Unconnected in port used to receive a new edge (left side). */

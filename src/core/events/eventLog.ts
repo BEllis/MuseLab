@@ -152,6 +152,15 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
         return null;
       }
       return { ...existing, after: incoming.after };
+    case "updateEndNodeLayout":
+      if (
+        existing.type !== "updateEndNodeLayout" ||
+        existing.storyId !== incoming.storyId ||
+        existing.sceneId !== incoming.sceneId
+      ) {
+        return null;
+      }
+      return { ...existing, after: incoming.after };
     case "updateEdge":
       if (
         existing.type !== "updateEdge" ||

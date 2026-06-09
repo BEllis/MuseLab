@@ -13,12 +13,14 @@ import {
   updateEdge as updateEdgeInProject,
   updateNode as updateNodeInProject,
   updateNodePosition as updateNodePositionInProject,
+  updateEndNodeLayout as updateEndNodeLayoutInProject,
   updateProject as updateProjectInProject,
   updateModule as updateModuleInProject,
   updateStory as updateStoryInProject,
   addLocaleToProject,
   removeLocaleFromProject,
 } from "@/core/model/project";
+import { clearEndNodeLayout } from "@/core/model/endNodeLayout";
 import {
   ensureLocalePrompts,
   ensurePromptsForProjectLocales,
@@ -152,12 +154,10 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
       break;
 
     case "addNode": {
-      const node = useAfter ? event.after : event.before;
-      if (!node) break;
       if (useAfter) {
-        getStory(state.project, event.storyId).nodes.push(cloneNode(node));
+        getStory(state.project, event.storyId).nodes.push(cloneNode(event.after));
       } else {
-        removeNodeInProject(state.project, event.storyId, node.id);
+        removeNodeInProject(state.project, event.storyId, event.after.id);
       }
       break;
     }
@@ -216,6 +216,17 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
         useAfter ? event.after : event.before
       );
       break;
+
+    case "updateEndNodeLayout": {
+      if (useAfter) {
+        updateEndNodeLayoutInProject(state.project, event.storyId, event.sceneId, event.after);
+      } else if (event.before) {
+        updateEndNodeLayoutInProject(state.project, event.storyId, event.sceneId, event.before);
+      } else {
+        clearEndNodeLayout(getStory(state.project, event.storyId), event.sceneId);
+      }
+      break;
+    }
 
     case "addEdge": {
       if (useAfter) {
@@ -282,12 +293,10 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
     case "addAsset":
     case "addBlankActor":
     case "addActorFromImage": {
-      const asset = useAfter ? event.after : event.before;
-      if (!asset) break;
       if (useAfter) {
-        state.project.assets.push(cloneNode(asset));
+        state.project.assets.push(cloneNode(event.after));
       } else {
-        removeAssetInProject(state.project, asset.id);
+        removeAssetInProject(state.project, event.after.id);
       }
       break;
     }

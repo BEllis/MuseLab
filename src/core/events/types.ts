@@ -1,6 +1,7 @@
 import type {
   ActorExpression,
   Asset,
+  EndNodeLayout,
   Project,
   ModuleInterface,
   Story,
@@ -138,6 +139,14 @@ export type UpdateNodePositionEvent = AppEventBase & {
   nodeId: string;
   before: { x: number; y: number };
   after: { x: number; y: number };
+};
+
+export type UpdateEndNodeLayoutEvent = AppEventBase & {
+  type: "updateEndNodeLayout";
+  storyId: string;
+  sceneId: string;
+  before: EndNodeLayout | null;
+  after: EndNodeLayout;
 };
 
 export type AddEdgeEvent = AppEventBase & {
@@ -335,6 +344,7 @@ export type AppEvent =
   | RemoveNodeEvent
   | UpdateNodeEvent
   | UpdateNodePositionEvent
+  | UpdateEndNodeLayoutEvent
   | AddEdgeEvent
   | RemoveEdgeEvent
   | UpdateEdgeEvent

@@ -68,6 +68,24 @@ describe("applyEvent round trips", () => {
     expect(roundTrip(state, event).activeStoryId).toBe(story.id);
   });
 
+  it("restores added nodes", () => {
+    const state = starterAppState();
+    const storyId = state.activeStoryId;
+    const node = {
+      id: "node-added",
+      type: "scene" as const,
+      position: { x: 10, y: 20 },
+    };
+    const event = {
+      ...createEventMeta(),
+      type: "addNode" as const,
+      storyId,
+      before: null,
+      after: node,
+    };
+    expect(roundTrip(state, event)).toEqual(state);
+  });
+
   it("restores node position updates", () => {
     const state = starterAppState();
     const storyId = state.activeStoryId;
@@ -90,6 +108,31 @@ describe("applyEvent round trips", () => {
       x: 10,
       y: 20,
     });
+  });
+
+  it("restores end node layout updates", () => {
+    const state = starterAppState();
+    const storyId = state.activeStoryId;
+    const scene = {
+      id: "scene-a",
+      type: "scene" as const,
+      position: { x: 10, y: 20 },
+    };
+    state.project.stories[0]!.nodes.push(scene);
+    const event = {
+      ...createEventMeta(),
+      type: "updateEndNodeLayout" as const,
+      storyId,
+      sceneId: scene.id,
+      before: null,
+      after: {
+        position: { x: 300, y: 80 },
+        vertices: [{ x: 180, y: 60 }],
+        manualRoute: true,
+      },
+    };
+    const restored = roundTrip(state, event);
+    expect(restored).toEqual(state);
   });
 });
 

@@ -383,6 +383,23 @@
         "entryNodeId": {
           "$ref": "#/$defs/objectId",
           "description": "Optional explicit starting scene id for this story."
+        },
+        "endNodeLayouts": {
+          "type": "object",
+          "description": "Designer-only layout for synthetic End nodes on terminal scenes, keyed by scene id.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["position"],
+            "properties": {
+              "position": { "$ref": "#/$defs/point" },
+              "vertices": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/point" }
+              },
+              "manualRoute": { "type": "boolean" }
+            }
+          }
         }
       }
     },

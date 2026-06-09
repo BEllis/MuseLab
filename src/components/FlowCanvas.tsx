@@ -118,38 +118,43 @@ export function FlowCanvas() {
     applyGraphTheme(graph);
 
     const syncGraphFromStore = (fullRefresh = false) => {
-      const state = useProjectStore.getState();
-      const story = selectActiveStory(state.project, state.activeStoryId);
-      syncProjectToGraph(
-        graph,
-        state.project,
-        story,
-        state.activeStoryId,
-        state.promptsByLocale,
-        new Set(state.selectedNodeIds),
-        new Set(state.selectedEdgeIds),
-        new Set(state.highlightedRootNodeIds),
-        isSyncingRef,
-        fullRefresh ? { fullRefresh: true } : undefined
-      );
+      isSyncingRef.current = true;
+      try {
+        const state = useProjectStore.getState();
+        const story = selectActiveStory(state.project, state.activeStoryId);
+        syncProjectToGraph(
+          graph,
+          state.project,
+          story,
+          state.activeStoryId,
+          state.promptsByLocale,
+          new Set(state.selectedNodeIds),
+          new Set(state.selectedEdgeIds),
+          new Set(state.highlightedRootNodeIds),
+          undefined,
+          fullRefresh ? { fullRefresh: true } : undefined
+        );
 
-      if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
-        graph.cleanSelection();
-      } else if (fullRefresh) {
-        graph.cleanSelection();
-        for (const nodeId of state.selectedNodeIds) {
-          const cell = graph.getCellById(nodeId);
-          if (cell) graph.select(cell);
+        if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
+          graph.cleanSelection();
+        } else if (fullRefresh) {
+          graph.cleanSelection();
+          for (const nodeId of state.selectedNodeIds) {
+            const cell = graph.getCellById(nodeId);
+            if (cell) graph.select(cell);
+          }
+          for (const edgeId of state.selectedEdgeIds) {
+            const cell = graph.getCellById(edgeId);
+            if (cell) graph.select(cell);
+          }
         }
-        for (const edgeId of state.selectedEdgeIds) {
-          const cell = graph.getCellById(edgeId);
-          if (cell) graph.select(cell);
-        }
-      }
 
-      if (!hasFitRef.current && story.nodes.length > 0) {
-        graph.zoomToFit({ padding: 20 });
-        hasFitRef.current = true;
+        if (!hasFitRef.current && story.nodes.length > 0) {
+          graph.zoomToFit({ padding: 20 });
+          hasFitRef.current = true;
+        }
+      } finally {
+        isSyncingRef.current = false;
       }
     };
 

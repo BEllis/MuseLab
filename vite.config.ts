@@ -79,51 +79,59 @@ export default defineConfig(({ mode }) => {
       ...(isElectron
         ? []
         : [versionJsonPlugin()]),
-      ...(isWebDeploy
+      ...(!isElectron
         ? [
-            VitePWA({
-              registerType: "prompt",
-              injectRegister: false,
-              scope: "/app/",
-              workbox: {
-                globPatterns: [
-                  "**/*.{js,css,html,ico,png,svg,wasm,json,dat,blat,bin,woff2}",
-                  "cito-wasm/**/*",
-                ],
-                navigateFallback: "index.html",
-                navigateFallbackDenylist: [/^\/cito-wasm\//],
-                maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
-              },
-              manifest: {
-                name: "MuseLab",
-                short_name: "MuseLab",
-                description: "Visual novel designer",
-                start_url: "/app/",
-                scope: "/app/",
-                display: "standalone",
-                background_color: "#1a1a1a",
-                theme_color: "#1a1a1a",
-                icons: [
-                  {
-                    src: "pwa-192.png",
-                    sizes: "192x192",
-                    type: "image/png",
-                  },
-                  {
-                    src: "pwa-512.png",
-                    sizes: "512x512",
-                    type: "image/png",
-                  },
-                  {
-                    src: "pwa-512.png",
-                    sizes: "512x512",
-                    type: "image/png",
-                    purpose: "maskable",
-                  },
-                ],
-              },
-              devOptions: { enabled: false },
-            }),
+            VitePWA(
+              isWebDeploy
+                ? {
+                    registerType: "prompt",
+                    injectRegister: false,
+                    scope: "/app/",
+                    workbox: {
+                      globPatterns: [
+                        "**/*.{js,css,html,ico,png,svg,wasm,json,dat,blat,bin,woff2}",
+                        "cito-wasm/**/*",
+                      ],
+                      navigateFallback: "index.html",
+                      navigateFallbackDenylist: [/^\/cito-wasm\//],
+                      maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
+                    },
+                    manifest: {
+                      name: "MuseLab",
+                      short_name: "MuseLab",
+                      description: "Visual novel designer",
+                      start_url: "/app/",
+                      scope: "/app/",
+                      display: "standalone",
+                      background_color: "#1a1a1a",
+                      theme_color: "#1a1a1a",
+                      icons: [
+                        {
+                          src: "pwa-192.png",
+                          sizes: "192x192",
+                          type: "image/png",
+                        },
+                        {
+                          src: "pwa-512.png",
+                          sizes: "512x512",
+                          type: "image/png",
+                        },
+                        {
+                          src: "pwa-512.png",
+                          sizes: "512x512",
+                          type: "image/png",
+                          purpose: "maskable",
+                        },
+                      ],
+                    },
+                    devOptions: { enabled: false },
+                  }
+                : {
+                    registerType: "prompt",
+                    injectRegister: false,
+                    devOptions: { enabled: false },
+                  }
+            ),
           ]
         : []),
       ...(isElectron

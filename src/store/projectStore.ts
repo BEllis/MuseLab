@@ -28,7 +28,15 @@ import type {
   StoryNodeType,
   ActorExpression,
   ModuleInterface,
+  EndNodeLayout,
 } from "@/core/model/types";
+import { isSceneNode } from "@/core/model/nodeTypes";
+import {
+  defaultEndNodePosition,
+  endNodeLayoutsEqual,
+  getEndNodeLayout,
+  mergeEndNodeLayout,
+} from "@/core/model/endNodeLayout";
 import { expressionBlobKey } from "@/core/assets/actorExpressions";
 import { hydrateLegacyEmbeddedAssets, hydrateProjectAssets } from "@/core/assets/assetHydration";
 import {
@@ -91,7 +99,7 @@ import {
   type StoredProjectSession,
 } from "@/core/events/persistedSession";
 import type { AppEvent } from "@/core/events/types";
-import { eventTouchesActiveStory, eventTouchesProjectData } from "@/core/events/types";
+import { eventTouchesActiveStory } from "@/core/events/types";
 import {
   cloneProjectBundle,
   migrateProjectBundle,
@@ -131,6 +139,10 @@ export type MutationOptions = {
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let persistGetState: (() => ProjectState) | null = null;
 let isApplyingEvent = false;
+
+export function isProjectHistoryReplayActive(): boolean {
+  return isApplyingEvent;
+}
 let pendingBlobKeyRemappings: Array<{ from: string; to: string }> = [];
 
 function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
@@ -433,6 +445,11 @@ interface ProjectState {
   cloneNode: (nodeId: string, position: { x: number; y: number }) => StoryNode | null;
   removeNode: (nodeId: string) => void;
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
+  updateEndNodeLayout: (
+    sceneId: string,
+    patch: Partial<EndNodeLayout>,
+    options?: MutationOptions
+  ) => void;
   updateNode: (
     nodeId: string,
     patch: Partial<Omit<StoryNode, "id">>,
@@ -542,6 +559,10 @@ function dispatchEvent(
   event: AppEvent,
   options?: MutationOptions
 ): AppState {
+  if (isApplyingEvent) {
+    return getAppState(get());
+  }
+
   const state = get();
   const before = getAppState(state);
   const after = applyEvent(before, event, "forward");
@@ -576,15 +597,31 @@ function applyEventStep(
     const before = getAppState(state);
     const after = applyEvent(before, event, direction === "backward" ? "backward" : "forward");
     const eventLog = stepEventLogCursor(state.eventLog, direction === "backward" ? -1 : 1);
-    const bumpGraph =
-      eventTouchesProjectData(event) || eventTouchesActiveStory(event) ? state.graphRevision + 1 : state.graphRevision;
-    set(applyAppStateToStore(after, eventLog, bumpGraph));
+    set(applyAppStateToStore(after, eventLog, state.graphRevision + 1));
     scheduleSaveToStorage(get);
     maybeClearPlayHighlight(after.project, after.activeStoryId, get, set);
     scheduleAssetBlobGc(eventLog, after.project);
   } finally {
-    isApplyingEvent = false;
+    queueMicrotask(() => {
+      isApplyingEvent = false;
+    });
   }
+}
+
+function sameStringArray(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameSelectionSnapshot(
+  left: ReturnType<typeof getSelectionSnapshot>,
+  right: ReturnType<typeof getSelectionSnapshot>
+): boolean {
+  return (
+    sameStringArray(left.selectedNodeIds, right.selectedNodeIds) &&
+    sameStringArray(left.selectedEdgeIds, right.selectedEdgeIds) &&
+    left.selectedAssetId === right.selectedAssetId &&
+    left.selectedModuleId === right.selectedModuleId
+  );
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -711,11 +748,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setSelection: (nodeIds, edgeIds) => {
     const state = get();
+    const before = getSelectionSnapshot(getAppState(state));
+    const after = buildSelectionAfterGraphSelection(nodeIds, edgeIds);
+    if (sameSelectionSnapshot(before, after)) return;
     dispatchEvent(get, set, {
       ...createEventMeta(),
       type: "setSelection",
-      before: getSelectionSnapshot(getAppState(state)),
-      after: buildSelectionAfterGraphSelection(nodeIds, edgeIds),
+      before,
+      after,
     });
   },
   setSelectedAssetId: (assetId) => {
@@ -1050,14 +1090,49 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const storyId = state.activeStoryId;
     const node = getStory(state.project, storyId).nodes.find((entry) => entry.id === nodeId);
     if (!node) return;
-    dispatchEvent(get, set, {
-      ...createEventMeta(),
-      type: "updateNodePosition",
-      storyId,
-      nodeId,
-      before: { ...node.position },
-      after: position,
-    });
+    if (node.position.x === position.x && node.position.y === position.y) return;
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateNodePosition",
+        storyId,
+        nodeId,
+        before: { ...node.position },
+        after: position,
+      },
+      { mergeKey: `node-position:${nodeId}` }
+    );
+  },
+
+  updateEndNodeLayout: (sceneId, patch, options) => {
+    const state = get();
+    const storyId = state.activeStoryId;
+    const story = getStory(state.project, storyId);
+    const scene = story.nodes.find((entry) => entry.id === sceneId);
+    if (!scene || !isSceneNode(scene)) return;
+
+    const before = getEndNodeLayout(story, sceneId) ?? null;
+    const after = mergeEndNodeLayout(before, patch, defaultEndNodePosition(scene.position));
+    if (endNodeLayoutsEqual(before, after)) return;
+
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateEndNodeLayout",
+        storyId,
+        sceneId,
+        before,
+        after,
+      },
+      {
+        ...options,
+        mergeKey: patch.position ? `end-node-position:${sceneId}` : options?.mergeKey,
+      }
+    );
   },
 
   updateNode: (nodeId, patch, options) => {

@@ -1,4 +1,4 @@
-import type { LocalePrompts, Project } from "./types";
+import type { EndNodeLayout, LocalePrompts, Project } from "./types";
 import type { PromptsByLocale } from "../locale/prompts";
 import { expressionBlobKey } from "../assets/actorExpressions";
 import { generateId, isObjectId, isReservedObjectId } from "./id";
@@ -149,6 +149,15 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
       } else if (oldEdgeId !== edge.id && edge.sourcePortId === `out-${oldEdgeId}`) {
         edge.sourcePortId = `out-${edge.id}`;
       }
+    }
+
+    if (story.endNodeLayouts) {
+      const nextLayouts: Record<string, EndNodeLayout> = {};
+      for (const [sceneId, layout] of Object.entries(story.endNodeLayouts)) {
+        const remappedSceneId = remap(sceneId, idMap) ?? sceneId;
+        nextLayouts[remappedSceneId] = layout;
+      }
+      story.endNodeLayouts = nextLayouts;
     }
   }
 

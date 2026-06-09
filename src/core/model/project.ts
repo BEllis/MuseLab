@@ -8,6 +8,7 @@ import type {
   ActorExpression,
   ModuleInterface,
   CitoType,
+  EndNodeLayout,
 } from "./types";
 import { getPlayEntryNodeId } from "./graphHierarchy";
 import {
@@ -37,6 +38,7 @@ import {
   migrateJumpNodeTargets,
 } from "./nodeNames";
 import { isJumpNode, isSceneNode, getStartNodes, migrateStoryNodes, normalizeStoryNode } from "./nodeTypes";
+import { pruneEndNodeLayouts, clearEndNodeLayout, setEndNodeLayout } from "./endNodeLayout";
 import { generateId } from "./id";
 
 export { generateId } from "./id";
@@ -373,6 +375,8 @@ export function removeNode(project: Project, storyId: string, nodeId: string): v
   if (story.entryNodeId === nodeId) {
     story.entryNodeId = undefined;
   }
+  clearEndNodeLayout(story, nodeId);
+  pruneEndNodeLayouts(story);
 }
 
 /** Update node position (e.g. after drag) */
@@ -384,6 +388,16 @@ export function updateNodePosition(
 ): void {
   const node = getStory(project, storyId).nodes.find((n) => n.id === nodeId);
   if (node) node.position = position;
+}
+
+/** Persist designer layout for a terminal scene's synthetic End node. */
+export function updateEndNodeLayout(
+  project: Project,
+  storyId: string,
+  sceneId: string,
+  layout: EndNodeLayout
+): void {
+  setEndNodeLayout(getStory(project, storyId), sceneId, layout);
 }
 
 /** Update a node's fields (partial) */
@@ -435,6 +449,7 @@ export function addEdge(
     condition: options?.condition,
   };
   story.edges.push(edge);
+  pruneEndNodeLayouts(story);
   return edge;
 }
 
@@ -471,6 +486,7 @@ export function normalizeStoryEdgeTargetPorts(story: Story): void {
 export function removeEdge(project: Project, storyId: string, edgeId: string): void {
   const story = getStory(project, storyId);
   story.edges = story.edges.filter((e) => e.id !== edgeId);
+  pruneEndNodeLayouts(story);
 }
 
 /** Update edge condition and routing metadata */
@@ -741,6 +757,7 @@ function toManifestStory(story: Story): Story {
     })),
     globalState: story.globalState,
     entryNodeId: story.entryNodeId,
+    endNodeLayouts: story.endNodeLayouts,
   };
 }
 

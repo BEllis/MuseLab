@@ -88,6 +88,13 @@ export interface StoryEdge {
   manualRoute?: boolean;
 }
 
+/** Designer layout for a synthetic End node attached to a terminal scene. */
+export interface EndNodeLayout {
+  position: { x: number; y: number };
+  vertices?: { x: number; y: number }[];
+  manualRoute?: boolean;
+}
+
 /** Per-story graph: scenes, links, and runtime initial state. */
 export interface Story {
   id: string;
@@ -98,6 +105,8 @@ export interface Story {
   globalState: Record<string, unknown>;
   /** Optional: id of the entry node; otherwise first node */
   entryNodeId?: string;
+  /** Terminal-scene End node layout keyed by scene id (designer-only). */
+  endNodeLayouts?: Record<string, EndNodeLayout>;
 }
 
 /** Localized text content stored in prompts.<locale>.json */
