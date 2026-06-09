@@ -37,11 +37,9 @@ import {
   migrateJumpNodeTargets,
 } from "./nodeNames";
 import { isJumpNode, isSceneNode, getStartNodes, migrateStoryNodes, normalizeStoryNode } from "./nodeTypes";
+import { generateId } from "./id";
 
-/** Generate a unique id (simple nanoid-style) */
-export function generateId(): string {
-  return Math.random().toString(36).slice(2, 11);
-}
+export { generateId } from "./id";
 
 export function getStory(project: Project, storyId: string): Story {
   const story = project.stories.find((entry) => entry.id === storyId);

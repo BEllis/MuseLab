@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("set-window-size", width, height),
   getUserSettings: () =>
     ipcRenderer.invoke("get-user-settings") as Promise<{ theme?: "light" | "dark" }>,
+  readAutosave: () => ipcRenderer.invoke("read-autosave") as Promise<string | null>,
+  writeAutosave: (payload: string) => ipcRenderer.invoke("write-autosave", payload) as Promise<void>,
   getPlayerLocale: (projectKey: string) =>
     ipcRenderer.invoke("get-player-locale", projectKey) as Promise<string | null>,
   setPlayerLocale: (projectKey: string, locale: string) =>

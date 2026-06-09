@@ -7,33 +7,16 @@ import {
   addNode as addNodeInProject,
   type AddNodeOptions,
   cloneNode as cloneNodeInProject,
-  removeNode as removeNodeInProject,
-  updateNodePosition as updateNodePositionInProject,
-  updateNode as updateNodeInProject,
   addEdge as addEdgeInProject,
-  removeEdge as removeEdgeInProject,
-  updateEdge as updateEdgeInProject,
   addAsset as addAssetInProject,
   addBlankActor as addBlankActorInProject,
   addActorFromImage as addActorFromImageInProject,
   addActorExpression as addActorExpressionInProject,
-  updateActorExpression as updateActorExpressionInProject,
-  replaceActorExpressionMedia as replaceActorExpressionMediaInProject,
-  removeActorExpression as removeActorExpressionInProject,
-  updateAsset as updateAssetInProject,
   replaceAssetMedia as replaceAssetMediaInProject,
-  updateProject as updateProjectInProject,
-  removeAsset as removeAssetInProject,
   getEntryNodeId,
   normalizeEdgeTargetPorts,
-  addLocaleToProject,
-  removeLocaleFromProject,
   addStory as addStoryInProject,
-  removeStory as removeStoryInProject,
-  updateStory as updateStoryInProject,
   addService as addServiceInProject,
-  removeService as removeServiceInProject,
-  updateService as updateServiceInProject,
   getStory,
   getFirstStoryId,
 } from "@/core/model/project";
@@ -51,11 +34,11 @@ import { hydrateLegacyEmbeddedAssets, hydrateProjectAssets } from "@/core/assets
 import {
   gcUnusedAssetBlobs,
   putAssetBlob,
+  remapAssetBlobKeys,
   revokeWebAssetObjectUrl,
   deleteAssetBlob,
 } from "@/core/assets/webAssetStorage";
 import { ensureDefaultBackdrop, canRemoveAsset, canReplaceAsset } from "@/core/assets/defaultBackdrop";
-import { parseAspectRatio } from "@/core/view/thumbnailAspectRatio";
 import {
   assertArchivePromptLocales,
   packProjectArchive,
@@ -64,44 +47,64 @@ import {
 import { setProjectArchiveBaseDir } from "@/core/project/projectRuntimeContext";
 import { fileToStoredBlob } from "@/core/assets/fileBlob";
 import { isElectron } from "@/utils/isElectron";
+import { applyEvent } from "@/core/events/applyEvent";
+import type { AppState } from "@/core/events/appState";
 import {
-  beginHistoryTransaction as beginHistoryTransactionState,
-  canRedoHistory,
-  canUndoHistory,
-  cancelHistoryTransaction as cancelHistoryTransactionState,
-  clearHistory,
-  collectAssetIdsFromHistory,
+  captureNodePatch,
+  captureProjectPatch,
+  captureRemoveEdgePayload,
+  captureRemoveNodePayload,
+  captureRemoveStoryPayload,
+  captureStoryPatch,
+  captureNodePromptsByLocale,
+  buildEmptySelection,
+  buildNavigationAfterAddStory,
+  buildNavigationAfterSwitchStory,
+  buildSelectionAfterGraphSelection,
+  buildSelectionAfterSelectAsset,
+  buildSelectionAfterSelectService,
+  createEventMeta,
+  getNavigationSnapshot,
+  getSelectionSnapshot,
+} from "@/core/events/capture";
+import {
+  beginEventTransaction,
+  canRedoEventLog,
+  canUndoEventLog,
+  cancelEventTransaction,
+  clearEventLog,
+  commitEventTransaction,
+  flushEventLogCoalesce,
+  getRedoEvent,
+  getUndoEvent,
+  recordEvent,
+  shouldRecordEvent,
+  stepEventLogCursor,
+  type EventLogState,
+} from "@/core/events/eventLog";
+import {
+  collectAssetIdsFromEventLog,
   collectAssetIdsFromProject,
-  commitHistoryTransaction as commitHistoryTransactionState,
-  createHistoryState,
-  flushHistoryCoalesce,
-  pushHistoryFromSnapshot,
-  recordHistorySnapshot,
-  redoHistory,
-  shouldRecordHistory,
-  undoHistory,
-  type HistoryState,
-} from "@/core/history/projectHistory";
+} from "@/core/events/eventLogAssets";
+import {
+  emptyStoredSession,
+  type StoredProjectSession,
+} from "@/core/events/persistedSession";
+import type { AppEvent } from "@/core/events/types";
+import { eventTouchesActiveStory, eventTouchesProjectData } from "@/core/events/types";
 import {
   cloneProjectBundle,
   migrateProjectBundle,
   parseStoredProjectPayload,
   serializeProjectBundleSnapshot,
-  serializeStoredProjectPayload,
 } from "@/core/model/projectBundle";
 import {
   cloneNodePrompts,
   createEmptyLocalePrompts,
-  ensureLocalePrompts,
   ensurePromptsForProjectLocales,
   ensureStoryPromptsForAllLocales,
-  removeEdgeFromAllLocales,
-  removeLocaleFromPrompts,
-  removeNodeFromAllLocales,
-  removeStoryFromAllLocales,
-  setEdgeOptionText,
-  setNodeSpeaker,
-  setNodeTextTemplate,
+  getNodeSpeaker,
+  getNodeTextTemplate,
   type PromptsByLocale,
 } from "@/core/locale/prompts";
 import { assertValidLocaleTag } from "@/core/locale/localeTag";
@@ -109,8 +112,15 @@ import {
   validateStoredProjectJson,
   validateUnpackedArchive,
 } from "@/core/project/loadValidation";
+import {
+  loadAutosaveFromLocalStorage,
+  loadAutosaveFromPersistence,
+  readLegacyThumbnailAspectRatio,
+  saveAutosaveToPersistence,
+  serializeAutosavePayload,
+  type LoadedAutosave,
+} from "@/core/persistence/projectAutosave";
 
-const STORAGE_KEY = "muselab-project";
 const PERSIST_DEBOUNCE_MS = 400;
 
 export type MutationOptions = {
@@ -119,30 +129,9 @@ export type MutationOptions = {
 };
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
-let isApplyingHistory = false;
-
-function loadBundleFromStorage(): {
-  bundle: ReturnType<typeof migrateProjectBundle>;
-  loadWarnings: string[];
-} {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const loadWarnings = validateStoredProjectJson(raw);
-      const bundle = sanitizeLoadedBundle(parseStoredProjectPayload(raw));
-      if (serializeStoredProjectPayload(bundle) !== raw) {
-        void saveToStorageNow(bundle);
-      }
-      return { bundle, loadWarnings };
-    }
-  } catch {
-    // ignore
-  }
-  const project = createEmptyProject();
-  return { bundle: migrateProjectBundle(project), loadWarnings: [] };
-}
-
-const LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY = "muselab-thumbnail-aspect-ratio";
+let persistGetState: (() => ProjectState) | null = null;
+let isApplyingEvent = false;
+let pendingBlobKeyRemappings: Array<{ from: string; to: string }> = [];
 
 function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
   for (const asset of bundle.project.assets) {
@@ -152,17 +141,7 @@ function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
   }
   ensureDefaultBackdrop(bundle.project);
   normalizeEdgeTargetPorts(bundle.project);
-  if (!bundle.project.thumbnailAspectRatio) {
-    try {
-      const raw = localStorage.getItem(LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY);
-      if (raw) {
-        const parsed = parseAspectRatio(JSON.parse(raw));
-        if (parsed) bundle.project.thumbnailAspectRatio = parsed;
-      }
-    } catch {
-      // ignore
-    }
-  }
+  readLegacyThumbnailAspectRatio(bundle.project);
   bundle.promptsByLocale = ensurePromptsForProjectLocales(
     bundle.project,
     bundle.promptsByLocale
@@ -170,63 +149,146 @@ function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
   return bundle;
 }
 
-async function saveToStorageNow(bundle: ReturnType<typeof migrateProjectBundle>): Promise<void> {
-  try {
-    localStorage.setItem(STORAGE_KEY, serializeStoredProjectPayload(bundle));
-  } catch {
-    // ignore
+function prepareLoadedAutosave(loaded: LoadedAutosave): {
+  bundle: ReturnType<typeof migrateProjectBundle>;
+  session: StoredProjectSession;
+  loadWarnings: string[];
+  lastSavedSnapshot: string;
+} {
+  const bundle = sanitizeLoadedBundle(loaded.bundle);
+  pendingBlobKeyRemappings = bundle.blobKeyRemappings ?? [];
+  bundle.blobKeyRemappings = [];
+  const session = sanitizeLoadedSession(
+    bundle.project,
+    loaded.session ?? emptyStoredSession(getFirstStoryId(bundle.project))
+  );
+  const lastSavedSnapshot = serializeProjectBundleSnapshot(bundle);
+  const normalizedPayload = serializeAutosavePayload({ bundle, session });
+  if (normalizedPayload !== loaded.raw) {
+    void saveAutosaveToPersistence({ bundle, session });
+  }
+  return { bundle, session, loadWarnings: loaded.loadWarnings, lastSavedSnapshot };
+}
+
+function createFallbackInitialState(): {
+  bundle: ReturnType<typeof migrateProjectBundle>;
+  session: StoredProjectSession;
+  lastSavedSnapshot: string;
+  loadWarnings: string[];
+} {
+  const project = createEmptyProject();
+  const bundle = migrateProjectBundle(project);
+  const session = emptyStoredSession(getFirstStoryId(bundle.project));
+  return {
+    bundle,
+    session,
+    lastSavedSnapshot: serializeProjectBundleSnapshot(bundle),
+    loadWarnings: [],
+  };
+}
+
+function getModuleInitialState(): {
+  bundle: ReturnType<typeof migrateProjectBundle>;
+  session: StoredProjectSession;
+  lastSavedSnapshot: string;
+  loadWarnings: string[];
+} {
+  if (isElectron()) {
+    return createFallbackInitialState();
+  }
+  const loaded = loadAutosaveFromLocalStorage();
+  if (!loaded) return createFallbackInitialState();
+  return prepareLoadedAutosave(loaded);
+}
+
+async function applyBlobKeyRemappings(
+  bundle?: ReturnType<typeof migrateProjectBundle>
+): Promise<void> {
+  const remappings = [...pendingBlobKeyRemappings, ...(bundle?.blobKeyRemappings ?? [])];
+  pendingBlobKeyRemappings = [];
+  if (bundle) bundle.blobKeyRemappings = [];
+  if (!remappings.length) return;
+  if (!isElectron()) {
+    await remapAssetBlobKeys(remappings);
   }
 }
 
-function scheduleSaveToStorage(bundle: ReturnType<typeof migrateProjectBundle>): void {
-  if (persistTimer) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    void saveToStorageNow(bundle);
-  }, PERSIST_DEBOUNCE_MS);
+async function saveProjectStateToStorage(state: {
+  bundle: ReturnType<typeof migrateProjectBundle>;
+  session: StoredProjectSession;
+}): Promise<void> {
+  await saveAutosaveToPersistence(state);
 }
 
 function getBundle(state: Pick<ProjectState, "project" | "promptsByLocale">) {
   return { project: state.project, promptsByLocale: state.promptsByLocale };
 }
 
-function collectRetainedAssetIds(history: HistoryState, project: Project): Set<string> {
+function getStoredSessionFromState(state: ProjectState): StoredProjectSession {
+  return {
+    activeStoryId: state.activeStoryId,
+    selectedNodeIds: state.selectedNodeIds,
+    selectedEdgeIds: state.selectedEdgeIds,
+    selectedAssetId: state.selectedAssetId,
+    selectedServiceId: state.selectedServiceId,
+    highlightedRootNodeIds: state.highlightedRootNodeIds,
+    eventLog: state.eventLog,
+  };
+}
+
+function sanitizeLoadedSession(
+  project: Project,
+  session: StoredProjectSession
+): StoredProjectSession {
+  const activeStoryId = resolveActiveStoryId(project, session.activeStoryId);
+  const story = project.stories.find((entry) => entry.id === activeStoryId);
+  const nodeIds = new Set(story?.nodes.map((node) => node.id) ?? []);
+  const edgeIds = new Set(story?.edges.map((edge) => edge.id) ?? []);
+  const assetIds = new Set(project.assets.map((asset) => asset.id));
+  const serviceIds = new Set((project.services ?? []).map((service) => service.id));
+
+  return {
+    activeStoryId,
+    selectedNodeIds: session.selectedNodeIds.filter((id) => nodeIds.has(id)),
+    selectedEdgeIds: session.selectedEdgeIds.filter((id) => edgeIds.has(id)),
+    selectedAssetId:
+      session.selectedAssetId && assetIds.has(session.selectedAssetId)
+        ? session.selectedAssetId
+        : null,
+    selectedServiceId:
+      session.selectedServiceId && serviceIds.has(session.selectedServiceId)
+        ? session.selectedServiceId
+        : null,
+    highlightedRootNodeIds: session.highlightedRootNodeIds.filter((id) => nodeIds.has(id)),
+    eventLog: session.eventLog,
+  };
+}
+
+function scheduleSaveToStorage(get: () => ProjectState): void {
+  persistGetState = get;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    const state = persistGetState?.() ?? get();
+    void saveProjectStateToStorage({
+      bundle: getBundle(state),
+      session: getStoredSessionFromState(state),
+    });
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+function collectRetainedAssetIds(eventLog: EventLogState, project: Project): Set<string> {
   const ids = collectAssetIdsFromProject(project);
-  for (const id of collectAssetIdsFromHistory(history)) {
+  for (const id of collectAssetIdsFromEventLog(eventLog)) {
     ids.add(id);
   }
   return ids;
 }
 
-function scheduleAssetBlobGc(history: HistoryState, project: Project): void {
+function scheduleAssetBlobGc(eventLog: EventLogState, project: Project): void {
   if (isElectron()) return;
-  const keepIds = collectRetainedAssetIds(history, project);
+  const keepIds = collectRetainedAssetIds(eventLog, project);
   void gcUnusedAssetBlobs(keepIds);
-}
-
-function clampSelectionForProject(
-  project: Project,
-  activeStoryId: string,
-  selectedNodeIds: string[],
-  selectedEdgeIds: string[],
-  selectedAssetId: string | null
-): {
-  selectedNodeIds: string[];
-  selectedEdgeIds: string[];
-  selectedAssetId: string | null;
-} {
-  const story = project.stories.find((entry) => entry.id === activeStoryId);
-  if (!story) {
-    return { selectedNodeIds: [], selectedEdgeIds: [], selectedAssetId: null };
-  }
-  const nodeIds = new Set(story.nodes.map((node) => node.id));
-  const edgeIds = new Set(story.edges.map((edge) => edge.id));
-  const assetIds = new Set(project.assets.map((asset) => asset.id));
-  return {
-    selectedNodeIds: selectedNodeIds.filter((id) => nodeIds.has(id)),
-    selectedEdgeIds: selectedEdgeIds.filter((id) => edgeIds.has(id)),
-    selectedAssetId: selectedAssetId && assetIds.has(selectedAssetId) ? selectedAssetId : null,
-  };
 }
 
 export function selectActiveStory(project: Project, activeStoryId: string | null): Story {
@@ -244,10 +306,53 @@ function resolveActiveStoryId(project: Project, activeStoryId: string | null): s
   return getFirstStoryId(project);
 }
 
-function historyFlags(history: HistoryState): { canUndo: boolean; canRedo: boolean } {
+function eventLogFlags(eventLog: EventLogState): { canUndo: boolean; canRedo: boolean } {
   return {
-    canUndo: canUndoHistory(history),
-    canRedo: canRedoHistory(history),
+    canUndo: canUndoEventLog(eventLog),
+    canRedo: canRedoEventLog(eventLog),
+  };
+}
+
+function getAppState(state: Pick<
+  ProjectState,
+  | "project"
+  | "promptsByLocale"
+  | "activeStoryId"
+  | "selectedNodeIds"
+  | "selectedEdgeIds"
+  | "selectedAssetId"
+  | "selectedServiceId"
+  | "highlightedRootNodeIds"
+>): AppState {
+  return {
+    project: state.project,
+    promptsByLocale: state.promptsByLocale,
+    activeStoryId: state.activeStoryId,
+    selectedNodeIds: state.selectedNodeIds,
+    selectedEdgeIds: state.selectedEdgeIds,
+    selectedAssetId: state.selectedAssetId,
+    selectedServiceId: state.selectedServiceId,
+    highlightedRootNodeIds: state.highlightedRootNodeIds,
+  };
+}
+
+function applyAppStateToStore(
+  after: AppState,
+  eventLog: EventLogState,
+  graphRevision?: number
+): Partial<ProjectState> {
+  return {
+    project: after.project,
+    promptsByLocale: after.promptsByLocale,
+    activeStoryId: after.activeStoryId,
+    selectedNodeIds: after.selectedNodeIds,
+    selectedEdgeIds: after.selectedEdgeIds,
+    selectedAssetId: after.selectedAssetId,
+    selectedServiceId: after.selectedServiceId,
+    highlightedRootNodeIds: after.highlightedRootNodeIds,
+    eventLog,
+    ...eventLogFlags(eventLog),
+    ...(graphRevision !== undefined ? { graphRevision } : {}),
   };
 }
 
@@ -266,7 +371,7 @@ interface ProjectState {
   loadWarnings: string[];
   /** Bumped on undo/redo so the graph canvas can force a full resync. */
   graphRevision: number;
-  history: HistoryState;
+  eventLog: EventLogState;
   canUndo: boolean;
   canRedo: boolean;
   setProject: (project: Project) => void;
@@ -409,21 +514,14 @@ interface ProjectState {
 
 function getInitialState(): {
   bundle: ReturnType<typeof migrateProjectBundle>;
+  session: StoredProjectSession;
   lastSavedSnapshot: string;
-  activeStoryId: string;
   loadWarnings: string[];
 } {
-  const { bundle, loadWarnings } = loadBundleFromStorage();
-  return {
-    bundle,
-    lastSavedSnapshot: serializeProjectBundleSnapshot(bundle),
-    activeStoryId: getFirstStoryId(bundle.project),
-    loadWarnings,
-  };
+  return getModuleInitialState();
 }
 
 const initialState = getInitialState();
-const initialHistory = createHistoryState();
 
 function maybeClearPlayHighlight(
   project: Project,
@@ -438,136 +536,132 @@ function maybeClearPlayHighlight(
   }
 }
 
-function mutateBundle(
+function dispatchEvent(
   get: () => ProjectState,
   set: (partial: Partial<ProjectState>) => void,
-  recipe: (bundle: ReturnType<typeof migrateProjectBundle>) => void,
+  event: AppEvent,
   options?: MutationOptions
-): ReturnType<typeof migrateProjectBundle> {
+): AppState {
   const state = get();
-  let history = state.history;
-  const beforeBundle = getBundle(state);
+  const before = getAppState(state);
+  const after = applyEvent(before, event, "forward");
 
-  if (!isApplyingHistory && shouldRecordHistory(history, options)) {
-    history = recordHistorySnapshot(history, beforeBundle, options?.mergeKey);
+  let eventLog = state.eventLog;
+  if (!isApplyingEvent && shouldRecordEvent(eventLog, options)) {
+    eventLog = recordEvent(eventLog, event, { mergeKey: options?.mergeKey });
   }
 
-  const bundle = cloneProjectBundle(beforeBundle);
-  recipe(bundle);
-  bundle.promptsByLocale = ensurePromptsForProjectLocales(bundle.project, bundle.promptsByLocale);
-  set({
-    project: bundle.project,
-    promptsByLocale: bundle.promptsByLocale,
-    history,
-    ...historyFlags(history),
-  });
-  scheduleSaveToStorage(bundle);
-  maybeClearPlayHighlight(bundle.project, get().activeStoryId, get, set);
-  scheduleAssetBlobGc(history, bundle.project);
-  return bundle;
+  const graphRevision = eventTouchesActiveStory(event)
+    ? state.graphRevision + 1
+    : undefined;
+  set(applyAppStateToStore(after, eventLog, graphRevision));
+  scheduleSaveToStorage(get);
+  maybeClearPlayHighlight(after.project, after.activeStoryId, get, set);
+  scheduleAssetBlobGc(eventLog, after.project);
+  return after;
 }
 
-function applyHistoryRestore(
+function applyEventStep(
   get: () => ProjectState,
   set: (partial: Partial<ProjectState>) => void,
-  bundle: ReturnType<typeof migrateProjectBundle>,
-  history: HistoryState
+  direction: "forward" | "backward"
 ): void {
-  isApplyingHistory = true;
+  const state = get();
+  const event =
+    direction === "backward" ? getUndoEvent(state.eventLog) : getRedoEvent(state.eventLog);
+  if (!event) return;
+
+  isApplyingEvent = true;
   try {
-    const state = get();
-    const selection = clampSelectionForProject(
-      bundle.project,
-      resolveActiveStoryId(bundle.project, state.activeStoryId),
-      state.selectedNodeIds,
-      state.selectedEdgeIds,
-      state.selectedAssetId
-    );
-    const restored = cloneProjectBundle(bundle);
-    const activeStoryId = resolveActiveStoryId(restored.project, state.activeStoryId);
-    set({
-      project: restored.project,
-      promptsByLocale: restored.promptsByLocale,
-      activeStoryId,
-      graphRevision: state.graphRevision + 1,
-      history,
-      ...historyFlags(history),
-      ...selection,
-    });
-    scheduleSaveToStorage(restored);
-    maybeClearPlayHighlight(restored.project, activeStoryId, get, set);
-    scheduleAssetBlobGc(history, restored.project);
+    const before = getAppState(state);
+    const after = applyEvent(before, event, direction === "backward" ? "backward" : "forward");
+    const eventLog = stepEventLogCursor(state.eventLog, direction === "backward" ? -1 : 1);
+    const bumpGraph =
+      eventTouchesProjectData(event) || eventTouchesActiveStory(event) ? state.graphRevision + 1 : state.graphRevision;
+    set(applyAppStateToStore(after, eventLog, bumpGraph));
+    scheduleSaveToStorage(get);
+    maybeClearPlayHighlight(after.project, after.activeStoryId, get, set);
+    scheduleAssetBlobGc(eventLog, after.project);
   } finally {
-    isApplyingHistory = false;
+    isApplyingEvent = false;
   }
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   project: initialState.bundle.project,
   promptsByLocale: initialState.bundle.promptsByLocale,
-  activeStoryId: initialState.activeStoryId,
+  activeStoryId: initialState.session.activeStoryId,
   lastSavedSnapshot: initialState.lastSavedSnapshot,
   projectArchiveBaseDir: null,
   loadedMlvnPath: null,
-  selectedNodeIds: [],
-  selectedEdgeIds: [],
-  selectedAssetId: null,
-  selectedServiceId: null,
-  highlightedRootNodeIds: [],
+  selectedNodeIds: initialState.session.selectedNodeIds,
+  selectedEdgeIds: initialState.session.selectedEdgeIds,
+  selectedAssetId: initialState.session.selectedAssetId,
+  selectedServiceId: initialState.session.selectedServiceId,
+  highlightedRootNodeIds: initialState.session.highlightedRootNodeIds,
   loadWarnings: initialState.loadWarnings,
   graphRevision: 0,
-  history: initialHistory,
-  canUndo: false,
-  canRedo: false,
+  eventLog: initialState.session.eventLog,
+  canUndo: canUndoEventLog(initialState.session.eventLog),
+  canRedo: canRedoEventLog(initialState.session.eventLog),
 
   setProject: (project) => {
     const bundle = migrateProjectBundle(project, get().promptsByLocale);
-    const history = clearHistory(get().history);
+    const eventLog = clearEventLog(get().eventLog);
     const activeStoryId = resolveActiveStoryId(bundle.project, get().activeStoryId);
     set({
       project: bundle.project,
       promptsByLocale: bundle.promptsByLocale,
       activeStoryId,
-      history,
-      ...historyFlags(history),
+      eventLog,
+      ...eventLogFlags(eventLog),
     });
-    scheduleSaveToStorage(bundle);
+    scheduleSaveToStorage(get);
     maybeClearPlayHighlight(bundle.project, activeStoryId, get, set);
-    scheduleAssetBlobGc(history, bundle.project);
+    scheduleAssetBlobGc(eventLog, bundle.project);
   },
 
   updateProject: (patch, options) => {
-    mutateBundle(get, set, (bundle) => updateProjectInProject(bundle.project, patch), options);
+    const state = get();
+    const before = captureProjectPatch(state.project, patch);
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateProject",
+        before,
+        after: patch,
+      },
+      options
+    );
   },
 
   setActiveStoryId: (storyId) => {
-    const project = get().project;
-    if (!project.stories.some((story) => story.id === storyId)) return;
-    if (get().activeStoryId === storyId) return;
-    set({
-      activeStoryId: storyId,
-      selectedNodeIds: [],
-      selectedEdgeIds: [],
-      selectedAssetId: null,
-      selectedServiceId: null,
-      highlightedRootNodeIds: [],
-      graphRevision: get().graphRevision + 1,
+    const state = get();
+    if (!state.project.stories.some((story) => story.id === storyId)) return;
+    if (state.activeStoryId === storyId) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "setActiveStoryId",
+      before: getNavigationSnapshot(getAppState(state)),
+      after: buildNavigationAfterSwitchStory(getAppState(state), storyId),
     });
   },
 
   addStory: (name) => {
-    let story!: Story;
-    mutateBundle(get, set, (bundle) => {
-      story = addStoryInProject(bundle.project, name);
-      ensureStoryPromptsForAllLocales(bundle.promptsByLocale, bundle.project, story.id);
-    });
-    set({
-      activeStoryId: story.id,
-      selectedNodeIds: [],
-      selectedEdgeIds: [],
-      selectedAssetId: null,
-      selectedServiceId: null,
-      graphRevision: get().graphRevision + 1,
+    const state = get();
+    const bundle = cloneProjectBundle(getBundle(state));
+    const story = addStoryInProject(bundle.project, name);
+    ensureStoryPromptsForAllLocales(bundle.promptsByLocale, bundle.project, story.id);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addStory",
+      before: getNavigationSnapshot(getAppState(state)),
+      after: {
+        story,
+        navigation: buildNavigationAfterAddStory(getAppState(state), story.id),
+      },
     });
     return story;
   },
@@ -577,148 +671,218 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (state.project.stories.length <= 1) {
       throw new Error("Cannot remove the last story");
     }
-    mutateBundle(get, set, (bundle) => {
-      removeStoryInProject(bundle.project, storyId);
-      removeStoryFromAllLocales(bundle.promptsByLocale, storyId);
-    });
+    const payload = captureRemoveStoryPayload(getAppState(state), storyId);
     const nextActiveStoryId =
-      state.activeStoryId === storyId
-        ? getFirstStoryId(get().project)
-        : state.activeStoryId;
-    set({
-      activeStoryId: nextActiveStoryId,
-      selectedNodeIds: [],
-      selectedEdgeIds: [],
-      selectedAssetId: null,
+      state.activeStoryId === storyId ? getFirstStoryId(state.project) : state.activeStoryId;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeStory",
+      before: {
+        ...payload,
+        navigation: getNavigationSnapshot(getAppState(state)),
+      },
+      after: {
+        ...getNavigationSnapshot(getAppState(state)),
+        activeStoryId: nextActiveStoryId,
+        selectedNodeIds: [],
+        selectedEdgeIds: [],
+        selectedAssetId: null,
+        selectedServiceId: state.selectedServiceId,
+        highlightedRootNodeIds: [],
+      },
     });
   },
 
   updateStory: (storyId, patch, options) => {
-    mutateBundle(
+    const state = get();
+    dispatchEvent(
       get,
       set,
-      (bundle) => updateStoryInProject(bundle.project, storyId, patch),
+      {
+        ...createEventMeta(),
+        type: "updateStory",
+        storyId,
+        before: captureStoryPatch(state.project, storyId, patch),
+        after: patch,
+      },
       options
     );
   },
 
-  setSelection: (nodeIds, edgeIds) =>
-    set({
-      selectedNodeIds: nodeIds,
-      selectedEdgeIds: edgeIds,
-      selectedAssetId: null,
-      selectedServiceId: null,
-    }),
-  setSelectedAssetId: (assetId) =>
-    set({
-      selectedAssetId: assetId,
-      selectedNodeIds: [],
-      selectedEdgeIds: [],
-      selectedServiceId: null,
-    }),
-  setSelectedServiceId: (serviceId) =>
-    set({
-      selectedServiceId: serviceId,
-      selectedNodeIds: [],
-      selectedEdgeIds: [],
-      selectedAssetId: null,
-    }),
-  addService: (name) => {
-    let service!: ServiceInterface;
-    mutateBundle(get, set, (bundle) => {
-      service = addServiceInProject(bundle.project, name);
+  setSelection: (nodeIds, edgeIds) => {
+    const state = get();
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "setSelection",
+      before: getSelectionSnapshot(getAppState(state)),
+      after: buildSelectionAfterGraphSelection(nodeIds, edgeIds),
     });
-    set({ selectedServiceId: service.id });
+  },
+  setSelectedAssetId: (assetId) => {
+    const state = get();
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "setSelectedAssetId",
+      before: getSelectionSnapshot(getAppState(state)),
+      after: buildSelectionAfterSelectAsset(assetId),
+    });
+  },
+  setSelectedServiceId: (serviceId) => {
+    const state = get();
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "setSelectedServiceId",
+      before: getSelectionSnapshot(getAppState(state)),
+      after: buildSelectionAfterSelectService(serviceId),
+    });
+  },
+  addService: (name) => {
+    const state = get();
+    const bundle = cloneProjectBundle(getBundle(state));
+    const service = addServiceInProject(bundle.project, name);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addService",
+      before: getSelectionSnapshot(getAppState(state)),
+      after: {
+        service,
+        navigation: buildSelectionAfterSelectService(service.id),
+      },
+    });
     return service;
   },
   removeService: (serviceId) => {
-    mutateBundle(get, set, (bundle) => removeServiceInProject(bundle.project, serviceId));
-    if (get().selectedServiceId === serviceId) {
-      set({ selectedServiceId: null });
-    }
+    const state = get();
+    const service = state.project.services?.find((entry) => entry.id === serviceId);
+    if (!service) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeService",
+      before: {
+        service: JSON.parse(JSON.stringify(service)) as ServiceInterface,
+        navigation: getSelectionSnapshot(getAppState(state)),
+      },
+      after: buildSelectionAfterSelectService(
+        state.selectedServiceId === serviceId ? null : state.selectedServiceId
+      ),
+    });
   },
   updateService: (serviceId, patch, options) => {
-    mutateBundle(
+    const state = get();
+    const service = state.project.services?.find((entry) => entry.id === serviceId);
+    if (!service) return;
+    const before: Partial<
+      Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+    > = {};
+    for (const key of Object.keys(patch) as Array<
+      keyof Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+    >) {
+      before[key] = JSON.parse(JSON.stringify(service[key])) as never;
+    }
+    dispatchEvent(
       get,
       set,
-      (bundle) => updateServiceInProject(bundle.project, serviceId, patch),
+      {
+        ...createEventMeta(),
+        type: "updateService",
+        serviceId,
+        before,
+        after: patch,
+      },
       options
     );
   },
-  clearSelection: () =>
-    set({
-      selectedNodeIds: [],
-      selectedEdgeIds: [],
-      selectedAssetId: null,
-      selectedServiceId: null,
-    }),
-  setHighlightedRootNodeIds: (ids) => set({ highlightedRootNodeIds: ids }),
-  clearPlayValidationHighlight: () => set({ highlightedRootNodeIds: [] }),
+  clearSelection: () => {
+    const state = get();
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "clearSelection",
+      before: getSelectionSnapshot(getAppState(state)),
+      after: buildEmptySelection(),
+    });
+  },
+  setHighlightedRootNodeIds: (ids) => {
+    const state = get();
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "setHighlightedRootNodeIds",
+      before: [...state.highlightedRootNodeIds],
+      after: [...ids],
+    });
+  },
+  clearPlayValidationHighlight: () => {
+    const state = get();
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "clearPlayValidationHighlight",
+      before: [...state.highlightedRootNodeIds],
+      after: [],
+    });
+  },
 
   dismissLoadWarnings: () => set({ loadWarnings: [] }),
 
   flushHistoryCoalesce: () => {
-    const history = flushHistoryCoalesce(get().history);
-    if (history === get().history) return;
-    set({ history, ...historyFlags(history) });
+    const eventLog = flushEventLogCoalesce(get().eventLog);
+    if (eventLog === get().eventLog) return;
+    set({ eventLog, ...eventLogFlags(eventLog) });
+    scheduleSaveToStorage(get);
   },
 
   beginHistoryTransaction: () => {
-    const history = beginHistoryTransactionState(get().history, getBundle(get()));
-    set({ history });
+    const eventLog = beginEventTransaction(get().eventLog);
+    set({ eventLog });
   },
 
   commitHistoryTransaction: () => {
-    const { history, shouldRecord, snapshot } = commitHistoryTransactionState(get().history);
-    let nextHistory = history;
-    if (shouldRecord && snapshot) {
-      nextHistory = pushHistoryFromSnapshot(history, snapshot);
-    }
-    set({ history: nextHistory, ...historyFlags(nextHistory) });
+    const { log } = commitEventTransaction(get().eventLog);
+    set({ eventLog: log, ...eventLogFlags(log) });
+    scheduleSaveToStorage(get);
   },
 
   cancelHistoryTransaction: () => {
-    const history = cancelHistoryTransactionState(get().history);
-    set({ history });
+    const eventLog = cancelEventTransaction(get().eventLog);
+    set({ eventLog });
   },
 
-  undo: () => {
-    const state = get();
-    const { history, bundle } = undoHistory(state.history, getBundle(state));
-    if (!bundle) return;
-    applyHistoryRestore(get, set, bundle, history);
-  },
+  undo: () => applyEventStep(get, set, "backward"),
 
-  redo: () => {
-    const state = get();
-    const { history, bundle } = redoHistory(state.history, getBundle(state));
-    if (!bundle) return;
-    applyHistoryRestore(get, set, bundle, history);
-  },
+  redo: () => applyEventStep(get, set, "forward"),
 
-  loadFromStorage: () => {
-    const { bundle, lastSavedSnapshot, activeStoryId } = getInitialState();
-    const history = clearHistory(get().history);
+  loadFromStorage: async () => {
+    const loaded = await loadAutosaveFromPersistence();
+    if (!loaded) return;
+    const prepared = prepareLoadedAutosave(loaded);
     set({
-      project: bundle.project,
-      promptsByLocale: bundle.promptsByLocale,
-      activeStoryId,
-      lastSavedSnapshot,
-      history,
-      ...historyFlags(history),
+      project: prepared.bundle.project,
+      promptsByLocale: prepared.bundle.promptsByLocale,
+      activeStoryId: prepared.session.activeStoryId,
+      selectedNodeIds: prepared.session.selectedNodeIds,
+      selectedEdgeIds: prepared.session.selectedEdgeIds,
+      selectedAssetId: prepared.session.selectedAssetId,
+      selectedServiceId: prepared.session.selectedServiceId,
+      highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
+      lastSavedSnapshot: prepared.lastSavedSnapshot,
+      loadWarnings: prepared.loadWarnings,
+      eventLog: prepared.session.eventLog,
+      ...eventLogFlags(prepared.session.eventLog),
     });
   },
 
   saveToStorage: () => {
-    void saveToStorageNow(getBundle(get()));
+    void saveProjectStateToStorage({
+      bundle: getBundle(get()),
+      session: getStoredSessionFromState(get()),
+    });
   },
 
   newProject: (name) => {
     const project = createStarterProject(name);
     const bundle = migrateProjectBundle(project);
     const snapshot = serializeProjectBundleSnapshot(bundle);
-    const history = clearHistory(get().history);
+    const eventLog = clearEventLog(get().eventLog);
     const activeStoryId = getFirstStoryId(bundle.project);
+    const session = emptyStoredSession(activeStoryId);
     setProjectArchiveBaseDir(null);
     set({
       project: bundle.project,
@@ -730,33 +894,36 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
+      selectedServiceId: null,
       highlightedRootNodeIds: [],
       loadWarnings: [],
-      history,
-      ...historyFlags(history),
+      eventLog,
+      ...eventLogFlags(eventLog),
     });
-    void saveToStorageNow(bundle);
-    scheduleAssetBlobGc(history, bundle.project);
+    void saveProjectStateToStorage({ bundle, session: { ...session, eventLog } });
+    scheduleAssetBlobGc(eventLog, bundle.project);
   },
 
   hydrateAssets: async () => {
-    isApplyingHistory = true;
+    isApplyingEvent = true;
     try {
       const bundle = cloneProjectBundle(getBundle(get()));
+      await applyBlobKeyRemappings();
       await hydrateLegacyEmbeddedAssets(bundle.project);
       set({ project: bundle.project, promptsByLocale: bundle.promptsByLocale });
-      scheduleSaveToStorage(bundle);
+      scheduleSaveToStorage(get);
     } finally {
-      isApplyingHistory = false;
+      isApplyingEvent = false;
     }
   },
 
   loadFromJson: async (json) => {
     const loadWarnings = validateStoredProjectJson(json);
     const bundle = sanitizeLoadedBundle(parseStoredProjectPayload(json));
+    await applyBlobKeyRemappings(bundle);
     await hydrateLegacyEmbeddedAssets(bundle.project);
     const snapshot = serializeProjectBundleSnapshot(bundle);
-    const history = clearHistory(get().history);
+    const eventLog = clearEventLog(get().eventLog);
     const activeStoryId = getFirstStoryId(bundle.project);
     setProjectArchiveBaseDir(null);
     set({
@@ -769,13 +936,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
+      selectedServiceId: null,
       highlightedRootNodeIds: [],
       loadWarnings,
-      history,
-      ...historyFlags(history),
+      eventLog,
+      ...eventLogFlags(eventLog),
     });
-    scheduleSaveToStorage(bundle);
-    scheduleAssetBlobGc(history, bundle.project);
+    scheduleSaveToStorage(get);
+    scheduleAssetBlobGc(eventLog, bundle.project);
   },
 
   loadFromArchive: async (data, mlvnPath = null) => {
@@ -789,9 +957,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       promptsByLocale[locale] = localePrompts;
     }
     const bundle = sanitizeLoadedBundle(migrateProjectBundle(project, promptsByLocale));
+    await applyBlobKeyRemappings(bundle);
     const baseDir = await hydrateProjectAssets(bundle.project, { files, mlvnPath });
     const snapshot = serializeProjectBundleSnapshot(bundle);
-    const history = clearHistory(get().history);
+    const eventLog = clearEventLog(get().eventLog);
     const activeStoryId = getFirstStoryId(bundle.project);
     setProjectArchiveBaseDir(baseDir);
     set({
@@ -804,13 +973,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
+      selectedServiceId: null,
       highlightedRootNodeIds: [],
       loadWarnings,
-      history,
-      ...historyFlags(history),
+      eventLog,
+      ...eventLogFlags(eventLog),
     });
-    scheduleSaveToStorage(bundle);
-    scheduleAssetBlobGc(history, bundle.project);
+    scheduleSaveToStorage(get);
+    scheduleAssetBlobGc(eventLog, bundle.project);
   },
 
   exportArchive: async () => packProjectArchive(getBundle(get())),
@@ -822,122 +992,237 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   addNode: (position, options) => {
-    const storyId = get().activeStoryId;
+    const state = get();
+    const storyId = state.activeStoryId;
     const type: StoryNodeType = options?.type ?? "scene";
-    let node!: StoryNode;
-    mutateBundle(get, set, (bundle) => {
-      node = addNodeInProject(bundle.project, storyId, position, type);
+    const bundle = cloneProjectBundle(getBundle(state));
+    const node = addNodeInProject(bundle.project, storyId, position, type);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addNode",
+      storyId,
+      before: null,
+      after: node,
     });
     return node;
   },
 
   cloneNode: (nodeId, position) => {
-    const storyId = get().activeStoryId;
-    let node: StoryNode | null = null;
-    mutateBundle(get, set, (bundle) => {
-      node = cloneNodeInProject(bundle.project, storyId, nodeId, position);
-      if (node) {
-        cloneNodePrompts(bundle.promptsByLocale, storyId, nodeId, node.id);
-      }
+    const state = get();
+    const storyId = state.activeStoryId;
+    const bundle = cloneProjectBundle(getBundle(state));
+    const node = cloneNodeInProject(bundle.project, storyId, nodeId, position);
+    if (!node) return null;
+    cloneNodePrompts(bundle.promptsByLocale, storyId, nodeId, node.id);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "cloneNode",
+      storyId,
+      sourceNodeId: nodeId,
+      before: null,
+      after: {
+        node,
+        nodePromptsByLocale: captureNodePromptsByLocale(
+          bundle.promptsByLocale,
+          bundle.project.locales,
+          storyId,
+          node.id
+        ),
+      },
     });
     return node;
   },
 
   removeNode: (nodeId) => {
-    const storyId = get().activeStoryId;
-    mutateBundle(get, set, (bundle) => {
-      removeNodeInProject(bundle.project, storyId, nodeId);
-      removeNodeFromAllLocales(bundle.promptsByLocale, storyId, nodeId);
+    const state = get();
+    const storyId = state.activeStoryId;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeNode",
+      storyId,
+      before: captureRemoveNodePayload(getAppState(state), storyId, nodeId),
+      after: null,
     });
   },
 
   updateNodePosition: (nodeId, position) => {
-    const storyId = get().activeStoryId;
-    mutateBundle(get, set, (bundle) =>
-      updateNodePositionInProject(bundle.project, storyId, nodeId, position)
-    );
+    const state = get();
+    const storyId = state.activeStoryId;
+    const node = getStory(state.project, storyId).nodes.find((entry) => entry.id === nodeId);
+    if (!node) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "updateNodePosition",
+      storyId,
+      nodeId,
+      before: { ...node.position },
+      after: position,
+    });
   },
 
   updateNode: (nodeId, patch, options) => {
-    const storyId = get().activeStoryId;
-    mutateBundle(
+    const state = get();
+    const storyId = state.activeStoryId;
+    dispatchEvent(
       get,
       set,
-      (bundle) => updateNodeInProject(bundle.project, storyId, nodeId, patch),
+      {
+        ...createEventMeta(),
+        type: "updateNode",
+        storyId,
+        nodeId,
+        before: captureNodePatch(state.project, storyId, nodeId, patch),
+        after: patch,
+      },
       options
     );
   },
 
   updateNodePrompt: (locale, nodeId, textTemplate, options) => {
-    const storyId = get().activeStoryId;
+    const state = get();
+    const storyId = state.activeStoryId;
     const tag = assertValidLocaleTag(locale);
-    mutateBundle(get, set, (bundle) => {
-      const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
-      setNodeTextTemplate(prompts, storyId, nodeId, textTemplate);
-    }, options);
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateNodePrompt",
+        storyId,
+        locale: tag,
+        nodeId,
+        before: getNodeTextTemplate(state.promptsByLocale[tag], storyId, nodeId),
+        after: textTemplate,
+      },
+      options
+    );
   },
 
   updateNodeSpeaker: (locale, nodeId, speaker, options) => {
-    const storyId = get().activeStoryId;
+    const state = get();
+    const storyId = state.activeStoryId;
     const tag = assertValidLocaleTag(locale);
-    mutateBundle(get, set, (bundle) => {
-      const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
-      setNodeSpeaker(prompts, storyId, nodeId, speaker);
-    }, options);
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateNodeSpeaker",
+        storyId,
+        locale: tag,
+        nodeId,
+        before: getNodeSpeaker(state.promptsByLocale[tag], storyId, nodeId),
+        after: speaker,
+      },
+      options
+    );
   },
 
   updateEdgePrompt: (locale, edgeId, optionText, options) => {
-    const storyId = get().activeStoryId;
+    const state = get();
+    const storyId = state.activeStoryId;
     const tag = assertValidLocaleTag(locale);
-    mutateBundle(get, set, (bundle) => {
-      const prompts = ensureLocalePrompts(bundle.promptsByLocale, tag);
-      setEdgeOptionText(prompts, storyId, edgeId, optionText);
-    }, options);
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateEdgePrompt",
+        storyId,
+        locale: tag,
+        edgeId,
+        before: state.promptsByLocale[tag]?.stories[storyId]?.edges[edgeId]?.optionText,
+        after: optionText,
+      },
+      options
+    );
   },
 
   addLocale: (locale) => {
-    mutateBundle(get, set, (bundle) => {
-      addLocaleToProject(bundle.project, locale);
-      const tag = assertValidLocaleTag(locale);
-      const localePrompts = createEmptyLocalePrompts();
-      for (const story of bundle.project.stories) {
-        localePrompts.stories[story.id] = { nodes: {}, edges: {} };
-      }
-      bundle.promptsByLocale[tag] = localePrompts;
+    const state = get();
+    const tag = assertValidLocaleTag(locale);
+    const localePrompts = createEmptyLocalePrompts();
+    for (const story of state.project.stories) {
+      localePrompts.stories[story.id] = { nodes: {}, edges: {} };
+    }
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addLocale",
+      locale: tag,
+      before: null,
+      after: { locale: tag, localePrompts },
     });
   },
 
   removeLocale: (locale) => {
+    const state = get();
     const tag = assertValidLocaleTag(locale);
-    mutateBundle(get, set, (bundle) => {
-      removeLocaleFromProject(bundle.project, tag);
-      bundle.promptsByLocale = removeLocaleFromPrompts(bundle.promptsByLocale, tag);
+    const localePrompts = state.promptsByLocale[tag];
+    if (!localePrompts) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeLocale",
+      before: {
+        locale: tag,
+        localePrompts: JSON.parse(JSON.stringify(localePrompts)),
+      },
+      after: null,
     });
   },
 
   addEdge: (sourceNodeId, targetNodeId, options) => {
-    const storyId = get().activeStoryId;
-    let edge!: StoryEdge;
-    mutateBundle(get, set, (bundle) => {
-      edge = addEdgeInProject(bundle.project, storyId, sourceNodeId, targetNodeId, options);
+    const state = get();
+    const storyId = state.activeStoryId;
+    const bundle = cloneProjectBundle(getBundle(state));
+    const edge = addEdgeInProject(
+      bundle.project,
+      storyId,
+      sourceNodeId,
+      targetNodeId,
+      options
+    );
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addEdge",
+      storyId,
+      before: null,
+      after: edge,
     });
     return edge;
   },
 
   removeEdge: (edgeId) => {
-    const storyId = get().activeStoryId;
-    mutateBundle(get, set, (bundle) => {
-      removeEdgeInProject(bundle.project, storyId, edgeId);
-      removeEdgeFromAllLocales(bundle.promptsByLocale, storyId, edgeId);
+    const state = get();
+    const storyId = state.activeStoryId;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeEdge",
+      storyId,
+      before: captureRemoveEdgePayload(getAppState(state), storyId, edgeId),
+      after: null,
     });
   },
 
   updateEdge: (edgeId, patch, options) => {
-    const storyId = get().activeStoryId;
-    mutateBundle(
+    const state = get();
+    const storyId = state.activeStoryId;
+    const edge = getStory(state.project, storyId).edges.find((entry) => entry.id === edgeId);
+    if (!edge) return;
+    const before: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">> = {};
+    for (const key of Object.keys(patch) as Array<keyof typeof before>) {
+      before[key] = JSON.parse(JSON.stringify(edge[key])) as never;
+    }
+    dispatchEvent(
       get,
       set,
-      (bundle) => updateEdgeInProject(bundle.project, storyId, edgeId, patch),
+      {
+        ...createEventMeta(),
+        type: "updateEdge",
+        storyId,
+        edgeId,
+        before,
+        after: patch,
+      },
       options
     );
   },
@@ -950,16 +1235,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return get().addBlankActor(name);
     }
 
-    let asset!: Asset;
+    const state = get();
     const storesBlob = Boolean(options.file && !isElectron());
-    mutateBundle(get, set, (bundle) => {
-      asset = addAssetInProject(bundle.project, type, name, {
-        path: options.path,
-        url: options.file ? undefined : options.url,
-      });
-      if (storesBlob) {
-        replaceAssetMediaInProject(bundle.project, asset.id, { blobStored: true });
-      }
+    const bundle = cloneProjectBundle(getBundle(state));
+    let asset = addAssetInProject(bundle.project, type, name, {
+      path: options.path,
+      url: options.file ? undefined : options.url,
+    });
+    if (storesBlob) {
+      replaceAssetMediaInProject(bundle.project, asset.id, { blobStored: true });
+      asset = bundle.project.assets.find((entry) => entry.id === asset.id) ?? asset;
+    }
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addAsset",
+      before: null,
+      after: asset,
     });
     if (options.file && !isElectron()) {
       await putAssetBlob(asset.id, await fileToStoredBlob(options.file));
@@ -968,21 +1259,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   addBlankActor: (name = "New actor") => {
-    let asset!: Asset;
-    mutateBundle(get, set, (bundle) => {
-      asset = addBlankActorInProject(bundle.project, name);
+    const state = get();
+    const bundle = cloneProjectBundle(getBundle(state));
+    const asset = addBlankActorInProject(bundle.project, name);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addBlankActor",
+      before: null,
+      after: asset,
     });
     return asset;
   },
 
   addActorFromImage: async (name, options = {}) => {
-    let asset!: Asset;
+    const state = get();
     const storesBlob = Boolean(options.file && !isElectron());
-    mutateBundle(get, set, (bundle) => {
-      asset = addActorFromImageInProject(bundle.project, name, {
-        path: options.path,
-        blobStored: storesBlob,
-      });
+    const bundle = cloneProjectBundle(getBundle(state));
+    const asset = addActorFromImageInProject(bundle.project, name, {
+      path: options.path,
+      blobStored: storesBlob,
+    });
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addActorFromImage",
+      before: null,
+      after: asset,
     });
     if (options.file && !isElectron()) {
       const expressionId = asset.expressions?.[0]?.id;
@@ -997,30 +1298,67 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   addActorExpression: (actorId, name) => {
-    let expression!: ActorExpression;
-    mutateBundle(get, set, (bundle) => {
-      expression = addActorExpressionInProject(bundle.project, actorId, name);
+    const state = get();
+    const bundle = cloneProjectBundle(getBundle(state));
+    const expression = addActorExpressionInProject(bundle.project, actorId, name);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addActorExpression",
+      actorId,
+      before: null,
+      after: expression,
     });
     return expression;
   },
 
   updateActorExpression: (actorId, expressionId, patch, options) => {
-    mutateBundle(
+    const state = get();
+    const asset = state.project.assets.find((entry) => entry.id === actorId);
+    const expression = asset?.expressions?.find((entry) => entry.id === expressionId);
+    if (!expression) return;
+    const before: Partial<Pick<ActorExpression, "name">> = {};
+    for (const key of Object.keys(patch) as Array<keyof typeof before>) {
+      before[key] = JSON.parse(JSON.stringify(expression[key])) as never;
+    }
+    dispatchEvent(
       get,
       set,
-      (bundle) => updateActorExpressionInProject(bundle.project, actorId, expressionId, patch),
+      {
+        ...createEventMeta(),
+        type: "updateActorExpression",
+        actorId,
+        expressionId,
+        before,
+        after: patch,
+      },
       options
     );
   },
 
   replaceActorExpressionMedia: async (actorId, expressionId, options) => {
-    const blobKey = expressionBlobKey(actorId, expressionId);
-    mutateBundle(get, set, (bundle) => {
-      replaceActorExpressionMediaInProject(bundle.project, actorId, expressionId, {
-        path: options.path,
-        blobStored: Boolean(!isElectron() && options.file),
-      });
+    const state = get();
+    const asset = state.project.assets.find((entry) => entry.id === actorId);
+    const expression = asset?.expressions?.find((entry) => entry.id === expressionId);
+    if (!expression) return;
+    const before = {
+      path: expression.path,
+      url: expression.url,
+      blobStored: expression.blobStored,
+    };
+    const after = {
+      path: options.path,
+      url: undefined as string | undefined,
+      blobStored: Boolean(!isElectron() && options.file),
+    };
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "replaceActorExpressionMedia",
+      actorId,
+      expressionId,
+      before,
+      after,
     });
+    const blobKey = expressionBlobKey(actorId, expressionId);
     if (!isElectron() && options.file) {
       revokeWebAssetObjectUrl(blobKey);
       await putAssetBlob(blobKey, await fileToStoredBlob(options.file));
@@ -1028,24 +1366,65 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   removeActorExpression: (actorId, expressionId) => {
-    mutateBundle(get, set, (bundle) => {
-      removeActorExpressionInProject(bundle.project, actorId, expressionId);
+    const state = get();
+    const asset = state.project.assets.find((entry) => entry.id === actorId);
+    const expression = asset?.expressions?.find((entry) => entry.id === expressionId);
+    if (!expression) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeActorExpression",
+      actorId,
+      before: JSON.parse(JSON.stringify(expression)) as ActorExpression,
+      after: null,
     });
     void deleteAssetBlob(expressionBlobKey(actorId, expressionId));
   },
 
   updateAsset: (assetId, patch, options) => {
-    mutateBundle(get, set, (bundle) => updateAssetInProject(bundle.project, assetId, patch), options);
+    const state = get();
+    const asset = state.project.assets.find((entry) => entry.id === assetId);
+    if (!asset) return;
+    const before: Partial<
+      Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
+    > = {};
+    for (const key of Object.keys(patch) as Array<keyof typeof before>) {
+      before[key] = JSON.parse(JSON.stringify(asset[key])) as never;
+    }
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateAsset",
+        assetId,
+        before,
+        after: patch,
+      },
+      options
+    );
   },
 
   replaceAssetMedia: async (assetId, options) => {
     if (!canReplaceAsset(assetId)) return;
-    mutateBundle(get, set, (bundle) => {
-      const usesBlob = Boolean(!isElectron() && options.file);
-      replaceAssetMediaInProject(bundle.project, assetId, {
-        path: options.path,
-        blobStored: usesBlob,
-      });
+    const state = get();
+    const asset = state.project.assets.find((entry) => entry.id === assetId);
+    if (!asset) return;
+    const before = {
+      path: asset.path,
+      url: asset.url,
+      blobStored: asset.blobStored,
+    };
+    const after = {
+      path: options.path,
+      url: undefined as string | undefined,
+      blobStored: Boolean(!isElectron() && options.file),
+    };
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "replaceAssetMedia",
+      assetId,
+      before,
+      after,
     });
     if (!isElectron() && options.file) {
       revokeWebAssetObjectUrl(assetId);
@@ -1055,14 +1434,57 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   removeAsset: async (assetId) => {
     if (!canRemoveAsset(assetId)) return;
-    mutateBundle(get, set, (bundle) => removeAssetInProject(bundle.project, assetId));
-    const selectedAssetId = get().selectedAssetId === assetId ? null : get().selectedAssetId;
-    if (selectedAssetId !== get().selectedAssetId) {
-      set({ selectedAssetId });
-    }
+    const state = get();
+    const asset = state.project.assets.find((entry) => entry.id === assetId);
+    if (!asset) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeAsset",
+      before: {
+        asset: JSON.parse(JSON.stringify(asset)) as Asset,
+        navigation: getSelectionSnapshot(getAppState(state)),
+      },
+      after: buildSelectionAfterSelectAsset(
+        state.selectedAssetId === assetId ? null : state.selectedAssetId
+      ),
+    });
   },
 
   getEntryNodeId: () => getEntryNodeId(get().project, get().activeStoryId),
 }));
+
+export async function bootstrapProjectStore(): Promise<void> {
+  if (!isElectron()) return;
+  const loaded = await loadAutosaveFromPersistence();
+  if (!loaded) return;
+  const prepared = prepareLoadedAutosave(loaded);
+  useProjectStore.setState({
+    project: prepared.bundle.project,
+    promptsByLocale: prepared.bundle.promptsByLocale,
+    activeStoryId: prepared.session.activeStoryId,
+    selectedNodeIds: prepared.session.selectedNodeIds,
+    selectedEdgeIds: prepared.session.selectedEdgeIds,
+    selectedAssetId: prepared.session.selectedAssetId,
+    selectedServiceId: prepared.session.selectedServiceId,
+    highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
+    lastSavedSnapshot: prepared.lastSavedSnapshot,
+    loadWarnings: prepared.loadWarnings,
+    eventLog: prepared.session.eventLog,
+    ...eventLogFlags(prepared.session.eventLog),
+  });
+  scheduleAssetBlobGc(prepared.session.eventLog, prepared.bundle.project);
+}
+
+export async function flushAutosave(): Promise<void> {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  const state = persistGetState?.() ?? useProjectStore.getState();
+  await saveProjectStateToStorage({
+    bundle: getBundle(state),
+    session: getStoredSessionFromState(state),
+  });
+}
 
 export type { PromptsByLocale };

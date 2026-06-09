@@ -1,4 +1,4 @@
-export const MUSELAB_FORMAT_VERSION = 4;
+export const MUSELAB_FORMAT_VERSION = 5;
 
 export const BUNDLE_SCHEMA_ID = "https://muselab.dev/schemas/bundle.schema.json";
 export const STORY_SCHEMA_ID = "https://muselab.dev/schemas/story.schema.json";

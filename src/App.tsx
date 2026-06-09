@@ -3,7 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import DesignerView from "./views/DesignerView";
 import PlayerView from "./views/PlayerView";
 import { MenuBar } from "./components/MenuBar/MenuBar";
-import { useProjectStore } from "./store/projectStore";
+import { useProjectStore, bootstrapProjectStore, flushAutosave } from "./store/projectStore";
 import { newProjectWithPrompt, loadProject, saveProject } from "./core/project/projectFileActions";
 import { isElectron } from "./utils/isElectron";
 import { useThemeStore } from "./store/themeStore";
@@ -18,7 +18,27 @@ function App() {
   const showMenuBar = !isElectron() || usesInAppMenuBar;
 
   useEffect(() => {
-    void useProjectStore.getState().hydrateAssets();
+    void (async () => {
+      await bootstrapProjectStore();
+      await useProjectStore.getState().hydrateAssets();
+    })();
+  }, []);
+
+  useEffect(() => {
+    const flush = () => {
+      void flushAutosave();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flush();
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {

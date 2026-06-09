@@ -48,6 +48,8 @@ interface Window {
     showBeforeNewDialog?: () => Promise<boolean>;
     setWindowSize?: (width: number, height: number) => Promise<void>;
     getUserSettings?: () => Promise<{ theme?: "light" | "dark" }>;
+    readAutosave?: () => Promise<string | null>;
+    writeAutosave?: (payload: string) => Promise<void>;
     getPlayerLocale?: (projectKey: string) => Promise<string | null>;
     setPlayerLocale?: (projectKey: string, locale: string) => Promise<void>;
     transpileCito?: (request: { ciSource: string }) => Promise<{ js: string }>;

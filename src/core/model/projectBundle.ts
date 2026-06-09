@@ -1,4 +1,5 @@
 import type { LocalePrompts, Project } from "./types";
+import type { PersistedSessionPayload } from "../events/persistedSession";
 import {
   clonePromptsByLocale,
   createEmptyPromptsByLocale,
@@ -17,6 +18,7 @@ import {
   parseProject,
   serializeProject,
 } from "./project";
+import { migrateProjectIdsToUuid, type BlobKeyRemapping } from "./migrateIds";
 import {
   BUNDLE_SCHEMA_ID,
   MUSELAB_FORMAT_VERSION,
@@ -26,6 +28,8 @@ import {
 export interface ProjectBundle {
   project: Project;
   promptsByLocale: PromptsByLocale;
+  /** Populated when legacy ids are migrated on load; cleared after blob keys are remapped. */
+  blobKeyRemappings?: BlobKeyRemapping[];
 }
 
 export function createEmptyBundle(name: string = "Untitled"): ProjectBundle {
@@ -33,6 +37,7 @@ export function createEmptyBundle(name: string = "Untitled"): ProjectBundle {
   return {
     project,
     promptsByLocale: createEmptyPromptsByLocale(project.locales),
+    blobKeyRemappings: [],
   };
 }
 
@@ -40,6 +45,7 @@ export function cloneProjectBundle(bundle: ProjectBundle): ProjectBundle {
   return {
     project: JSON.parse(JSON.stringify(bundle.project)) as Project,
     promptsByLocale: clonePromptsByLocale(bundle.promptsByLocale),
+    blobKeyRemappings: [],
   };
 }
 
@@ -63,9 +69,12 @@ export function migrateProjectBundle(project: Project, promptsByLocale?: Prompts
       }
     }
   }
+  const prompts = ensurePromptsForProjectLocales(project, migratedPrompts);
+  const { blobKeyRemappings } = migrateProjectIdsToUuid(project, prompts);
   return {
     project,
-    promptsByLocale: ensurePromptsForProjectLocales(project, migratedPrompts),
+    promptsByLocale: prompts,
+    blobKeyRemappings,
   };
 }
 
@@ -74,6 +83,8 @@ export interface StoredProjectPayload {
   schema?: string;
   project: Project;
   promptsByLocale: PromptsByLocale;
+  /** Browser session state: undo/redo log and UI navigation. Not exported to .mlvn. */
+  session?: PersistedSessionPayload;
 }
 
 export function parseStoredProjectPayload(raw: string): ProjectBundle {
@@ -93,17 +104,27 @@ export function parseStoredProjectPayload(raw: string): ProjectBundle {
   return migrateProjectBundle(project);
 }
 
-export function serializeStoredProjectPayload(bundle: ProjectBundle): string {
+export function serializeStoredProjectPayload(
+  bundle: ProjectBundle,
+  session?: PersistedSessionPayload
+): string {
   return JSON.stringify(
     {
       formatVersion: MUSELAB_FORMAT_VERSION,
       schema: BUNDLE_SCHEMA_ID,
       project: JSON.parse(serializeProject(bundle.project)) as Project,
       promptsByLocale: bundle.promptsByLocale,
+      ...(session ? { session } : {}),
     },
     null,
     2
   );
+}
+
+export function parseStoredSessionPayload(
+  data: StoredProjectPayload
+): PersistedSessionPayload | undefined {
+  return data.session;
 }
 
 export function serializeMlvnMetadata(): string {

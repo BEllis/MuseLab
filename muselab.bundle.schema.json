@@ -30,6 +30,42 @@
       "additionalProperties": {
         "$ref": "https://muselab.dev/schemas/prompts.schema.json"
       }
+    },
+    "session": {
+      "type": "object",
+      "description": "Browser-only session state for undo/redo and UI navigation. Omitted from .mlvn exports.",
+      "additionalProperties": false,
+      "required": ["activeStoryId", "eventLog"],
+      "properties": {
+        "activeStoryId": { "type": "string" },
+        "selectedNodeIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "selectedEdgeIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "selectedAssetId": { "type": ["string", "null"] },
+        "selectedServiceId": { "type": ["string", "null"] },
+        "highlightedRootNodeIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "eventLog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["events", "cursor"],
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": { "type": "object" }
+            },
+            "cursor": { "type": "integer", "minimum": -1 },
+            "maxDepth": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
     }
   },
   "examples": [

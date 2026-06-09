@@ -42,12 +42,14 @@ describe("legacy prompt migration", () => {
     const project = parseProject(raw);
     const bundle = migrateProjectBundle(project);
     const storyId = getFirstStoryId(bundle.project);
+    const sceneId = bundle.project.stories[0]!.nodes[0]!.id;
+    const edgeId = bundle.project.stories[0]!.edges[0]!.id;
 
     expect(bundle.project.locales).toEqual(["en"]);
     expect(
-      getNodeTextTemplateForLocale(bundle.promptsByLocale, "en", storyId, "scene1")
+      getNodeTextTemplateForLocale(bundle.promptsByLocale, "en", storyId, sceneId)
     ).toBe("<p>Hello</p>");
-    expect(getEdgeOptionTextForLocale(bundle.promptsByLocale, "en", storyId, "edge1")).toBe(
+    expect(getEdgeOptionTextForLocale(bundle.promptsByLocale, "en", storyId, edgeId)).toBe(
       "Continue"
     );
     expect(serializeProject(bundle.project)).not.toContain("textTemplate");

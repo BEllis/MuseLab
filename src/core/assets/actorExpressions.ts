@@ -1,12 +1,9 @@
 import type { ActorExpression, Asset, Project, StoryNode } from "../model/types";
+import { generateId } from "../model/id";
 import expressionPlaceholderDataUrl from "@/assets/expression-placeholder.png?inline";
 
 export const DEFAULT_EXPRESSION_NAME = "default";
 export const PLACEHOLDER_EXPRESSION_URL = expressionPlaceholderDataUrl;
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2, 11);
-}
 
 export function expressionBlobKey(actorId: string, expressionId: string): string {
   return `${actorId}:${expressionId}`;

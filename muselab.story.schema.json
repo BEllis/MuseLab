@@ -80,6 +80,39 @@
     }
   },
   "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "UUID v4 object identifier (lowercase hex)."
+    },
+    "reservedAssetId": {
+      "type": "string",
+      "const": "muselab-default-backdrop",
+      "description": "Built-in default backdrop asset id."
+    },
+    "reservedServiceId": {
+      "type": "string",
+      "pattern": "^builtin:",
+      "description": "Built-in service interface id."
+    },
+    "objectId": {
+      "$ref": "#/$defs/uuid",
+      "description": "UUID object identifier for stories, nodes, edges, and expressions."
+    },
+    "assetId": {
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "$ref": "#/$defs/reservedAssetId" }
+      ],
+      "description": "Asset reference id (UUID or reserved default backdrop)."
+    },
+    "serviceId": {
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "$ref": "#/$defs/reservedServiceId" }
+      ],
+      "description": "Service interface id (UUID or built-in builtin: prefix)."
+    },
     "citoType": {
       "type": "string",
       "enum": ["void", "string", "bool", "int", "double"]
@@ -111,7 +144,7 @@
       "additionalProperties": false,
       "required": ["id", "name", "bindingName", "methods"],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
+        "id": { "$ref": "#/$defs/serviceId" },
         "name": { "type": "string", "minLength": 1 },
         "bindingName": {
           "type": "string",
@@ -152,8 +185,7 @@
       "required": ["id", "name"],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Stable expression identifier unique within the actor."
         },
         "name": {
@@ -191,13 +223,11 @@
       "required": ["assetId", "expressionId"],
       "properties": {
         "assetId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/assetId",
           "description": "Actor asset id."
         },
         "expressionId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Expression id within the actor asset."
         }
       }
@@ -208,8 +238,7 @@
       "required": ["id", "type", "name"],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/assetId",
           "description": "Stable asset identifier referenced by nodes and sound configs."
         },
         "type": { "$ref": "#/$defs/assetType" },
@@ -295,8 +324,7 @@
       "required": ["assetId"],
       "properties": {
         "assetId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/assetId",
           "description": "Id of a sound asset."
         },
         "startOnLoad": {
@@ -329,8 +357,7 @@
       "required": ["id", "name", "nodes", "edges", "globalState"],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Stable story identifier."
         },
         "name": {
@@ -354,8 +381,7 @@
           "additionalProperties": true
         },
         "entryNodeId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Optional explicit starting scene id for this story."
         }
       }
@@ -366,8 +392,7 @@
       "required": ["id", "type", "position"],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Stable node identifier."
         },
         "type": {
@@ -381,8 +406,7 @@
           "description": "Unique display name shown in the designer."
         },
         "backdropId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/assetId",
           "description": "Scene only: backdrop asset id."
         },
         "actorConfigs": {
@@ -396,13 +420,11 @@
           "items": { "$ref": "#/$defs/soundConfig" }
         },
         "jumpTargetStoryId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Jump only: target story id."
         },
         "jumpTargetStartNodeId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Jump only: target Start node id in the target story."
         }
       }
@@ -413,23 +435,20 @@
       "required": ["id", "sourceNodeId", "targetNodeId"],
       "properties": {
         "id": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Stable link identifier."
         },
         "sourceNodeId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Outgoing scene id."
         },
         "targetNodeId": {
-          "type": "string",
-          "minLength": 1,
+          "$ref": "#/$defs/objectId",
           "description": "Incoming scene id."
         },
         "sourcePortId": {
           "type": "string",
-          "pattern": "^(out-[A-Za-z0-9_-]+|__free_out__)$",
+          "pattern": "^(out-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|__free_out__)$",
           "description": "Designer out-port id. Persisted edges use out-{edgeId}."
         },
         "targetPortId": {
@@ -464,12 +483,12 @@
           "url": "data:image/png;base64,..."
         },
         {
-          "id": "hero1",
+          "id": "a1000000-0000-4000-8000-000000000010",
           "type": "actor",
           "name": "Hero",
           "expressions": [
             {
-              "id": "expr-default",
+              "id": "a1000000-0000-4000-8000-000000000011",
               "name": "default",
               "imageMimeType": "image/png",
               "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
@@ -479,16 +498,21 @@
       ],
       "stories": [
         {
-          "id": "main",
+          "id": "a1000000-0000-4000-8000-000000000012",
           "name": "Main",
           "nodes": [
             {
-              "id": "scene1",
+              "id": "a1000000-0000-4000-8000-000000000013",
               "type": "scene",
               "position": { "x": 100, "y": 100 },
               "label": "Opening",
               "backdropId": "muselab-default-backdrop",
-              "actorConfigs": [{ "assetId": "hero1", "expressionId": "expr-default" }],
+              "actorConfigs": [
+                {
+                  "assetId": "a1000000-0000-4000-8000-000000000010",
+                  "expressionId": "a1000000-0000-4000-8000-000000000011"
+                }
+              ],
               "soundConfigs": []
             }
           ],

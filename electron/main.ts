@@ -6,6 +6,7 @@ import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { loadUserSettings, resolveStartupTheme, saveUserSettings, getPlayerLocale, setPlayerLocale, type AppTheme } from "./userSettings";
+import { readAutosaveFile, writeAutosaveFile } from "./autosave";
 import { transpileCiToJs } from "./citoTranspile";
 import { handleAssetProtocolRequest, readAssetFile } from "./assetProtocol";
 
@@ -332,6 +333,13 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle("get-user-settings", () => loadUserSettings());
+  ipcMain.handle("read-autosave", () => readAutosaveFile());
+  ipcMain.handle("write-autosave", async (_, payload: string) => {
+    if (typeof payload !== "string") {
+      throw new Error("write-autosave requires a JSON string payload");
+    }
+    await writeAutosaveFile(payload);
+  });
   ipcMain.handle("get-player-locale", (_, projectKey: string) => getPlayerLocale(projectKey));
   ipcMain.handle("set-player-locale", (_, projectKey: string, locale: string) =>
     setPlayerLocale(projectKey, locale)

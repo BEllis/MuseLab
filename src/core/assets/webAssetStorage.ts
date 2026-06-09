@@ -49,6 +49,18 @@ export async function deleteAssetBlob(assetId: string): Promise<void> {
   await runTransaction("readwrite", (store) => store.delete(assetId));
 }
 
+export async function remapAssetBlobKeys(
+  remappings: Array<{ from: string; to: string }>
+): Promise<void> {
+  for (const { from, to } of remappings) {
+    if (from === to) continue;
+    const blob = await getAssetBlob(from);
+    if (!blob) continue;
+    await putAssetBlob(to, blob);
+    await deleteAssetBlob(from);
+  }
+}
+
 export async function listAssetBlobIds(): Promise<string[]> {
   const keys = await runTransaction<IDBValidKey[]>("readonly", (store) => store.getAllKeys());
   return keys.map(String);

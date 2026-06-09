@@ -7,6 +7,12 @@ import {
 } from "./schemaValidation";
 import { MUSELAB_FORMAT_VERSION } from "./formatVersion";
 
+const STORY_ID = "a1000000-0000-4000-8000-000000000001";
+const SCENE_ID = "a1000000-0000-4000-8000-000000000002";
+const EDGE_ID = "a1000000-0000-4000-8000-000000000003";
+const SERVICE_ID = "a1000000-0000-4000-8000-000000000004";
+const BACKDROP_ID = "a1000000-0000-4000-8000-000000000005";
+
 describe("MuseLab JSON schemas", () => {
   it("validates a versioned story manifest", () => {
     const result = validateStoryManifest({
@@ -23,11 +29,11 @@ describe("MuseLab JSON schemas", () => {
       ],
       stories: [
         {
-          id: "main",
+          id: STORY_ID,
           name: "Main",
           nodes: [
             {
-              id: "scene1",
+              id: SCENE_ID,
               type: "scene",
               position: { x: 100, y: 100 },
               label: "Opening",
@@ -61,7 +67,7 @@ describe("MuseLab JSON schemas", () => {
       ],
       stories: [
         {
-          id: "main",
+          id: STORY_ID,
           name: "Main",
           nodes: [],
           edges: [],
@@ -71,7 +77,7 @@ describe("MuseLab JSON schemas", () => {
       locales: ["en"],
       services: [
         {
-          id: "svc1",
+          id: SERVICE_ID,
           name: "IGameSave",
           bindingName: "gameSave",
           methods: [
@@ -93,7 +99,7 @@ describe("MuseLab JSON schemas", () => {
       name: "Web",
       assets: [
         {
-          id: "backdrop1",
+          id: BACKDROP_ID,
           type: "backdrop",
           name: "City",
           blobStored: true,
@@ -101,7 +107,7 @@ describe("MuseLab JSON schemas", () => {
       ],
       stories: [
         {
-          id: "main",
+          id: STORY_ID,
           name: "Main",
           nodes: [],
           edges: [],
@@ -135,11 +141,11 @@ describe("MuseLab JSON schemas", () => {
         ],
         stories: [
           {
-            id: "story-main",
+            id: STORY_ID,
             name: "Main",
             nodes: [
               {
-                id: "scene-opening",
+                id: SCENE_ID,
                 type: "scene",
                 position: { x: 100, y: 100 },
                 label: "Opening",
@@ -159,9 +165,9 @@ describe("MuseLab JSON schemas", () => {
           $schema: "https://muselab.dev/schemas/prompts.schema.json",
           formatVersion: MUSELAB_FORMAT_VERSION,
           stories: {
-            "story-main": {
+            [STORY_ID]: {
               nodes: {
-                "scene-opening": {
+                [SCENE_ID]: {
                   textTemplate: "<p>The rain hasn't stopped for three days.</p>",
                   speaker: "Narrator",
                 },
@@ -184,7 +190,7 @@ describe("MuseLab JSON schemas", () => {
       locales: ["en"],
       stories: [
         {
-          id: "main",
+          id: STORY_ID,
           name: "Main",
           nodes: [],
           edges: [],
@@ -205,15 +211,15 @@ describe("MuseLab JSON schemas", () => {
   it("validates nested locale prompts with speaker", () => {
     const result = validateLocalePrompts({
       stories: {
-        "story-main": {
+        [STORY_ID]: {
           nodes: {
-            "scene-opening": {
+            [SCENE_ID]: {
               textTemplate: "<p>Hello</p>",
               speaker: "Maya",
             },
           },
           edges: {
-            "edge-continue": {
+            [EDGE_ID]: {
               optionText: "Continue",
             },
           },
@@ -227,7 +233,7 @@ describe("MuseLab JSON schemas", () => {
   it("rejects legacy flat prompts without stories wrapper", () => {
     const result = validateLocalePrompts({
       nodes: {
-        "scene-opening": { textTemplate: "<p>Legacy</p>" },
+        [SCENE_ID]: { textTemplate: "<p>Legacy</p>" },
       },
       edges: {},
     });
@@ -245,5 +251,25 @@ describe("MuseLab JSON schemas", () => {
 
     expect(result.valid).toBe(true);
     expect(result.warnings).toEqual([]);
+  });
+
+  it("rejects non-uuid object ids in versioned manifests", () => {
+    const result = validateStoryManifest({
+      formatVersion: MUSELAB_FORMAT_VERSION,
+      name: "Invalid",
+      assets: [],
+      stories: [
+        {
+          id: "main",
+          name: "Main",
+          nodes: [],
+          edges: [],
+          globalState: {},
+        },
+      ],
+      locales: ["en"],
+    });
+
+    expect(result.valid).toBe(false);
   });
 });

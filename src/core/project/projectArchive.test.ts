@@ -37,7 +37,7 @@ describe("projectArchive localization", () => {
     const archive = await packProjectArchive({ project, promptsByLocale });
     const unpacked = unpackProjectArchive(archive);
     expect(unpacked.metadata).toMatchObject({
-      formatVersion: 4,
+      formatVersion: 5,
       schema: "https://muselab.dev/schemas/mlvn.schema.json",
       manifest: "project.json",
     });
@@ -84,12 +84,13 @@ describe("projectArchive localization", () => {
       Object.fromEntries(unpacked.prompts.entries())
     );
     const restoredStoryId = getFirstStoryId(bundle.project);
+    const restoredEdgeId = getStory(bundle.project, restoredStoryId).edges[0]!.id;
 
     expect(
-      getEdgeOptionTextForLocale(bundle.promptsByLocale, "en", restoredStoryId, "edge1")
+      getEdgeOptionTextForLocale(bundle.promptsByLocale, "en", restoredStoryId, restoredEdgeId)
     ).toBe("Go on");
     expect(
-      getEdgeOptionTextForLocale(bundle.promptsByLocale, "de", restoredStoryId, "edge1")
+      getEdgeOptionTextForLocale(bundle.promptsByLocale, "de", restoredStoryId, restoredEdgeId)
     ).toBe("Weiter");
   });
 
