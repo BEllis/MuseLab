@@ -1,17 +1,17 @@
-import type { CitoType, ServiceInterface, ServiceMethod } from "@/core/model/types";
+import type { CitoType, ModuleInterface, ModuleMethod } from "@/core/model/types";
 
-export type BuiltInServiceId = "builtin:runtime" | "builtin:format" | "builtin:prompter";
+export type BuiltInModuleId = "builtin:runtime" | "builtin:format" | "builtin:prompter";
 
-export type BuiltInServiceDefinition = {
-  id: BuiltInServiceId;
+export type BuiltInModuleDefinition = {
+  id: BuiltInModuleId;
   name: string;
   bindingName: string;
   className: string;
   overridableTypescript: boolean;
-  methods: ServiceMethod[];
+  methods: ModuleMethod[];
 };
 
-const RUNTIME_METHODS: ServiceMethod[] = [
+const RUNTIME_METHODS: ModuleMethod[] = [
   { name: "GetString", parameters: [{ name: "key", type: "string" }], returnType: "string" },
   { name: "GetBool", parameters: [{ name: "key", type: "string" }], returnType: "bool" },
   { name: "GetInt", parameters: [{ name: "key", type: "string" }], returnType: "int" },
@@ -32,7 +32,7 @@ const RUNTIME_METHODS: ServiceMethod[] = [
   },
 ];
 
-const FORMAT_METHODS: ServiceMethod[] = [
+const FORMAT_METHODS: ModuleMethod[] = [
   { name: "BoldStart", parameters: [], returnType: "string" },
   { name: "BoldEnd", parameters: [], returnType: "string" },
   { name: "ItalicStart", parameters: [], returnType: "string" },
@@ -47,14 +47,14 @@ const FORMAT_METHODS: ServiceMethod[] = [
   { name: "ShakePhraseText", parameters: [{ name: "text", type: "string" }], returnType: "string" },
 ];
 
-const PROMPT_RENDERER_METHODS: ServiceMethod[] = [
+const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
   { name: "AddLiteral", parameters: [{ name: "text", type: "string" }], returnType: "void" },
   { name: "AppendResult", parameters: [{ name: "value", type: "string" }], returnType: "void" },
   { name: "ApplyFormat", parameters: [{ name: "marker", type: "string" }], returnType: "void" },
   { name: "Render", parameters: [], returnType: "string" },
 ];
 
-export const BUILT_IN_SERVICES: BuiltInServiceDefinition[] = [
+export const BUILT_IN_MODULES: BuiltInModuleDefinition[] = [
   {
     id: "builtin:runtime",
     name: "IMuseLabRuntime",
@@ -81,14 +81,14 @@ export const BUILT_IN_SERVICES: BuiltInServiceDefinition[] = [
   },
 ];
 
-export function isBuiltInServiceId(id: string): id is BuiltInServiceId {
+export function isBuiltInModuleId(id: string): id is BuiltInModuleId {
   return id === "builtin:runtime" || id === "builtin:format" || id === "builtin:prompter";
 }
 
-export function getBuiltInService(id: BuiltInServiceId): BuiltInServiceDefinition {
-  const service = BUILT_IN_SERVICES.find((entry) => entry.id === id);
+export function getBuiltInModule(id: BuiltInModuleId): BuiltInModuleDefinition {
+  const service = BUILT_IN_MODULES.find((entry) => entry.id === id);
   if (!service) {
-    throw new Error(`Unknown built-in service: ${id}`);
+    throw new Error(`Unknown built-in module: ${id}`);
   }
   return service;
 }
@@ -119,7 +119,7 @@ export function isFormatExpression(expr: string): boolean {
   return /^\s*Format\./.test(expr.trim());
 }
 
-export function toServiceInterfaceShape(service: BuiltInServiceDefinition): ServiceInterface {
+export function toModuleInterfaceShape(service: BuiltInModuleDefinition): ModuleInterface {
   return {
     id: service.id,
     name: service.name,

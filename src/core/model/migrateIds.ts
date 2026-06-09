@@ -63,7 +63,7 @@ function collectMigratableIds(project: Project): Set<string> {
     }
   }
 
-  for (const service of project.services ?? []) {
+  for (const service of project.modules ?? []) {
     if (needsMigration(service.id)) ids.add(service.id);
   }
 
@@ -172,7 +172,7 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
     }
   }
 
-  for (const service of project.services ?? []) {
+  for (const service of project.modules ?? []) {
     if (!isReservedObjectId(service.id)) {
       service.id = remap(service.id, idMap) ?? service.id;
     }

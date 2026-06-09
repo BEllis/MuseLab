@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 import { useProjectStore } from "@/store/projectStore";
-import type { CitoType, ServiceMethod, ServiceMethodParam } from "@/core/model/types";
+import type { CitoType, ModuleMethod, ModuleMethodParam } from "@/core/model/types";
 import {
-  BUILT_IN_SERVICES,
-  getBuiltInService,
-  isBuiltInServiceId,
-  type BuiltInServiceId,
-} from "@/core/services/builtInServices";
-import { generateServiceCiStub } from "@/core/services/generateServiceCi";
+  BUILT_IN_MODULES,
+  getBuiltInModule,
+  isBuiltInModuleId,
+  type BuiltInModuleId,
+} from "@/core/modules/builtInModules";
+import { generateModuleCiStub } from "@/core/modules/generateModuleCi";
 import { CloseButton } from "../CloseButton";
 import { AddButton } from "../AddButton";
 
@@ -43,17 +43,17 @@ function MethodsTable({
   readOnly,
   onChange,
 }: {
-  methods: ServiceMethod[];
+  methods: ModuleMethod[];
   readOnly: boolean;
-  onChange?: (methods: ServiceMethod[]) => void;
+  onChange?: (methods: ModuleMethod[]) => void;
 }) {
-  const updateMethod = (index: number, patch: Partial<ServiceMethod>) => {
+  const updateMethod = (index: number, patch: Partial<ModuleMethod>) => {
     if (!onChange) return;
     const next = methods.map((method, i) => (i === index ? { ...method, ...patch } : method));
     onChange(next);
   };
 
-  const updateParam = (methodIndex: number, paramIndex: number, patch: Partial<ServiceMethodParam>) => {
+  const updateParam = (methodIndex: number, paramIndex: number, patch: Partial<ModuleMethodParam>) => {
     if (!onChange) return;
     const next = methods.map((method, i) => {
       if (i !== methodIndex) return method;
@@ -236,37 +236,37 @@ function MethodsTable({
   );
 }
 
-export function ServiceEditorPanel() {
-  const selectedServiceId = useProjectStore((s) => s.selectedServiceId);
+export function ModuleEditorPanel() {
+  const selectedModuleId = useProjectStore((s) => s.selectedModuleId);
   const project = useProjectStore((s) => s.project);
-  const setSelectedServiceId = useProjectStore((s) => s.setSelectedServiceId);
-  const updateService = useProjectStore((s) => s.updateService);
+  const setSelectedModuleId = useProjectStore((s) => s.setSelectedModuleId);
+  const updateModule = useProjectStore((s) => s.updateModule);
   const updateProject = useProjectStore((s) => s.updateProject);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
 
   const builtIn = useMemo(() => {
-    if (!selectedServiceId || !isBuiltInServiceId(selectedServiceId)) return null;
-    return getBuiltInService(selectedServiceId as BuiltInServiceId);
-  }, [selectedServiceId]);
+    if (!selectedModuleId || !isBuiltInModuleId(selectedModuleId)) return null;
+    return getBuiltInModule(selectedModuleId as BuiltInModuleId);
+  }, [selectedModuleId]);
 
-  const customService = useMemo(() => {
-    if (!selectedServiceId || isBuiltInServiceId(selectedServiceId)) return null;
-    return project.services.find((service) => service.id === selectedServiceId) ?? null;
-  }, [selectedServiceId, project.services]);
+  const customModule = useMemo(() => {
+    if (!selectedModuleId || isBuiltInModuleId(selectedModuleId)) return null;
+    return project.modules.find((module) => module.id === selectedModuleId) ?? null;
+  }, [selectedModuleId, project.modules]);
 
-  if (!selectedServiceId || (!builtIn && !customService)) {
+  if (!selectedModuleId || (!builtIn && !customModule)) {
     return null;
   }
 
   const isBuiltIn = builtIn != null;
-  const serviceName = builtIn?.name ?? customService!.name;
-  const bindingName = builtIn?.bindingName ?? customService!.bindingName;
-  const methods = builtIn?.methods ?? customService!.methods;
+  const moduleName = builtIn?.name ?? customModule!.name;
+  const bindingName = builtIn?.bindingName ?? customModule!.bindingName;
+  const methods = builtIn?.methods ?? customModule!.methods;
 
-  const ciPreview = customService
-    ? generateServiceCiStub(customService)
+  const ciPreview = customModule
+    ? generateModuleCiStub(customModule)
     : builtIn
-      ? BUILT_IN_SERVICES.find((entry) => entry.id === builtIn.id)
+      ? BUILT_IN_MODULES.find((entry) => entry.id === builtIn.id)
         ? "(built-in — see src/cito/)"
         : ""
       : "";
@@ -281,8 +281,8 @@ export function ServiceEditorPanel() {
           marginBottom: "12px",
         }}
       >
-        <strong style={{ fontSize: "13px" }}>Service</strong>
-        <CloseButton onClick={() => setSelectedServiceId(null)} title="Close" />
+        <strong style={{ fontSize: "13px" }}>Module</strong>
+        <CloseButton onClick={() => setSelectedModuleId(null)} title="Close" />
       </div>
 
       {isBuiltIn && (
@@ -294,11 +294,11 @@ export function ServiceEditorPanel() {
       <label style={{ fontSize: "12px", display: "block", marginBottom: "10px" }}>
         Interface name
         <input
-          value={serviceName}
+          value={moduleName}
           readOnly={isBuiltIn}
           onChange={(event) => {
-            if (!customService) return;
-            updateService(customService.id, { name: event.target.value });
+            if (!customModule) return;
+            updateModule(customModule.id, { name: event.target.value });
           }}
           onBlur={flushHistoryCoalesce}
           style={INPUT_STYLE}
@@ -311,8 +311,8 @@ export function ServiceEditorPanel() {
           value={bindingName}
           readOnly={isBuiltIn}
           onChange={(event) => {
-            if (!customService) return;
-            updateService(customService.id, { bindingName: event.target.value });
+            if (!customModule) return;
+            updateModule(customModule.id, { bindingName: event.target.value });
           }}
           onBlur={flushHistoryCoalesce}
           style={INPUT_STYLE}
@@ -324,19 +324,19 @@ export function ServiceEditorPanel() {
         methods={methods}
         readOnly={isBuiltIn}
         onChange={
-          customService
-            ? (next) => updateService(customService.id, { methods: next })
+          customModule
+            ? (next) => updateModule(customModule.id, { methods: next })
             : undefined
         }
       />
 
-      {customService && (
+      {customModule && (
         <label style={{ fontSize: "12px", display: "block", marginTop: "16px" }}>
           TypeScript implementation (preview/player)
           <textarea
-            value={customService.typescriptSource ?? ""}
+            value={customModule.typescriptSource ?? ""}
             onChange={(event) =>
-              updateService(customService.id, { typescriptSource: event.target.value })
+              updateModule(customModule.id, { typescriptSource: event.target.value })
             }
             onBlur={flushHistoryCoalesce}
             style={TEXTAREA_STYLE}
@@ -363,7 +363,7 @@ export function ServiceEditorPanel() {
         </label>
       )}
 
-      {customService && (
+      {customModule && (
         <div style={{ marginTop: "16px" }}>
           <strong style={{ fontSize: "12px", display: "block", marginBottom: "6px" }}>
             Generated .ci stub

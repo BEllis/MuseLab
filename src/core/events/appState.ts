@@ -8,7 +8,7 @@ export type AppState = {
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
-  selectedServiceId: string | null;
+  selectedModuleId: string | null;
   highlightedRootNodeIds: string[];
 };
 
@@ -16,7 +16,7 @@ export type SelectionSnapshot = {
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
-  selectedServiceId: string | null;
+  selectedModuleId: string | null;
 };
 
 export type NavigationSnapshot = SelectionSnapshot & {
@@ -32,7 +32,7 @@ export function cloneAppState(state: AppState): AppState {
     selectedNodeIds: [...state.selectedNodeIds],
     selectedEdgeIds: [...state.selectedEdgeIds],
     selectedAssetId: state.selectedAssetId,
-    selectedServiceId: state.selectedServiceId,
+    selectedModuleId: state.selectedModuleId,
     highlightedRootNodeIds: [...state.highlightedRootNodeIds],
   };
 }
@@ -42,7 +42,7 @@ export function getSelectionSnapshot(state: AppState): SelectionSnapshot {
     selectedNodeIds: [...state.selectedNodeIds],
     selectedEdgeIds: [...state.selectedEdgeIds],
     selectedAssetId: state.selectedAssetId,
-    selectedServiceId: state.selectedServiceId,
+    selectedModuleId: state.selectedModuleId,
   };
 }
 
@@ -58,7 +58,7 @@ export function applySelectionSnapshot(state: AppState, snapshot: SelectionSnaps
   state.selectedNodeIds = [...snapshot.selectedNodeIds];
   state.selectedEdgeIds = [...snapshot.selectedEdgeIds];
   state.selectedAssetId = snapshot.selectedAssetId;
-  state.selectedServiceId = snapshot.selectedServiceId;
+  state.selectedModuleId = snapshot.selectedModuleId;
 }
 
 export function applyNavigationSnapshot(state: AppState, snapshot: NavigationSnapshot): void {

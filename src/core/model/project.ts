@@ -6,7 +6,7 @@ import type {
   Asset,
   StoryNodeType,
   ActorExpression,
-  ServiceInterface,
+  ModuleInterface,
   CitoType,
 } from "./types";
 import { getPlayEntryNodeId } from "./graphHierarchy";
@@ -77,7 +77,7 @@ export function createEmptyProject(name: string = "Untitled"): Project {
       },
     ],
     locales: [...normalizeLocales(undefined)],
-    services: [],
+    modules: [],
   };
   ensureDefaultBackdrop(project);
   return project;
@@ -88,7 +88,7 @@ const RESERVED_BINDING_NAMES = new Set(["rt", "format", "prompter"]);
 export function validateBindingName(
   project: Project,
   bindingName: string,
-  excludeServiceId?: string
+  excludeModuleId?: string
 ): void {
   const trimmed = bindingName.trim();
   if (!/^[a-z][a-zA-Z0-9]*$/.test(trimmed)) {
@@ -99,8 +99,8 @@ export function validateBindingName(
   if (RESERVED_BINDING_NAMES.has(trimmed)) {
     throw new Error(`Binding name "${trimmed}" is reserved`);
   }
-  const duplicate = project.services.find(
-    (service) => service.bindingName === trimmed && service.id !== excludeServiceId
+  const duplicate = project.modules.find(
+    (service) => service.bindingName === trimmed && service.id !== excludeModuleId
   );
   if (duplicate) {
     throw new Error(`Binding name "${trimmed}" is already used by ${duplicate.name}`);
@@ -124,12 +124,12 @@ function citoTypeDefaultValue(type: CitoType): string {
   }
 }
 
-export function createDefaultService(name?: string, index?: number): ServiceInterface {
+export function createDefaultModule(name?: string, index?: number): ModuleInterface {
   const suffix = index ?? 1;
-  const binding = `service${suffix}`;
+  const binding = `module${suffix}`;
   return {
     id: generateId(),
-    name: name ?? `IService${suffix}`,
+    name: name ?? `IModule${suffix}`,
     bindingName: binding,
     methods: [
       {
@@ -141,49 +141,53 @@ export function createDefaultService(name?: string, index?: number): ServiceInte
   };
 }
 
-export function addService(project: Project, name?: string): ServiceInterface {
-  const bindingIndex = project.services.length + 1;
-  let service = createDefaultService(name, bindingIndex);
+export function addModule(project: Project, name?: string): ModuleInterface {
+  const bindingIndex = project.modules.length + 1;
+  let service = createDefaultModule(name, bindingIndex);
   let attempt = bindingIndex;
-  while (project.services.some((entry) => entry.bindingName === service.bindingName)) {
+  while (project.modules.some((entry) => entry.bindingName === service.bindingName)) {
     attempt += 1;
-    service = createDefaultService(name, attempt);
+    service = createDefaultModule(name, attempt);
   }
   validateBindingName(project, service.bindingName);
-  project.services.push(service);
+  project.modules.push(service);
   return service;
 }
 
-export function removeService(project: Project, serviceId: string): void {
-  project.services = project.services.filter((service) => service.id !== serviceId);
+export function removeModule(project: Project, moduleId: string): void {
+  project.modules = project.modules.filter((module) => module.id !== moduleId);
 }
 
-export function updateService(
+export function updateModule(
   project: Project,
-  serviceId: string,
-  patch: Partial<Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">>
+  moduleId: string,
+  patch: Partial<Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">>
 ): void {
-  const service = project.services.find((entry) => entry.id === serviceId);
-  if (!service) {
-    throw new Error(`Service "${serviceId}" not found`);
+  const module = project.modules.find((entry) => entry.id === moduleId);
+  if (!module) {
+    throw new Error(`Module "${moduleId}" not found`);
   }
   if (patch.name !== undefined) {
-    service.name = patch.name.trim() || service.name;
+    module.name = patch.name.trim() || module.name;
   }
   if (patch.bindingName !== undefined) {
-    validateBindingName(project, patch.bindingName, serviceId);
-    service.bindingName = patch.bindingName.trim();
+    validateBindingName(project, patch.bindingName, moduleId);
+    module.bindingName = patch.bindingName.trim();
   }
   if (patch.methods !== undefined) {
-    service.methods = patch.methods;
+    module.methods = patch.methods;
   }
   if (patch.typescriptSource !== undefined) {
-    service.typescriptSource = patch.typescriptSource;
+    module.typescriptSource = patch.typescriptSource;
   }
 }
 
-export function normalizeProjectServices(project: Project): void {
-  project.services = Array.isArray(project.services) ? project.services : [];
+export function normalizeProjectModules(project: Project & { services?: ModuleInterface[] }): void {
+  if (!Array.isArray(project.modules) && Array.isArray(project.services)) {
+    project.modules = project.services;
+  }
+  project.modules = Array.isArray(project.modules) ? project.modules : [];
+  delete project.services;
 }
 
 export { citoTypeDefaultValue };
@@ -702,7 +706,9 @@ export function updateProject(
   }
 }
 
-type LegacyProjectJson = Project & {
+type LegacyProjectJson = Omit<Project, "modules"> & {
+  services?: ModuleInterface[];
+  modules?: ModuleInterface[];
   nodes?: StoryNode[];
   edges?: StoryEdge[];
   globalState?: Record<string, unknown>;
@@ -744,7 +750,7 @@ function toManifestProject(project: Project): Project {
     assets: project.assets,
     stories: project.stories.map(toManifestStory),
     locales: normalizeLocales(project.locales),
-    services: project.services ?? [],
+    modules: project.modules ?? [],
     thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
     promptRendererTypescriptSource: project.promptRendererTypescriptSource,
@@ -772,7 +778,7 @@ export function serializeProjectForSave(project: Project): string {
 function migrateLegacyProjectData(data: LegacyProjectJson): Project {
   if (Array.isArray(data.stories) && data.stories.length > 0) {
     const project = data as Project;
-    normalizeProjectServices(project);
+    normalizeProjectModules(project);
     return project;
   }
 
@@ -791,7 +797,7 @@ function migrateLegacyProjectData(data: LegacyProjectJson): Project {
     assets: data.assets ?? [],
     stories: [story],
     locales: data.locales ?? [...normalizeLocales(undefined)],
-    services: data.services ?? [],
+    modules: data.modules ?? data.services ?? [],
     thumbnailAspectRatio: data.thumbnailAspectRatio,
     playerResolution: data.playerResolution,
     promptRendererTypescriptSource: data.promptRendererTypescriptSource,
@@ -814,7 +820,7 @@ export function parseProject(json: string): Project {
     story.globalState = story.globalState ?? {};
     normalizeStoryEdgeTargetPorts(story);
   }
-  normalizeProjectServices(project);
+  normalizeProjectModules(project);
   ensureDefaultBackdrop(project);
   return project;
 }

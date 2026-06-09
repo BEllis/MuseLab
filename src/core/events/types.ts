@@ -2,7 +2,7 @@ import type {
   ActorExpression,
   Asset,
   Project,
-  ServiceInterface,
+  ModuleInterface,
   Story,
   StoryEdge,
   StoryNode,
@@ -32,8 +32,8 @@ export type AssetPatch = Partial<
   Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
 >;
 
-export type ServicePatch = Partial<
-  Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+export type ModulePatch = Partial<
+  Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
 >;
 
 export type ExpressionPatch = Partial<Pick<ActorExpression, "name">>;
@@ -257,23 +257,23 @@ export type RemoveActorExpressionEvent = AppEventBase & {
   after: null;
 };
 
-export type AddServiceEvent = AppEventBase & {
-  type: "addService";
+export type AddModuleEvent = AppEventBase & {
+  type: "addModule";
   before: SelectionSnapshot;
-  after: { service: ServiceInterface; navigation: SelectionSnapshot };
+  after: { module: ModuleInterface; navigation: SelectionSnapshot };
 };
 
-export type RemoveServiceEvent = AppEventBase & {
-  type: "removeService";
-  before: { service: ServiceInterface; navigation: SelectionSnapshot };
+export type RemoveModuleEvent = AppEventBase & {
+  type: "removeModule";
+  before: { module: ModuleInterface; navigation: SelectionSnapshot };
   after: SelectionSnapshot;
 };
 
-export type UpdateServiceEvent = AppEventBase & {
-  type: "updateService";
-  serviceId: string;
-  before: ServicePatch;
-  after: ServicePatch;
+export type UpdateModuleEvent = AppEventBase & {
+  type: "updateModule";
+  moduleId: string;
+  before: ModulePatch;
+  after: ModulePatch;
 };
 
 export type SetActiveStoryIdEvent = AppEventBase & {
@@ -294,8 +294,8 @@ export type SetSelectedAssetIdEvent = AppEventBase & {
   after: SelectionSnapshot;
 };
 
-export type SetSelectedServiceIdEvent = AppEventBase & {
-  type: "setSelectedServiceId";
+export type SetSelectedModuleIdEvent = AppEventBase & {
+  type: "setSelectedModuleId";
   before: SelectionSnapshot;
   after: SelectionSnapshot;
 };
@@ -351,13 +351,13 @@ export type AppEvent =
   | UpdateActorExpressionEvent
   | ReplaceActorExpressionMediaEvent
   | RemoveActorExpressionEvent
-  | AddServiceEvent
-  | RemoveServiceEvent
-  | UpdateServiceEvent
+  | AddModuleEvent
+  | RemoveModuleEvent
+  | UpdateModuleEvent
   | SetActiveStoryIdEvent
   | SetSelectionEvent
   | SetSelectedAssetIdEvent
-  | SetSelectedServiceIdEvent
+  | SetSelectedModuleIdEvent
   | ClearSelectionEvent
   | SetHighlightedRootNodeIdsEvent
   | ClearPlayValidationHighlightEvent
@@ -371,7 +371,7 @@ export function eventTouchesProjectData(event: AppEvent): boolean {
   switch (event.type) {
     case "setSelection":
     case "setSelectedAssetId":
-    case "setSelectedServiceId":
+    case "setSelectedModuleId":
     case "clearSelection":
     case "setHighlightedRootNodeIds":
     case "clearPlayValidationHighlight":

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, addService } from "../model/project";
-import { createNullStubService, createCustomServiceInstance } from "./serviceRuntime";
+import { createEmptyProject, addModule } from "../model/project";
+import { createNullStubModule, createCustomModuleInstance } from "./moduleRuntime";
 
-describe("serviceRuntime", () => {
+describe("moduleRuntime", () => {
   it("creates null stubs with default return values", () => {
     const project = createEmptyProject();
-    const service = addService(project, "ITest");
+    const service = addModule(project, "ITest");
     service.methods = [
       { name: "Noop", parameters: [], returnType: "void" },
       { name: "GetName", parameters: [], returnType: "string" },
@@ -13,7 +13,7 @@ describe("serviceRuntime", () => {
       { name: "IsReady", parameters: [], returnType: "bool" },
     ];
 
-    const stub = createNullStubService(service);
+    const stub = createNullStubModule(service);
     expect(stub.noop()).toBeUndefined();
     expect(stub.getName()).toBe("");
     expect(stub.getCount()).toBe(0);
@@ -22,7 +22,7 @@ describe("serviceRuntime", () => {
 
   it("loads a TypeScript object implementation", () => {
     const project = createEmptyProject();
-    const service = addService(project, "ICounter");
+    const service = addModule(project, "ICounter");
     service.methods = [
       { name: "Increment", parameters: [], returnType: "int" },
     ];
@@ -33,7 +33,7 @@ describe("serviceRuntime", () => {
       };
     `;
 
-    const instance = createCustomServiceInstance(service);
+    const instance = createCustomModuleInstance(service);
     expect(instance.Increment()).toBe(1);
     expect(instance.Increment()).toBe(2);
   });

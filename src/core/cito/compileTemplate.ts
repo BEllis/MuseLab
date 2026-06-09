@@ -1,7 +1,7 @@
 import type { Project } from "../model/types";
 import { hashId } from "./hashId";
-import { buildCiPreamble, buildRenderParameterList } from "../services/generateServiceCi";
-import { isFormatExpression, normalizeFormatExpression } from "../services/builtInServices";
+import { buildCiPreamble, buildRenderParameterList } from "../modules/generateModuleCi";
+import { isFormatExpression, normalizeFormatExpression } from "../modules/builtInModules";
 
 const IF_REGEX = /\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
 const EXPR_REGEX = /\{\{([^}]*)\}\}/g;
@@ -169,5 +169,5 @@ public static class ${className}
 }
 
 export function getTemplateBindingNames(project: Project): string[] {
-  return ["rt", "prompter", "format", ...project.services.map((service) => service.bindingName)];
+  return ["rt", "prompter", "format", ...project.modules.map((service) => service.bindingName)];
 }

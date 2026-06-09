@@ -16,7 +16,7 @@ import {
   getEntryNodeId,
   normalizeEdgeTargetPorts,
   addStory as addStoryInProject,
-  addService as addServiceInProject,
+  addModule as addModuleInProject,
   getStory,
   getFirstStoryId,
 } from "@/core/model/project";
@@ -27,7 +27,7 @@ import type {
   Asset,
   StoryNodeType,
   ActorExpression,
-  ServiceInterface,
+  ModuleInterface,
 } from "@/core/model/types";
 import { expressionBlobKey } from "@/core/assets/actorExpressions";
 import { hydrateLegacyEmbeddedAssets, hydrateProjectAssets } from "@/core/assets/assetHydration";
@@ -62,7 +62,7 @@ import {
   buildNavigationAfterSwitchStory,
   buildSelectionAfterGraphSelection,
   buildSelectionAfterSelectAsset,
-  buildSelectionAfterSelectService,
+  buildSelectionAfterSelectModule,
   createEventMeta,
   getNavigationSnapshot,
   getSelectionSnapshot,
@@ -230,7 +230,7 @@ function getStoredSessionFromState(state: ProjectState): StoredProjectSession {
     selectedNodeIds: state.selectedNodeIds,
     selectedEdgeIds: state.selectedEdgeIds,
     selectedAssetId: state.selectedAssetId,
-    selectedServiceId: state.selectedServiceId,
+    selectedModuleId: state.selectedModuleId,
     highlightedRootNodeIds: state.highlightedRootNodeIds,
     eventLog: state.eventLog,
   };
@@ -245,7 +245,7 @@ function sanitizeLoadedSession(
   const nodeIds = new Set(story?.nodes.map((node) => node.id) ?? []);
   const edgeIds = new Set(story?.edges.map((edge) => edge.id) ?? []);
   const assetIds = new Set(project.assets.map((asset) => asset.id));
-  const serviceIds = new Set((project.services ?? []).map((service) => service.id));
+  const moduleIds = new Set((project.modules ?? []).map((service) => service.id));
 
   return {
     activeStoryId,
@@ -255,9 +255,9 @@ function sanitizeLoadedSession(
       session.selectedAssetId && assetIds.has(session.selectedAssetId)
         ? session.selectedAssetId
         : null,
-    selectedServiceId:
-      session.selectedServiceId && serviceIds.has(session.selectedServiceId)
-        ? session.selectedServiceId
+    selectedModuleId:
+      session.selectedModuleId && moduleIds.has(session.selectedModuleId)
+        ? session.selectedModuleId
         : null,
     highlightedRootNodeIds: session.highlightedRootNodeIds.filter((id) => nodeIds.has(id)),
     eventLog: session.eventLog,
@@ -321,7 +321,7 @@ function getAppState(state: Pick<
   | "selectedNodeIds"
   | "selectedEdgeIds"
   | "selectedAssetId"
-  | "selectedServiceId"
+  | "selectedModuleId"
   | "highlightedRootNodeIds"
 >): AppState {
   return {
@@ -331,7 +331,7 @@ function getAppState(state: Pick<
     selectedNodeIds: state.selectedNodeIds,
     selectedEdgeIds: state.selectedEdgeIds,
     selectedAssetId: state.selectedAssetId,
-    selectedServiceId: state.selectedServiceId,
+    selectedModuleId: state.selectedModuleId,
     highlightedRootNodeIds: state.highlightedRootNodeIds,
   };
 }
@@ -348,7 +348,7 @@ function applyAppStateToStore(
     selectedNodeIds: after.selectedNodeIds,
     selectedEdgeIds: after.selectedEdgeIds,
     selectedAssetId: after.selectedAssetId,
-    selectedServiceId: after.selectedServiceId,
+    selectedModuleId: after.selectedModuleId,
     highlightedRootNodeIds: after.highlightedRootNodeIds,
     eventLog,
     ...eventLogFlags(eventLog),
@@ -366,7 +366,7 @@ interface ProjectState {
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
-  selectedServiceId: string | null;
+  selectedModuleId: string | null;
   highlightedRootNodeIds: string[];
   loadWarnings: string[];
   /** Bumped on undo/redo so the graph canvas can force a full resync. */
@@ -398,12 +398,12 @@ interface ProjectState {
   ) => void;
   setSelection: (nodeIds: string[], edgeIds: string[]) => void;
   setSelectedAssetId: (assetId: string | null) => void;
-  setSelectedServiceId: (serviceId: string | null) => void;
-  addService: (name?: string) => ServiceInterface;
-  removeService: (serviceId: string) => void;
-  updateService: (
-    serviceId: string,
-    patch: Partial<Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">>,
+  setSelectedModuleId: (moduleId: string | null) => void;
+  addModule: (name?: string) => ModuleInterface;
+  removeModule: (moduleId: string) => void;
+  updateModule: (
+    moduleId: string,
+    patch: Partial<Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">>,
     options?: MutationOptions
   ) => void;
   clearSelection: () => void;
@@ -597,7 +597,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedNodeIds: initialState.session.selectedNodeIds,
   selectedEdgeIds: initialState.session.selectedEdgeIds,
   selectedAssetId: initialState.session.selectedAssetId,
-  selectedServiceId: initialState.session.selectedServiceId,
+  selectedModuleId: initialState.session.selectedModuleId,
   highlightedRootNodeIds: initialState.session.highlightedRootNodeIds,
   loadWarnings: initialState.loadWarnings,
   graphRevision: 0,
@@ -687,7 +687,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         selectedNodeIds: [],
         selectedEdgeIds: [],
         selectedAssetId: null,
-        selectedServiceId: state.selectedServiceId,
+        selectedModuleId: state.selectedModuleId,
         highlightedRootNodeIds: [],
       },
     });
@@ -727,65 +727,65 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       after: buildSelectionAfterSelectAsset(assetId),
     });
   },
-  setSelectedServiceId: (serviceId) => {
+  setSelectedModuleId: (moduleId) => {
     const state = get();
     dispatchEvent(get, set, {
       ...createEventMeta(),
-      type: "setSelectedServiceId",
+      type: "setSelectedModuleId",
       before: getSelectionSnapshot(getAppState(state)),
-      after: buildSelectionAfterSelectService(serviceId),
+      after: buildSelectionAfterSelectModule(moduleId),
     });
   },
-  addService: (name) => {
+  addModule: (name) => {
     const state = get();
     const bundle = cloneProjectBundle(getBundle(state));
-    const service = addServiceInProject(bundle.project, name);
+    const module = addModuleInProject(bundle.project, name);
     dispatchEvent(get, set, {
       ...createEventMeta(),
-      type: "addService",
+      type: "addModule",
       before: getSelectionSnapshot(getAppState(state)),
       after: {
-        service,
-        navigation: buildSelectionAfterSelectService(service.id),
+        module,
+        navigation: buildSelectionAfterSelectModule(module.id),
       },
     });
-    return service;
+    return module;
   },
-  removeService: (serviceId) => {
+  removeModule: (moduleId) => {
     const state = get();
-    const service = state.project.services?.find((entry) => entry.id === serviceId);
-    if (!service) return;
+    const module = state.project.modules?.find((entry) => entry.id === moduleId);
+    if (!module) return;
     dispatchEvent(get, set, {
       ...createEventMeta(),
-      type: "removeService",
+      type: "removeModule",
       before: {
-        service: JSON.parse(JSON.stringify(service)) as ServiceInterface,
+        module: JSON.parse(JSON.stringify(module)) as ModuleInterface,
         navigation: getSelectionSnapshot(getAppState(state)),
       },
-      after: buildSelectionAfterSelectService(
-        state.selectedServiceId === serviceId ? null : state.selectedServiceId
+      after: buildSelectionAfterSelectModule(
+        state.selectedModuleId === moduleId ? null : state.selectedModuleId
       ),
     });
   },
-  updateService: (serviceId, patch, options) => {
+  updateModule: (moduleId, patch, options) => {
     const state = get();
-    const service = state.project.services?.find((entry) => entry.id === serviceId);
-    if (!service) return;
+    const module = state.project.modules?.find((entry) => entry.id === moduleId);
+    if (!module) return;
     const before: Partial<
-      Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+      Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
     > = {};
     for (const key of Object.keys(patch) as Array<
-      keyof Pick<ServiceInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+      keyof Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
     >) {
-      before[key] = JSON.parse(JSON.stringify(service[key])) as never;
+      before[key] = JSON.parse(JSON.stringify(module[key])) as never;
     }
     dispatchEvent(
       get,
       set,
       {
         ...createEventMeta(),
-        type: "updateService",
-        serviceId,
+        type: "updateModule",
+        moduleId,
         before,
         after: patch,
       },
@@ -860,7 +860,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: prepared.session.selectedNodeIds,
       selectedEdgeIds: prepared.session.selectedEdgeIds,
       selectedAssetId: prepared.session.selectedAssetId,
-      selectedServiceId: prepared.session.selectedServiceId,
+      selectedModuleId: prepared.session.selectedModuleId,
       highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
       lastSavedSnapshot: prepared.lastSavedSnapshot,
       loadWarnings: prepared.loadWarnings,
@@ -894,7 +894,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
-      selectedServiceId: null,
+      selectedModuleId: null,
       highlightedRootNodeIds: [],
       loadWarnings: [],
       eventLog,
@@ -936,7 +936,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
-      selectedServiceId: null,
+      selectedModuleId: null,
       highlightedRootNodeIds: [],
       loadWarnings,
       eventLog,
@@ -973,7 +973,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedNodeIds: [],
       selectedEdgeIds: [],
       selectedAssetId: null,
-      selectedServiceId: null,
+      selectedModuleId: null,
       highlightedRootNodeIds: [],
       loadWarnings,
       eventLog,
@@ -1465,7 +1465,7 @@ export async function bootstrapProjectStore(): Promise<void> {
     selectedNodeIds: prepared.session.selectedNodeIds,
     selectedEdgeIds: prepared.session.selectedEdgeIds,
     selectedAssetId: prepared.session.selectedAssetId,
-    selectedServiceId: prepared.session.selectedServiceId,
+    selectedModuleId: prepared.session.selectedModuleId,
     highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
     lastSavedSnapshot: prepared.lastSavedSnapshot,
     loadWarnings: prepared.loadWarnings,

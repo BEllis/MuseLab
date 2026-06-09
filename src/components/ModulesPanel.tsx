@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { AddButton } from "./AddButton";
-import { BUILT_IN_SERVICES } from "@/core/services/builtInServices";
+import { BUILT_IN_MODULES } from "@/core/modules/builtInModules";
 
 function selectedRowStyle(selected: boolean): React.CSSProperties {
   return selected
@@ -13,7 +13,7 @@ function selectedRowStyle(selected: boolean): React.CSSProperties {
     : {};
 }
 
-function ServiceRow({
+function ModuleRow({
   label,
   bindingName,
   selected,
@@ -54,7 +54,7 @@ function ServiceRow({
         {onDelete && (
           <button
             type="button"
-            title="Delete service"
+            title="Delete module"
             onClick={(event) => {
               event.stopPropagation();
               onDelete();
@@ -77,21 +77,21 @@ function ServiceRow({
   );
 }
 
-export function ServicesPanel() {
+export function ModulesPanel() {
   const project = useProjectStore((s) => s.project);
-  const selectedServiceId = useProjectStore((s) => s.selectedServiceId);
-  const setSelectedServiceId = useProjectStore((s) => s.setSelectedServiceId);
-  const addService = useProjectStore((s) => s.addService);
-  const removeService = useProjectStore((s) => s.removeService);
+  const selectedModuleId = useProjectStore((s) => s.selectedModuleId);
+  const setSelectedModuleId = useProjectStore((s) => s.setSelectedModuleId);
+  const addModule = useProjectStore((s) => s.addModule);
+  const removeModule = useProjectStore((s) => s.removeModule);
 
-  const customServices = [...project.services].sort((a, b) => a.name.localeCompare(b.name));
+  const customModules = [...project.modules].sort((a, b) => a.name.localeCompare(b.name));
 
   const handleDelete = useCallback(
-    (serviceId: string, name: string) => {
-      if (!window.confirm(`Delete service "${name}"?`)) return;
-      removeService(serviceId);
+    (moduleId: string, name: string) => {
+      if (!window.confirm(`Delete module "${name}"?`)) return;
+      removeModule(moduleId);
     },
-    [removeService]
+    [removeModule]
   );
 
   return (
@@ -101,13 +101,13 @@ export function ServicesPanel() {
           Built-in
         </strong>
         <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-          {BUILT_IN_SERVICES.map((service) => (
-            <ServiceRow
+          {BUILT_IN_MODULES.map((service) => (
+            <ModuleRow
               key={service.id}
               label={service.name}
               bindingName={service.bindingName}
-              selected={selectedServiceId === service.id}
-              onSelect={() => setSelectedServiceId(service.id)}
+              selected={selectedModuleId === service.id}
+              onSelect={() => setSelectedModuleId(service.id)}
             />
           ))}
         </ul>
@@ -123,21 +123,21 @@ export function ServicesPanel() {
           }}
         >
           <strong style={{ fontSize: "12px" }}>Custom</strong>
-          <AddButton onClick={() => addService()} title="Add service" />
+          <AddButton onClick={() => addModule()} title="Add module" />
         </div>
-        {customServices.length === 0 ? (
+        {customModules.length === 0 ? (
           <p style={{ margin: 0, fontSize: "12px", color: "var(--app-text-muted)" }}>
-            No custom services yet.
+            No custom modules yet.
           </p>
         ) : (
           <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-            {customServices.map((service) => (
-              <ServiceRow
+            {customModules.map((service) => (
+              <ModuleRow
                 key={service.id}
                 label={service.name}
                 bindingName={service.bindingName}
-                selected={selectedServiceId === service.id}
-                onSelect={() => setSelectedServiceId(service.id)}
+                selected={selectedModuleId === service.id}
+                onSelect={() => setSelectedModuleId(service.id)}
                 onDelete={() => handleDelete(service.id, service.name)}
               />
             ))}

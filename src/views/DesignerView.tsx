@@ -3,24 +3,24 @@ import { FlowCanvas } from "@/components/FlowCanvas";
 import { AssetEditorPanel } from "@/components/AssetEditor/AssetEditorPanel";
 import { NodeEditorPanel } from "@/components/NodeEditor/NodeEditorPanel";
 import { EdgeEditorPanel } from "@/components/EdgeEditor/EdgeEditorPanel";
-import { ServiceEditorPanel } from "@/components/ServiceEditor/ServiceEditorPanel";
+import { ModuleEditorPanel } from "@/components/ModuleEditor/ModuleEditorPanel";
 import { LeftPanel } from "@/components/LeftPanel";
 import { useProjectStore } from "@/store/projectStore";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 
 function useSingleSelectionInspector():
   | { kind: "asset" }
-  | { kind: "service" }
+  | { kind: "module" }
   | { kind: "node" }
   | { kind: "edge" }
   | null {
   const selectedAssetId = useProjectStore((s) => s.selectedAssetId);
-  const selectedServiceId = useProjectStore((s) => s.selectedServiceId);
+  const selectedModuleId = useProjectStore((s) => s.selectedModuleId);
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
 
-  if (selectedServiceId) {
-    return { kind: "service" };
+  if (selectedModuleId) {
+    return { kind: "module" };
   }
   if (selectedAssetId) {
     return { kind: "asset" };
@@ -50,7 +50,7 @@ export default function DesignerView() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <FlowCanvas />
       </div>
-      {inspector?.kind === "service" && <ServiceEditorPanel />}
+      {inspector?.kind === "module" && <ModuleEditorPanel />}
       {inspector?.kind === "asset" && <AssetEditorPanel />}
       {inspector?.kind === "node" && <NodeEditorPanel />}
       {inspector?.kind === "edge" && <EdgeEditorPanel />}

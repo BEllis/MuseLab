@@ -1,4 +1,4 @@
-import type { Project, ServiceInterface, CitoType } from "@/core/model/types";
+import type { Project, ModuleInterface, CitoType } from "@/core/model/types";
 import { citoTypeDefaultValue } from "@/core/model/project";
 import {
   museLabRuntimeCi,
@@ -6,9 +6,9 @@ import {
   iFormatMarkerCi,
   museLabPromptRendererCi,
 } from "@/cito/ciSources";
-import { citoTypeToString } from "./builtInServices";
+import { citoTypeToString } from "./builtInModules";
 
-function methodSignature(method: ServiceInterface["methods"][number]): string {
+function methodSignature(method: ModuleInterface["methods"][number]): string {
   const params = method.parameters
     .map((param) => `${citoTypeToString(param.type)} ${param.name}`)
     .join(", ");
@@ -19,7 +19,7 @@ function methodSignature(method: ServiceInterface["methods"][number]): string {
   return `public ${returnType} ${method.name}(${params})`;
 }
 
-function methodBody(method: ServiceInterface["methods"][number]): string {
+function methodBody(method: ModuleInterface["methods"][number]): string {
   const returnType = method.returnType;
   if (returnType === "void") {
     return "";
@@ -27,7 +27,7 @@ function methodBody(method: ServiceInterface["methods"][number]): string {
   return `return ${citoTypeDefaultValue(returnType)};`;
 }
 
-export function generateServiceCiStub(service: ServiceInterface): string {
+export function generateModuleCiStub(service: ModuleInterface): string {
   const className = service.name.startsWith("I")
     ? service.name.slice(1)
     : service.name;
@@ -45,7 +45,7 @@ export function generateServiceCiStub(service: ServiceInterface): string {
 }
 
 export function buildRenderParameterList(project: Project): string {
-  const customParams = project.services.map(
+  const customParams = project.modules.map(
     (service) => {
       const className = service.name.startsWith("I")
         ? service.name.slice(1)
@@ -62,7 +62,7 @@ export function buildRenderParameterList(project: Project): string {
 }
 
 export function buildCiPreamble(project: Project): string {
-  const customStubs = project.services.map(generateServiceCiStub).join("\n\n");
+  const customStubs = project.modules.map(generateModuleCiStub).join("\n\n");
   const parts = [
     museLabRuntimeCi.trim(),
     iFormatMarkerCi.trim(),

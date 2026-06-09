@@ -17,7 +17,7 @@ export type StoredProjectSession = {
   selectedNodeIds: string[];
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
-  selectedServiceId: string | null;
+  selectedModuleId: string | null;
   highlightedRootNodeIds: string[];
   eventLog: EventLogState;
 };
@@ -36,13 +36,58 @@ export function serializeEventLogForStorage(log: EventLogState): SerializedEvent
   };
 }
 
+function migrateLegacyEvent(event: AppEvent): AppEvent {
+  const record = event as unknown as Record<string, unknown>;
+  if (record.type === "batch" && Array.isArray(record.events)) {
+    return {
+      ...(event as Extract<AppEvent, { type: "batch" }>),
+      events: (record.events as AppEvent[]).map(migrateLegacyEvent),
+    };
+  }
+
+  switch (record.type) {
+    case "addService": {
+      const after = record.after as { service?: unknown; module?: unknown; navigation: unknown };
+      return {
+        ...event,
+        type: "addModule",
+        after: {
+          module: after.module ?? after.service,
+          navigation: after.navigation,
+        },
+      } as AppEvent;
+    }
+    case "removeService": {
+      const before = record.before as { service?: unknown; module?: unknown; navigation: unknown };
+      return {
+        ...event,
+        type: "removeModule",
+        before: {
+          module: before.module ?? before.service,
+          navigation: before.navigation,
+        },
+      } as AppEvent;
+    }
+    case "updateService":
+      return {
+        ...event,
+        type: "updateModule",
+        moduleId: (record.serviceId ?? record.moduleId) as string,
+      } as AppEvent;
+    case "setSelectedServiceId":
+      return { ...event, type: "setSelectedModuleId" } as AppEvent;
+    default:
+      return event;
+  }
+}
+
 export function parseEventLogFromStorage(data: unknown): EventLogState | null {
   if (!data || typeof data !== "object") return null;
   const record = data as Record<string, unknown>;
   if (!Array.isArray(record.events)) return null;
   if (typeof record.cursor !== "number" || !Number.isInteger(record.cursor)) return null;
 
-  const events = record.events as AppEvent[];
+  const events = (record.events as AppEvent[]).map(migrateLegacyEvent);
   const cursor = record.cursor;
   if (cursor < -1 || cursor >= events.length) return null;
 
@@ -67,7 +112,7 @@ export function serializeSessionForStorage(session: StoredProjectSession): Persi
     selectedNodeIds: [...session.selectedNodeIds],
     selectedEdgeIds: [...session.selectedEdgeIds],
     selectedAssetId: session.selectedAssetId,
-    selectedServiceId: session.selectedServiceId,
+    selectedModuleId: session.selectedModuleId,
     highlightedRootNodeIds: [...session.highlightedRootNodeIds],
     eventLog: serializeEventLogForStorage(session.eventLog),
   };
@@ -90,8 +135,12 @@ export function parseSessionFromStorage(data: unknown): StoredProjectSession | n
       ? record.selectedEdgeIds.filter((id): id is string => typeof id === "string")
       : [],
     selectedAssetId: typeof record.selectedAssetId === "string" ? record.selectedAssetId : null,
-    selectedServiceId:
-      typeof record.selectedServiceId === "string" ? record.selectedServiceId : null,
+    selectedModuleId:
+      typeof record.selectedModuleId === "string"
+        ? record.selectedModuleId
+        : typeof record.selectedServiceId === "string"
+          ? record.selectedServiceId
+          : null,
     highlightedRootNodeIds: Array.isArray(record.highlightedRootNodeIds)
       ? record.highlightedRootNodeIds.filter((id): id is string => typeof id === "string")
       : [],
@@ -105,7 +154,7 @@ export function sessionFromStoreState(state: StoreSessionState): StoredProjectSe
     selectedNodeIds: [...state.selectedNodeIds],
     selectedEdgeIds: [...state.selectedEdgeIds],
     selectedAssetId: state.selectedAssetId,
-    selectedServiceId: state.selectedServiceId,
+    selectedModuleId: state.selectedModuleId,
     highlightedRootNodeIds: [...state.highlightedRootNodeIds],
     eventLog: state.eventLog,
   };
@@ -121,7 +170,7 @@ export function applyStoredSessionToAppState(
     selectedNodeIds: [...session.selectedNodeIds],
     selectedEdgeIds: [...session.selectedEdgeIds],
     selectedAssetId: session.selectedAssetId,
-    selectedServiceId: session.selectedServiceId,
+    selectedModuleId: session.selectedModuleId,
     highlightedRootNodeIds: [...session.highlightedRootNodeIds],
   };
 }
@@ -132,7 +181,7 @@ export function emptyStoredSession(activeStoryId: string): StoredProjectSession 
     selectedNodeIds: [],
     selectedEdgeIds: [],
     selectedAssetId: null,
-    selectedServiceId: null,
+    selectedModuleId: null,
     highlightedRootNodeIds: [],
     eventLog: createEventLogState(),
   };

@@ -1,4 +1,4 @@
-import type { Project, ServiceInterface, CitoType } from "@/core/model/types";
+import type { Project, ModuleInterface, CitoType } from "@/core/model/types";
 import {
   createHtmlPromptRenderer,
   createPromptRendererBridge,
@@ -30,7 +30,7 @@ function toCamelCase(name: string): string {
   return name[0].toLowerCase() + name.slice(1);
 }
 
-export function createNullStubService(service: ServiceInterface): Record<string, (...args: unknown[]) => unknown> {
+export function createNullStubModule(service: ModuleInterface): Record<string, (...args: unknown[]) => unknown> {
   const stub: Record<string, (...args: unknown[]) => unknown> = {};
   for (const method of service.methods) {
     const key = toCamelCase(method.name);
@@ -45,8 +45,8 @@ export function createNullStubService(service: ServiceInterface): Record<string,
   return stub;
 }
 
-function compileTypescriptService(
-  service: ServiceInterface,
+function compileTypescriptModule(
+  service: ModuleInterface,
   source: string
 ): Record<string, (...args: unknown[]) => unknown> {
   const className = service.name.startsWith("I") ? service.name.slice(1) : service.name;
@@ -62,24 +62,24 @@ function compileTypescriptService(
     if (typeof service === "object" && service !== null) {
       return service;
     }
-    throw new Error("Service implementation must define ${className} or service");
+    throw new Error("Module implementation must define ${className} or module");
   `
   ) as () => Record<string, (...args: unknown[]) => unknown>;
 
   return fn();
 }
 
-export function createCustomServiceInstance(
-  service: ServiceInterface
+export function createCustomModuleInstance(
+  service: ModuleInterface
 ): Record<string, (...args: unknown[]) => unknown> {
   if (service.typescriptSource?.trim()) {
     try {
-      return compileTypescriptService(service, service.typescriptSource);
+      return compileTypescriptModule(service, service.typescriptSource);
     } catch (error) {
-      console.warn(`Service ${service.name} TS implementation failed, using null stub:`, error);
+      console.warn(`Module ${service.name} TS implementation failed, using null stub:`, error);
     }
   }
-  return createNullStubService(service);
+  return createNullStubModule(service);
 }
 
 export function createPromptRenderer(
@@ -88,7 +88,7 @@ export function createPromptRenderer(
 ): PromptRenderer {
   if (project.promptRendererTypescriptSource?.trim()) {
     try {
-      const custom = compileTypescriptService(
+      const custom = compileTypescriptModule(
         {
           id: "builtin:prompter",
           name: "IMuseLabPromptRenderer",
@@ -131,26 +131,26 @@ export function createPromptRenderer(
   return createHtmlPromptRenderer(options);
 }
 
-export type ServiceBindings = Record<string, unknown> & {
+export type ModuleBindings = Record<string, unknown> & {
   rt: ReturnType<typeof createMuseLabRuntimeBridge>;
   prompter: ReturnType<typeof createPromptRendererBridge>;
   format: ReturnType<typeof createFormatMarkerBridge>;
 };
 
-export function createServiceBindings(
+export function createModuleBindings(
   project: Project,
   context: TemplateContext,
   options: HtmlPromptRendererOptions = {}
-): ServiceBindings {
+): ModuleBindings {
   const renderer = createPromptRenderer(project, options);
-  const bindings: ServiceBindings = {
+  const bindings: ModuleBindings = {
     rt: createMuseLabRuntimeBridge(context),
     prompter: createPromptRendererBridge(renderer),
     format: createFormatMarkerBridge(),
   };
 
-  for (const service of project.services) {
-    bindings[service.bindingName] = createCustomServiceInstance(service);
+  for (const service of project.modules) {
+    bindings[service.bindingName] = createCustomModuleInstance(service);
   }
 
   return bindings;

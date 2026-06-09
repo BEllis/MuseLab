@@ -1,7 +1,7 @@
 import type { Project } from "../model/types";
 import { hashId } from "./hashId";
-import { buildCiPreamble, buildRenderParameterList } from "../services/generateServiceCi";
-import { normalizeFormatExpression } from "../services/builtInServices";
+import { buildCiPreamble, buildRenderParameterList } from "../modules/generateModuleCi";
+import { normalizeFormatExpression } from "../modules/builtInModules";
 
 export type CompiledCondition = {
   className: string;
@@ -29,5 +29,5 @@ public static class ${className}
 }
 
 export function getConditionBindingNames(project: Project): string[] {
-  return ["rt", "prompter", "format", ...project.services.map((service) => service.bindingName)];
+  return ["rt", "prompter", "format", ...project.modules.map((service) => service.bindingName)];
 }

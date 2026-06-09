@@ -47,16 +47,16 @@ describe("MuseLab JSON schemas", () => {
         },
       ],
       locales: ["en"],
-      services: [],
+      modules: [],
     });
 
     expect(result.valid).toBe(true);
     expect(result.warnings).toEqual([]);
   });
 
-  it("validates project services", () => {
+  it("validates project modules", () => {
     const result = validateStoryManifest({
-      name: "Services",
+      name: "Modules",
       assets: [
         {
           id: "muselab-default-backdrop",
@@ -75,7 +75,7 @@ describe("MuseLab JSON schemas", () => {
         },
       ],
       locales: ["en"],
-      services: [
+      modules: [
         {
           id: SERVICE_ID,
           name: "IGameSave",

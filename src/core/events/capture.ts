@@ -159,7 +159,7 @@ export function buildNavigationAfterSwitchStory(
     selectedNodeIds: [],
     selectedEdgeIds: [],
     selectedAssetId: null,
-    selectedServiceId: null,
+    selectedModuleId: null,
     highlightedRootNodeIds: [],
   };
 }
@@ -173,16 +173,16 @@ export function buildSelectionAfterSelectAsset(assetId: string | null) {
     selectedNodeIds: [] as string[],
     selectedEdgeIds: [] as string[],
     selectedAssetId: assetId,
-    selectedServiceId: null as string | null,
+    selectedModuleId: null as string | null,
   };
 }
 
-export function buildSelectionAfterSelectService(serviceId: string | null) {
+export function buildSelectionAfterSelectModule(moduleId: string | null) {
   return {
     selectedNodeIds: [] as string[],
     selectedEdgeIds: [] as string[],
     selectedAssetId: null as string | null,
-    selectedServiceId: serviceId,
+    selectedModuleId: moduleId,
   };
 }
 
@@ -191,7 +191,7 @@ export function buildSelectionAfterGraphSelection(nodeIds: string[], edgeIds: st
     selectedNodeIds: nodeIds,
     selectedEdgeIds: edgeIds,
     selectedAssetId: null as string | null,
-    selectedServiceId: null as string | null,
+    selectedModuleId: null as string | null,
   };
 }
 

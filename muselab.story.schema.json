@@ -69,10 +69,10 @@
       "$ref": "#/$defs/aspectRatio",
       "description": "Target play-mode resolution in logical pixels (width × height)."
     },
-    "services": {
+    "modules": {
       "type": "array",
-      "description": "Custom service interfaces available in Cito templates and conditions.",
-      "items": { "$ref": "#/$defs/serviceInterface" }
+      "description": "Custom module interfaces available in Cito templates and conditions.",
+      "items": { "$ref": "#/$defs/moduleInterface" }
     },
     "promptRendererTypescriptSource": {
       "type": "string",
@@ -90,10 +90,10 @@
       "const": "muselab-default-backdrop",
       "description": "Built-in default backdrop asset id."
     },
-    "reservedServiceId": {
+    "reservedModuleId": {
       "type": "string",
       "pattern": "^builtin:",
-      "description": "Built-in service interface id."
+      "description": "Built-in module interface id."
     },
     "objectId": {
       "$ref": "#/$defs/uuid",
@@ -106,18 +106,18 @@
       ],
       "description": "Asset reference id (UUID or reserved default backdrop)."
     },
-    "serviceId": {
+    "moduleId": {
       "oneOf": [
         { "$ref": "#/$defs/uuid" },
-        { "$ref": "#/$defs/reservedServiceId" }
+        { "$ref": "#/$defs/reservedModuleId" }
       ],
-      "description": "Service interface id (UUID or built-in builtin: prefix)."
+      "description": "Module interface id (UUID or built-in builtin: prefix)."
     },
     "citoType": {
       "type": "string",
       "enum": ["void", "string", "bool", "int", "double"]
     },
-    "serviceMethodParam": {
+    "moduleMethodParam": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "type"],
@@ -126,7 +126,7 @@
         "type": { "$ref": "#/$defs/citoType" }
       }
     },
-    "serviceMethod": {
+    "moduleMethod": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "parameters", "returnType"],
@@ -134,17 +134,17 @@
         "name": { "type": "string", "minLength": 1 },
         "parameters": {
           "type": "array",
-          "items": { "$ref": "#/$defs/serviceMethodParam" }
+          "items": { "$ref": "#/$defs/moduleMethodParam" }
         },
         "returnType": { "$ref": "#/$defs/citoType" }
       }
     },
-    "serviceInterface": {
+    "moduleInterface": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "name", "bindingName", "methods"],
       "properties": {
-        "id": { "$ref": "#/$defs/serviceId" },
+        "id": { "$ref": "#/$defs/moduleId" },
         "name": { "type": "string", "minLength": 1 },
         "bindingName": {
           "type": "string",
@@ -153,7 +153,7 @@
         },
         "methods": {
           "type": "array",
-          "items": { "$ref": "#/$defs/serviceMethod" }
+          "items": { "$ref": "#/$defs/moduleMethod" }
         },
         "typescriptSource": { "type": "string" }
       }

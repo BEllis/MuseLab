@@ -3,7 +3,7 @@ import { compileCondition, getConditionBindingNames } from "../cito/compileCondi
 import { compileTemplate, getTemplateBindingNames } from "../cito/compileTemplate";
 import type { TemplateContext } from "../cito/runtimeBridge";
 import { runTranspiledMethod, transpileCiToJs } from "../cito/transpile";
-import { createServiceBindings } from "../services/serviceRuntime";
+import { createModuleBindings } from "../modules/moduleRuntime";
 import { sanitizeHtml } from "./sanitize";
 
 export type { TemplateContext } from "../cito/runtimeBridge";
@@ -25,7 +25,7 @@ export async function runTemplate(
 
   const compiled = compileTemplate(template, options.project);
   const js = await transpileCiToJs(compiled.ciSource);
-  const bindings = createServiceBindings(options.project, context, {
+  const bindings = createModuleBindings(options.project, context, {
     disableShake: options.disableShake,
   });
   const paramNames = getTemplateBindingNames(options.project);
@@ -54,7 +54,7 @@ export async function evaluateCondition(
   try {
     const compiled = compileCondition(condition, project);
     const js = await transpileCiToJs(compiled.ciSource);
-    const bindings = createServiceBindings(project, {
+    const bindings = createModuleBindings(project, {
       ...context,
       setState: () => {},
       emit: () => {},

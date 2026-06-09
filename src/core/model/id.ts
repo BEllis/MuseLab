@@ -9,14 +9,14 @@ export function isUuid(id: string): boolean {
   return UUID_PATTERN.test(id);
 }
 
-/** Built-in service ids use the `builtin:` prefix and are not UUIDs. */
-export function isBuiltinServiceId(id: string): boolean {
+/** Built-in module ids use the `builtin:` prefix and are not UUIDs. */
+export function isBuiltinModuleId(id: string): boolean {
   return id.startsWith("builtin:");
 }
 
 /** Reserved ids that are not migrated to UUIDs. */
 export function isReservedObjectId(id: string): boolean {
-  return id === DEFAULT_BACKDROP_ID || isBuiltinServiceId(id);
+  return id === DEFAULT_BACKDROP_ID || isBuiltinModuleId(id);
 }
 
 /** True for UUID entity ids and reserved built-in ids. */

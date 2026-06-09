@@ -7,7 +7,7 @@ function makeProject(): Project {
     name: "Test",
     assets: [],
     locales: ["en"],
-    services: [],
+    modules: [],
     stories: [
       {
         id: "main",

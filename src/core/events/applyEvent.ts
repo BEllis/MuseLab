@@ -4,7 +4,7 @@ import {
   removeAsset as removeAssetInProject,
   removeEdge as removeEdgeInProject,
   removeNode as removeNodeInProject,
-  removeService as removeServiceInProject,
+  removeModule as removeModuleInProject,
   removeStory as removeStoryInProject,
   replaceActorExpressionMedia as replaceActorExpressionMediaInProject,
   replaceAssetMedia as replaceAssetMediaInProject,
@@ -14,7 +14,7 @@ import {
   updateNode as updateNodeInProject,
   updateNodePosition as updateNodePositionInProject,
   updateProject as updateProjectInProject,
-  updateService as updateServiceInProject,
+  updateModule as updateModuleInProject,
   updateStory as updateStoryInProject,
   addLocaleToProject,
   removeLocaleFromProject,
@@ -363,34 +363,34 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
       break;
     }
 
-    case "addService": {
+    case "addModule": {
       if (useAfter) {
-        state.project.services = state.project.services ?? [];
-        state.project.services.push(cloneNode(event.after.service));
+        state.project.modules = state.project.modules ?? [];
+        state.project.modules.push(cloneNode(event.after.module));
         applySelectionSnapshot(state, event.after.navigation);
       } else {
-        removeServiceInProject(state.project, event.after.service.id);
+        removeModuleInProject(state.project, event.after.module.id);
         applySelectionSnapshot(state, event.before);
       }
       break;
     }
 
-    case "removeService": {
+    case "removeModule": {
       if (useAfter) {
-        removeServiceInProject(state.project, event.before.service.id);
+        removeModuleInProject(state.project, event.before.module.id);
         applySelectionSnapshot(state, event.after);
       } else {
-        state.project.services = state.project.services ?? [];
-        state.project.services.push(cloneNode(event.before.service));
+        state.project.modules = state.project.modules ?? [];
+        state.project.modules.push(cloneNode(event.before.module));
         applySelectionSnapshot(state, event.before.navigation);
       }
       break;
     }
 
-    case "updateService":
-      updateServiceInProject(
+    case "updateModule":
+      updateModuleInProject(
         state.project,
-        event.serviceId,
+        event.moduleId,
         useAfter ? event.after : event.before
       );
       break;
@@ -401,7 +401,7 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
 
     case "setSelection":
     case "setSelectedAssetId":
-    case "setSelectedServiceId":
+    case "setSelectedModuleId":
     case "clearSelection":
       applySelectionSnapshot(state, useAfter ? event.after : event.before);
       break;

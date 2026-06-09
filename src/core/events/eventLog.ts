@@ -203,8 +203,8 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
         return null;
       }
       return { ...existing, after: incoming.after };
-    case "updateService":
-      if (existing.type !== "updateService" || existing.serviceId !== incoming.serviceId) {
+    case "updateModule":
+      if (existing.type !== "updateModule" || existing.moduleId !== incoming.moduleId) {
         return null;
       }
       return { ...existing, after: incoming.after };

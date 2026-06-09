@@ -116,28 +116,28 @@ export interface AspectRatio {
   height: number;
 }
 
-/** Cito primitive type for service method signatures. */
+/** Cito primitive type for module method signatures. */
 export type CitoType = "void" | "string" | "bool" | "int" | "double";
 
-export interface ServiceMethodParam {
+export interface ModuleMethodParam {
   name: string;
   type: CitoType;
 }
 
-export interface ServiceMethod {
+export interface ModuleMethod {
   name: string;
-  parameters: ServiceMethodParam[];
+  parameters: ModuleMethodParam[];
   returnType: CitoType;
 }
 
-/** User-defined service interface for Cito templates and future export targets. */
-export interface ServiceInterface {
+/** User-defined module interface for Cito templates and future export targets. */
+export interface ModuleInterface {
   id: string;
   /** Export name, e.g. IGameSave */
   name: string;
   /** Cito/JS binding, e.g. gameSave */
   bindingName: string;
-  methods: ServiceMethod[];
+  methods: ModuleMethod[];
   /** Optional TS implementation for preview/player */
   typescriptSource?: string;
 }
@@ -149,8 +149,8 @@ export interface Project {
   stories: Story[];
   /** Supported locale tags; first entry is the default */
   locales: string[];
-  /** Custom service interfaces available in Cito code */
-  services: ServiceInterface[];
+  /** Custom module interfaces available in Cito code */
+  modules: ModuleInterface[];
   /** Scene thumbnail aspect ratio in the designer canvas */
   thumbnailAspectRatio?: AspectRatio;
   /** Target resolution for play mode (logical pixels) */

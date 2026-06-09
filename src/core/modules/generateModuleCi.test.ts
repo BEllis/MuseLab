@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, addService } from "../model/project";
-import { generateServiceCiStub, buildCiPreamble } from "./generateServiceCi";
+import { createEmptyProject, addModule } from "../model/project";
+import { generateModuleCiStub, buildCiPreamble } from "./generateModuleCi";
 
-describe("generateServiceCi", () => {
+describe("generateModuleCi", () => {
   it("generates a class stub from a service interface", () => {
     const project = createEmptyProject();
-    const service = addService(project, "IGameSave");
+    const service = addModule(project, "IGameSave");
     service.methods = [
       {
         name: "SaveSlot",
@@ -19,7 +19,7 @@ describe("generateServiceCi", () => {
       },
     ];
 
-    const stub = generateServiceCiStub(service);
+    const stub = generateModuleCiStub(service);
     expect(stub).toContain("public class GameSave");
     expect(stub).toContain("public void SaveSlot(int slotId)");
     expect(stub).toContain('return "";');
@@ -27,7 +27,7 @@ describe("generateServiceCi", () => {
 
   it("includes built-in and custom stubs in preamble", () => {
     const project = createEmptyProject();
-    addService(project, "ICustom");
+    addModule(project, "ICustom");
 
     const preamble = buildCiPreamble(project);
     expect(preamble).toContain("public class MuseLabRuntime");

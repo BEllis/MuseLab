@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { AssetsPanel } from "./AssetsPanel";
 import { ProjectPanel } from "./ProjectPanel";
-import { ServicesPanel } from "./ServicesPanel";
+import { ModulesPanel } from "./ModulesPanel";
 import { StoriesPanel } from "./StoriesPanel";
 
-type LeftPanelTab = "project" | "stories" | "assets" | "services";
+type LeftPanelTab = "project" | "stories" | "assets" | "modules";
 
 export function LeftPanel() {
   const [tab, setTab] = useState<LeftPanelTab>("project");
@@ -48,13 +48,13 @@ export function LeftPanel() {
         <button
           type="button"
           role="tab"
-          id="left-panel-tab-services"
-          aria-selected={tab === "services"}
-          aria-controls="left-panel-panel-services"
-          className={`app-side-panel-tab${tab === "services" ? " is-active" : ""}`}
-          onClick={() => setTab("services")}
+          id="left-panel-tab-modules"
+          aria-selected={tab === "modules"}
+          aria-controls="left-panel-panel-modules"
+          className={`app-side-panel-tab${tab === "modules" ? " is-active" : ""}`}
+          onClick={() => setTab("modules")}
         >
-          Services
+          Modules
         </button>
       </div>
       <div className="app-side-panel-content">
@@ -85,13 +85,13 @@ export function LeftPanel() {
             <AssetsPanel />
           </div>
         )}
-        {tab === "services" && (
+        {tab === "modules" && (
           <div
             role="tabpanel"
-            id="left-panel-panel-services"
-            aria-labelledby="left-panel-tab-services"
+            id="left-panel-panel-modules"
+            aria-labelledby="left-panel-tab-modules"
           >
-            <ServicesPanel />
+            <ModulesPanel />
           </div>
         )}
       </div>
