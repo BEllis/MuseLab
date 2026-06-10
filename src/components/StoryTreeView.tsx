@@ -10,8 +10,8 @@ import type { StoryTreeNode, StoryTreePlacement, StoryTreeSibling } from "@/core
 import { AddButton } from "./AddButton";
 import { CloseButton } from "./CloseButton";
 import {
-  ChevronIcon,
   FolderIcon,
+  StoryIcon,
   TreeChevronToggle,
   TreeDragHandle,
   TreeToggleSpacer,
