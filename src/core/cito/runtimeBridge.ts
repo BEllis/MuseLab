@@ -58,19 +58,26 @@ function readInt(state: Record<string, unknown>, key: string): number {
   return 0;
 }
 
-function schedulePlaySoundClip(
+function schedulePlaySound(
   context: TemplateContext,
   assetId: string,
   delaySeconds: number,
   startTime: number,
   endTime: number
 ): void {
+  const resolvedId = resolveSoundAssetIdById(context.project, assetId);
   const recorder = context.instructionRecorder;
-  if (!recorder) {
+  if (recorder) {
+    recorder.playSound(resolvedId, delaySeconds, startTime, endTime);
+    return;
+  }
+  if (delaySeconds > 0) {
     throw new Error("PlaySoundClip requires the default prompt instruction recorder");
   }
-  const resolvedId = resolveSoundAssetIdById(context.project, assetId);
-  recorder.playSound(resolvedId, delaySeconds, startTime, endTime);
+  const trim: { startTime?: number; endTime?: number } = {};
+  if (startTime >= 0) trim.startTime = startTime;
+  if (endTime >= 0) trim.endTime = endTime;
+  context.playSound(resolvedId, Object.keys(trim).length > 0 ? trim : undefined);
 }
 
 export function createMuseLabRuntimeBridge(context: TemplateContext): MuseLabRuntimeBridge {
@@ -96,21 +103,17 @@ export function createMuseLabRuntimeBridge(context: TemplateContext): MuseLabRun
       return String(result);
     },
     playSound: (assetId) => {
-      context.playSound(assetId);
+      schedulePlaySound(context, assetId, 0, -1, -1);
     },
     playSoundTrim: (assetId, startTime, endTime) => {
-      context.playSound(assetId, { startTime, endTime });
+      schedulePlaySound(context, assetId, 0, startTime, endTime);
     },
     playSoundClip: (assetId, delaySeconds, startTime, endTime) => {
-      schedulePlaySoundClip(context, assetId, delaySeconds, startTime, endTime);
+      schedulePlaySound(context, assetId, delaySeconds, startTime, endTime);
     },
     playSoundClipByPath: (groupPath, assetName, delaySeconds, startTime, endTime) => {
-      const recorder = context.instructionRecorder;
-      if (!recorder) {
-        throw new Error("PlaySoundClipByPath requires the default prompt instruction recorder");
-      }
       const resolvedId = resolveSoundAssetId(context.project, groupPath, assetName);
-      recorder.playSound(resolvedId, delaySeconds, startTime, endTime);
+      schedulePlaySound(context, resolvedId, delaySeconds, startTime, endTime);
     },
   };
 }

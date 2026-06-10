@@ -4,6 +4,7 @@ const COMMIT_IDLE_MS = 700;
 const DEFAULT_MIN_HEIGHT = 120;
 const DEFAULT_MAX_HEIGHT = 280;
 const REVEAL_OVER_TIME_MS = 2000;
+const DEFAULT_WAIT_MS = 500;
 
 const toolbarButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
@@ -308,6 +309,17 @@ export function TemplateTextEditor({
 
           <ToolbarSeparator />
 
+          <button
+            type="button"
+            onClick={() => insertSnippet(`{{ prompter.Wait(${DEFAULT_WAIT_MS}) }}`)}
+            title={`Wait ${DEFAULT_WAIT_MS}ms`}
+            style={toolbarButtonStyle}
+          >
+            Wait
+          </button>
+
+          <ToolbarSeparator />
+
           <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Sound:</span>
           <select
             value={selectedSoundId}
@@ -333,23 +345,10 @@ export function TemplateTextEditor({
           </select>
           <button
             type="button"
-            onClick={() => insertSnippet(`{{ rt.PlaySound("${selectedSoundId}") }}`)}
-            title="Play sound immediately"
-            disabled={soundInsertDisabled}
-            style={{
-              ...toolbarButtonStyle,
-              opacity: soundInsertDisabled ? 0.5 : 1,
-              cursor: soundInsertDisabled ? "not-allowed" : "pointer",
-            }}
-          >
-            Play now
-          </button>
-          <button
-            type="button"
             onClick={() =>
               insertSnippet(`{{ rt.PlaySoundClip("${selectedSoundId}", 0, -1, -1) }}`)
             }
-            title="Queue sound clip at this point in the prompt"
+            title="Play sound when the prompt reaches this point"
             disabled={soundInsertDisabled}
             style={{
               ...toolbarButtonStyle,
@@ -357,7 +356,7 @@ export function TemplateTextEditor({
               cursor: soundInsertDisabled ? "not-allowed" : "pointer",
             }}
           >
-            Play on reveal
+            Play
           </button>
         </div>
       )}

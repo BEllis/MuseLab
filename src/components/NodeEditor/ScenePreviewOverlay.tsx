@@ -5,11 +5,16 @@ import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { TemplateTextEditor } from "@/components/NodeEditor/TemplateTextEditor";
 import {
+  EditorPreviewSoundPlayer,
+  useEditorPreviewSoundPlayer,
+} from "@/components/NodeEditor/EditorPreviewSoundPlayer";
+import {
   getDefaultLocale,
   getNodeSpeakerForLocale,
   getNodeTextTemplateForLocale,
 } from "@/core/locale/prompts";
-import { renderNodePreviewHtml } from "@/core/view/sceneStage";
+import type { PromptInstruction } from "@/core/prompt/promptInstructions";
+import { renderNodePreviewHtml, renderNodePreviewResult } from "@/core/view/sceneStage";
 import {
   fitAspectRatioInBox,
   getProjectThumbnailAspectRatio,
@@ -19,6 +24,13 @@ const GRAPH_PREVIEW_INSET = 16;
 const EDITOR_DOCK_HEIGHT_RATIO = 0.4;
 const EDITOR_TEXT_MIN_HEIGHT = 200;
 const EDITOR_TEXT_MAX_HEIGHT = 360;
+const EDITOR_PREVIEW_DEBOUNCE_MS = 400;
+
+type EditorPreviewRender = {
+  dialogueHtml: string;
+  dialogueSpeaker: string;
+  promptInstructions: PromptInstruction[];
+};
 
 export function ScenePreviewOverlay() {
   const open = useSceneEditorPreviewStore((s) => s.open);
@@ -50,19 +62,35 @@ export function ScenePreviewOverlay() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const previewAreaRef = useRef<HTMLDivElement>(null);
+  const editorPreviewImmediateRef = useRef(true);
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
 
   const [dialogueHtml, setDialogueHtml] = useState<string | undefined>(undefined);
+  const [editorPreviewRender, setEditorPreviewRender] = useState<EditorPreviewRender | null>(null);
+  const [playbackKey, setPlaybackKey] = useState(0);
+  const {
+    playSound,
+    stopAll,
+    onDemandAssetIds,
+    handleAudioReady,
+    handleAudioUnmount,
+  } = useEditorPreviewSoundPlayer(project);
 
   const committedTemplate =
     draftTemplate ??
     (node ? getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id) : "");
+
+  const speaker = node
+    ? getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)
+    : "";
 
   useEffect(() => {
     if (!editingTemplate && draftTemplate === undefined) {
       setDialogueHtml(undefined);
       return;
     }
+    if (editingTemplate) return;
+
     let cancelled = false;
     void renderNodePreviewHtml(committedTemplate, story.globalState, { project }).then((html) => {
       if (!cancelled) setDialogueHtml(html);
@@ -71,6 +99,45 @@ export function ScenePreviewOverlay() {
       cancelled = true;
     };
   }, [committedTemplate, draftTemplate, editingTemplate, story.globalState, project]);
+
+  useEffect(() => {
+    editorPreviewImmediateRef.current = true;
+  }, [locale]);
+
+  useEffect(() => {
+    if (!editingTemplate) {
+      editorPreviewImmediateRef.current = true;
+      setEditorPreviewRender(null);
+      return;
+    }
+
+    let cancelled = false;
+    const delay = editorPreviewImmediateRef.current ? 0 : EDITOR_PREVIEW_DEBOUNCE_MS;
+    editorPreviewImmediateRef.current = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const templateResult = await renderNodePreviewResult(
+          committedTemplate,
+          story.globalState,
+          { project }
+        );
+        const speakerResult = speaker
+          ? await renderNodePreviewResult(speaker, story.globalState, { project })
+          : { html: "", instructions: [] };
+        if (cancelled) return;
+        setEditorPreviewRender({
+          dialogueHtml: templateResult.html,
+          promptInstructions: templateResult.instructions,
+          dialogueSpeaker: speakerResult.html,
+        });
+      })();
+    }, delay);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [committedTemplate, speaker, editingTemplate, story.globalState, project, locale]);
 
   useEffect(() => {
     if (!open) {
@@ -154,9 +221,14 @@ export function ScenePreviewOverlay() {
     e.stopPropagation();
   }, []);
 
-  const speaker = node
-    ? getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)
-    : "";
+  const handleRestartPreview = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      stopAll();
+      setPlaybackKey((key) => key + 1);
+    },
+    [stopAll]
+  );
 
   if (!open || !node) return null;
 
@@ -177,18 +249,20 @@ export function ScenePreviewOverlay() {
       >
         <div
           ref={previewAreaRef}
+          onClick={stopEditorClick}
+          onMouseDown={stopEditorClick}
           style={{
             flex: 1,
             minHeight: 0,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            cursor: "pointer",
           }}
         >
-          {previewSize && previewSize.width > 0 && previewSize.height > 0 && (
+          {previewSize && previewSize.width > 0 && previewSize.height > 0 && editorPreviewRender && (
             <div
               style={{
+                position: "relative",
                 width: previewSize.width,
                 height: previewSize.height,
                 borderRadius: "8px",
@@ -196,7 +270,28 @@ export function ScenePreviewOverlay() {
                 boxShadow: "0 8px 32px var(--app-shadow)",
               }}
             >
+              <button
+                type="button"
+                onClick={handleRestartPreview}
+                title="Restart prompt playback"
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  right: 10,
+                  zIndex: 3,
+                  padding: "6px 12px",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "6px",
+                  background: "rgba(0, 0, 0, 0.72)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                Restart
+              </button>
               <SceneStagePreview
+                key={`${node.id}:${locale}:${playbackKey}`}
                 project={project}
                 story={story}
                 storyId={storyId}
@@ -204,9 +299,17 @@ export function ScenePreviewOverlay() {
                 node={node}
                 locale={locale}
                 variant="full"
-                dialogueHtml={dialogueHtml}
-                disableShake
+                dialogueHtml={editorPreviewRender.dialogueHtml}
+                dialogueSpeaker={editorPreviewRender.dialogueSpeaker}
+                promptInstructions={editorPreviewRender.promptInstructions}
+                onPlaySound={playSound}
                 style={{ width: "100%", height: "100%" }}
+              />
+              <EditorPreviewSoundPlayer
+                project={project}
+                assetIds={onDemandAssetIds}
+                onReady={handleAudioReady}
+                onUnmount={handleAudioUnmount}
               />
             </div>
           )}

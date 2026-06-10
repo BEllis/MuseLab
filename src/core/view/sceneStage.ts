@@ -6,7 +6,7 @@ import {
   getNodeSpeakerForLocale,
   getNodeTextTemplateForLocale,
 } from "@/core/locale/prompts";
-import { evaluateCondition, runTemplate } from "@/core/template/engine";
+import { evaluateCondition, runTemplate, type RunTemplateResult } from "@/core/template/engine";
 import type { TemplateContext } from "@/core/cito/runtimeBridge";
 
 export type SceneStageChoice = {
@@ -77,16 +77,24 @@ export function hasVisibleRichText(html: string): boolean {
   return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim().length > 0;
 }
 
+export async function renderNodePreviewResult(
+  textTemplate: string,
+  globalState: Story["globalState"],
+  options: RenderNodePreviewOptions
+): Promise<RunTemplateResult> {
+  return runTemplate(
+    textTemplate,
+    previewTemplateContext(options.project, globalState),
+    options
+  );
+}
+
 export async function renderNodePreviewHtml(
   textTemplate: string,
   globalState: Story["globalState"],
   options: RenderNodePreviewOptions
 ): Promise<string> {
-  const result = await runTemplate(
-    textTemplate,
-    previewTemplateContext(options.project, globalState),
-    options
-  );
+  const result = await renderNodePreviewResult(textTemplate, globalState, options);
   return result.html;
 }
 
