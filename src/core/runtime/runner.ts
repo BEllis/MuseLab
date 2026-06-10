@@ -7,8 +7,9 @@ import {
 } from "../locale/prompts";
 import { isJumpNode, isSceneNode, isStartNode } from "../model/nodeTypes";
 import { getStory } from "../model/project";
-import { runTemplate, evaluateCondition } from "../template/engine";
+import { runTemplate, evaluateCondition, type RunTemplateResult } from "../template/engine";
 import type { TemplateContext } from "../cito/runtimeBridge";
+import type { PromptInstruction } from "../prompt/promptInstructions";
 
 export interface RuntimeChoice {
   edge: StoryEdge;
@@ -22,6 +23,8 @@ export interface RuntimeState {
   state: Record<string, unknown>;
   /** Rendered HTML for current node */
   currentHtml: string;
+  /** Sequential prompt instructions for timed dialogue playback */
+  promptInstructions: PromptInstruction[];
   /** Rendered speaker name for current node (empty when unset) */
   currentSpeaker: string;
   /** Out-edges from current node that pass their condition */
@@ -109,6 +112,7 @@ export function createRunner(
 
   const context: TemplateContext = {
     state,
+    project,
     setState,
     emit,
     call,
@@ -179,10 +183,10 @@ export function createRunner(
     return choices;
   }
 
-  async function renderCurrentNode(): Promise<string> {
-    if (!currentNodeId) return "";
+  async function renderCurrentNode(): Promise<RunTemplateResult> {
+    if (!currentNodeId) return { html: "", instructions: [] };
     const node = getCurrentNode();
-    if (!node || !isSceneNode(node)) return "";
+    if (!node || !isSceneNode(node)) return { html: "", instructions: [] };
     const textTemplate = getNodeTextTemplateForLocale(
       promptsByLocale,
       activeLocale,
@@ -203,13 +207,14 @@ export function createRunner(
       currentNodeId
     );
     if (!speaker) return "";
-    return runTemplate(speaker, context, { project });
+    const result = await runTemplate(speaker, context, { project });
+    return result.html;
   }
 
   async function getRuntimeState(): Promise<RuntimeState> {
     const node = getCurrentNode();
-    const [html, speaker, choices] = await Promise.all([
-      node && isSceneNode(node) ? renderCurrentNode() : Promise.resolve(""),
+    const [nodeRender, speaker, choices] = await Promise.all([
+      node && isSceneNode(node) ? renderCurrentNode() : Promise.resolve({ html: "", instructions: [] }),
       node && isSceneNode(node) ? renderCurrentSpeaker() : Promise.resolve(""),
       getChoices(),
     ]);
@@ -224,7 +229,8 @@ export function createRunner(
       currentNodeId,
       activeStoryId,
       state: { ...state },
-      currentHtml: html,
+      currentHtml: nodeRender.html,
+      promptInstructions: nodeRender.instructions,
       currentSpeaker: speaker,
       choices,
       isTerminalScene,

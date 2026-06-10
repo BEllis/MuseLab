@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Project, Story, StoryNode } from "@/core/model/types";
+import type { PromptInstruction } from "@/core/prompt/promptInstructions";
+import {
+  PromptInstructionExecutor,
+  shouldUsePromptExecutor,
+} from "@/components/PromptInstructionExecutor";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { ActorRow } from "@/components/ActorImage";
 import {
@@ -36,6 +41,8 @@ type SceneStagePreviewProps = {
   variant?: "compact" | "full";
   dialogueHtml?: string;
   dialogueSpeaker?: string;
+  promptInstructions?: PromptInstruction[];
+  onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
   choices?: SceneStageChoice[];
   singleChoice?: boolean;
   showContinue?: boolean;
@@ -58,6 +65,8 @@ export function SceneStagePreview({
   variant = "compact",
   dialogueHtml,
   dialogueSpeaker,
+  promptInstructions = [],
+  onPlaySound,
   choices: choicesProp,
   singleChoice: singleChoiceProp,
   showContinue = false,
@@ -72,6 +81,7 @@ export function SceneStagePreview({
   const [previewHtml, setPreviewHtml] = useState(dialogueHtml ?? "");
   const [previewSpeaker, setPreviewSpeaker] = useState(dialogueSpeaker ?? "");
   const [previewChoices, setPreviewChoices] = useState<SceneStageChoice[]>(choicesProp ?? []);
+  const [promptComplete, setPromptComplete] = useState(true);
 
   useEffect(() => {
     if (choicesProp !== undefined) {
@@ -138,8 +148,18 @@ export function SceneStagePreview({
   const hasSpeaker = hasVisibleRichText(speakerHtml);
   const hasOptions = choices.some((choice) => choice.optionText);
   const compact = variant === "compact";
+  const usePromptExecutor =
+    !compact && shouldUsePromptExecutor(promptInstructions);
+  const interactionsEnabled = compact || promptComplete;
   const singleChoice = singleChoiceProp ?? (choices.length === 1 && !hasOptions);
-  const continueOnClick = showContinue && !compact;
+  const continueOnClick = showContinue && !compact && interactionsEnabled;
+  const handlePromptComplete = useCallback(() => {
+    setPromptComplete(true);
+  }, []);
+
+  useEffect(() => {
+    setPromptComplete(!usePromptExecutor);
+  }, [html, promptInstructions, usePromptExecutor]);
   const showCaptionPanel = hasDialogueContent;
   const choiceAreaBottom =
     showCaptionPanel && choices.length > 0 && !singleChoice
@@ -148,7 +168,7 @@ export function SceneStagePreview({
         : DIALOGUE_PANEL_HEIGHT
       : 0;
   const needsStageContinue =
-    !compact && !hasDialogueContent && (singleChoice || continueOnClick);
+    !compact && !hasDialogueContent && interactionsEnabled && (singleChoice || showContinue);
 
   const boxStyle = compact ? compactVnBoxStyle : vnBoxStyle;
   const buttonStyle = compact ? compactVnButtonStyle : vnButtonStyle;
@@ -216,8 +236,8 @@ export function SceneStagePreview({
               <button
                 key={edge.id}
                 type="button"
-                disabled={compact}
-                onClick={compact ? undefined : () => onChoice?.(targetNode.id)}
+                disabled={compact || !interactionsEnabled}
+                onClick={compact || !interactionsEnabled ? undefined : () => onChoice?.(targetNode.id)}
                 style={{
                   ...buttonStyle,
                   cursor: compact ? "default" : "pointer",
@@ -286,74 +306,65 @@ export function SceneStagePreview({
           pointerEvents: compact ? "none" : undefined,
         }}
       >
-        <div
-          style={{
-            ...boxStyle,
-            position: "relative",
-            height: compact ? "3.6em" : "8em",
-            minHeight: compact ? "3.6em" : "8em",
-            overflow: compact ? "hidden" : "auto",
-            ...((singleChoice || continueOnClick) &&
-              !compact && {
-                cursor: "pointer",
-                userSelect: "none",
-              }),
-          }}
-          {...(singleChoice &&
-            !compact && {
-              onClick: () => onChoice?.(choices[0].targetNode.id),
-              role: "button",
-              tabIndex: 0,
-              onKeyDown: (e: React.KeyboardEvent) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onChoice?.(choices[0].targetNode.id);
+        {usePromptExecutor ? (
+          <PromptInstructionExecutor
+            fullHtml={html}
+            instructions={promptInstructions}
+            onPlaySound={onPlaySound}
+            onComplete={handlePromptComplete}
+            onSkipChange={(skipped) => {
+              if (skipped) setPromptComplete(true);
+            }}
+          >
+            {({ visibleHtml, isComplete, skip }) => (
+              <DialogueCaptionBox
+                boxStyle={boxStyle}
+                compact={compact}
+                hasSpeaker={hasSpeaker}
+                speakerHtml={speakerHtml}
+                speakerStyle={speakerStyle}
+                dialogueHtml={visibleHtml}
+                showContinueHint={
+                  (singleChoice || (showContinue && !compact && isComplete)) && isComplete
                 }
-              },
-            })}
-          {...(continueOnClick && {
-            onClick: () => onContinue?.(),
-            role: "button",
-            tabIndex: 0,
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
+                interactive={!compact}
+                onActivate={() => {
+                  if (!isComplete) {
+                    skip();
+                    return;
+                  }
+                  if (singleChoice) {
+                    onChoice?.(choices[0].targetNode.id);
+                    return;
+                  }
+                  if (showContinue) {
+                    onContinue?.();
+                  }
+                }}
+              />
+            )}
+          </PromptInstructionExecutor>
+        ) : (
+          <DialogueCaptionBox
+            boxStyle={boxStyle}
+            compact={compact}
+            hasSpeaker={hasSpeaker}
+            speakerHtml={speakerHtml}
+            speakerStyle={speakerStyle}
+            dialogueHtml={html}
+            showContinueHint={(singleChoice || continueOnClick) && interactionsEnabled}
+            interactive={!compact && (singleChoice || continueOnClick || usePromptExecutor)}
+            onActivate={() => {
+              if (singleChoice) {
+                onChoice?.(choices[0].targetNode.id);
+                return;
+              }
+              if (continueOnClick) {
                 onContinue?.();
               }
-            },
-          })}
-        >
-          {hasSpeaker && (
-            <div
-              dangerouslySetInnerHTML={{ __html: speakerHtml }}
-              style={speakerStyle}
-            />
-          )}
-          <div
-            dangerouslySetInnerHTML={{ __html: html }}
-            style={{
-              lineHeight: compact ? 1.25 : 1.6,
-              ...(hasSpeaker && {
-                paddingTop: compact ? "1.2em" : "1.4em",
-              }),
             }}
           />
-          {(singleChoice || continueOnClick) && (
-            <span
-              style={{
-                position: "absolute",
-                bottom: compact ? "1px" : "8px",
-                right: compact ? "3px" : "12px",
-                color: "#0f172a",
-                fontSize: compact ? "5px" : "18px",
-                lineHeight: 1,
-                fontFamily: "inherit",
-              }}
-            >
-              Continue &gt;&gt;
-            </span>
-          )}
-        </div>
+        )}
 
         {!compact && choices.length === 0 && !showContinue && (
           <div
@@ -389,6 +400,83 @@ export function SceneStagePreview({
           </div>
         )}
       </div>
+      )}
+    </div>
+  );
+}
+
+function DialogueCaptionBox({
+  boxStyle,
+  compact,
+  hasSpeaker,
+  speakerHtml,
+  speakerStyle,
+  dialogueHtml,
+  showContinueHint,
+  interactive,
+  onActivate,
+}: {
+  boxStyle: React.CSSProperties;
+  compact: boolean;
+  hasSpeaker: boolean;
+  speakerHtml: string;
+  speakerStyle: React.CSSProperties;
+  dialogueHtml: string;
+  showContinueHint: boolean;
+  interactive: boolean;
+  onActivate?: () => void;
+}) {
+  return (
+    <div
+      style={{
+        ...boxStyle,
+        position: "relative",
+        height: compact ? "3.6em" : "8em",
+        minHeight: compact ? "3.6em" : "8em",
+        overflow: compact ? "hidden" : "auto",
+        ...(interactive && {
+          cursor: "pointer",
+          userSelect: "none",
+        }),
+      }}
+      {...(interactive && {
+        onClick: () => onActivate?.(),
+        role: "button",
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onActivate?.();
+          }
+        },
+      })}
+    >
+      {hasSpeaker && (
+        <div dangerouslySetInnerHTML={{ __html: speakerHtml }} style={speakerStyle} />
+      )}
+      <div
+        dangerouslySetInnerHTML={{ __html: dialogueHtml }}
+        style={{
+          lineHeight: compact ? 1.25 : 1.6,
+          ...(hasSpeaker && {
+            paddingTop: compact ? "1.2em" : "1.4em",
+          }),
+        }}
+      />
+      {showContinueHint && (
+        <span
+          style={{
+            position: "absolute",
+            bottom: compact ? "1px" : "8px",
+            right: compact ? "3px" : "12px",
+            color: "#0f172a",
+            fontSize: compact ? "5px" : "18px",
+            lineHeight: 1,
+            fontFamily: "inherit",
+          }}
+        >
+          Continue &gt;&gt;
+        </span>
       )}
     </div>
   );

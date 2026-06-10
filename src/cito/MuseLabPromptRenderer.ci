@@ -12,6 +12,30 @@ public class MuseLabPromptRenderer
     {
     }
 
+    public void Wait(int milliseconds)
+    {
+    }
+
+    public void RevealCharsBegin(double charsPerSecond)
+    {
+    }
+
+    public void RevealWordsBegin(double wordsPerSecond)
+    {
+    }
+
+    public void RevealCharsOverTimeBegin(int durationMs)
+    {
+    }
+
+    public void RevealWordsOverTimeBegin(int durationMs)
+    {
+    }
+
+    public void RevealEnd()
+    {
+    }
+
     public string Render()
     {
         return "";

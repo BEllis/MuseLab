@@ -1,16 +1,29 @@
 import type { FormatMarker } from "./formatMarkerRuntime";
+import {
+  createPromptInstructionRecorder,
+  type PromptInstruction,
+  type PromptInstructionRecorder,
+} from "@/core/prompt/promptInstructions";
 
 const SHAKE_CHAR_VARIANT_COUNT = 8;
 
 export type HtmlPromptRendererOptions = {
   disableShake?: boolean;
+  recorder?: PromptInstructionRecorder;
 };
 
 export type PromptRenderer = {
   addLiteral(text: string): void;
   appendResult(value: unknown): void;
   applyFormat(marker: FormatMarker | null | undefined): void;
+  wait(milliseconds: number): void;
+  revealCharsBegin(charsPerSecond: number): void;
+  revealWordsBegin(wordsPerSecond: number): void;
+  revealCharsOverTimeBegin(durationMs: number): void;
+  revealWordsOverTimeBegin(durationMs: number): void;
+  revealEnd(): void;
   render(): string;
+  getInstructions(): PromptInstruction[];
 };
 
 type ShakeMode = "none" | "chars" | "phrase";
@@ -97,6 +110,16 @@ function markerToHtml(marker: FormatMarker, disableShake: boolean): string {
   }
 }
 
+function markerPlainText(marker: FormatMarker): string {
+  switch (marker.kind) {
+    case "shakeCharsText":
+    case "shakePhraseText":
+      return marker.text ?? "";
+    default:
+      return "";
+  }
+}
+
 function updateShakeModeFromMarker(marker: FormatMarker, mode: ShakeMode): ShakeMode {
   switch (marker.kind) {
     case "shakeCharsStart":
@@ -116,27 +139,56 @@ export function createHtmlPromptRenderer(
   options: HtmlPromptRendererOptions = {}
 ): PromptRenderer {
   const disableShake = options.disableShake ?? false;
+  const recorder = options.recorder ?? createPromptInstructionRecorder();
   const parts: string[] = [];
   let shakeMode: ShakeMode = "none";
 
+  const pushHtml = (html: string, plainText: string) => {
+    if (!html) return;
+    parts.push(html);
+    recorder.appendRevealText(html, plainText);
+  };
+
   return {
     addLiteral(text: string) {
-      parts.push(literalToHtml(text, shakeMode, disableShake));
+      pushHtml(literalToHtml(text, shakeMode, disableShake), text);
     },
     appendResult(value: unknown) {
       if (value === undefined || value === null) return;
-      parts.push(String(value));
+      const text = String(value);
+      pushHtml(text, text);
     },
     applyFormat(marker: FormatMarker | null | undefined) {
       if (!marker) return;
       const html = markerToHtml(marker, disableShake);
       if (html) {
-        parts.push(html);
+        pushHtml(html, markerPlainText(marker));
       }
       shakeMode = updateShakeModeFromMarker(marker, shakeMode);
     },
+    wait(milliseconds: number) {
+      recorder.wait(milliseconds);
+    },
+    revealCharsBegin(charsPerSecond: number) {
+      recorder.revealCharsBegin(charsPerSecond);
+    },
+    revealWordsBegin(wordsPerSecond: number) {
+      recorder.revealWordsBegin(wordsPerSecond);
+    },
+    revealCharsOverTimeBegin(durationMs: number) {
+      recorder.revealCharsOverTimeBegin(durationMs);
+    },
+    revealWordsOverTimeBegin(durationMs: number) {
+      recorder.revealWordsOverTimeBegin(durationMs);
+    },
+    revealEnd() {
+      recorder.revealEnd();
+    },
     render() {
       return parts.join("");
+    },
+    getInstructions() {
+      return recorder.instructions;
     },
   };
 }
@@ -147,10 +199,22 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     addLiteral: (text: string) => renderer.addLiteral(text),
     appendResult: (value: unknown) => renderer.appendResult(value),
     applyFormat: (marker: FormatMarker | null | undefined) => renderer.applyFormat(marker),
+    wait: (milliseconds: number) => renderer.wait(milliseconds),
+    revealCharsBegin: (charsPerSecond: number) => renderer.revealCharsBegin(charsPerSecond),
+    revealWordsBegin: (wordsPerSecond: number) => renderer.revealWordsBegin(wordsPerSecond),
+    revealCharsOverTimeBegin: (durationMs: number) => renderer.revealCharsOverTimeBegin(durationMs),
+    revealWordsOverTimeBegin: (durationMs: number) => renderer.revealWordsOverTimeBegin(durationMs),
+    revealEnd: () => renderer.revealEnd(),
     render: () => renderer.render(),
     AddLiteral: (text: string) => renderer.addLiteral(text),
     AppendResult: (value: unknown) => renderer.appendResult(value),
     ApplyFormat: (marker: FormatMarker | null | undefined) => renderer.applyFormat(marker),
+    Wait: (milliseconds: number) => renderer.wait(milliseconds),
+    RevealCharsBegin: (charsPerSecond: number) => renderer.revealCharsBegin(charsPerSecond),
+    RevealWordsBegin: (wordsPerSecond: number) => renderer.revealWordsBegin(wordsPerSecond),
+    RevealCharsOverTimeBegin: (durationMs: number) => renderer.revealCharsOverTimeBegin(durationMs),
+    RevealWordsOverTimeBegin: (durationMs: number) => renderer.revealWordsOverTimeBegin(durationMs),
+    RevealEnd: () => renderer.revealEnd(),
     Render: () => renderer.render(),
   };
 }

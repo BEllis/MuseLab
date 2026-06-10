@@ -1,3 +1,10 @@
+import type { Project } from "../model/types";
+import type { PromptInstructionRecorder } from "../prompt/promptInstructions";
+import {
+  resolveSoundAssetId,
+  resolveSoundAssetIdById,
+} from "../assets/resolveSoundAsset";
+
 /** Context passed to template/condition evaluation (author-facing bridge is MuseLabRuntime). */
 export type TemplateContext = {
   state: Record<string, unknown>;
@@ -5,6 +12,8 @@ export type TemplateContext = {
   emit: (eventName: string) => void;
   call: (name: string, ...args: unknown[]) => unknown;
   playSound: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
+  project: Project;
+  instructionRecorder?: PromptInstructionRecorder;
 };
 
 /** Runtime bridge matching transpiled Cito camelCase method names. */
@@ -19,6 +28,14 @@ export type MuseLabRuntimeBridge = {
   call: (name: string) => string;
   playSound: (assetId: string) => void;
   playSoundTrim: (assetId: string, startTime: number, endTime: number) => void;
+  playSoundClip: (assetId: string, delaySeconds: number, startTime: number, endTime: number) => void;
+  playSoundClipByPath: (
+    groupPath: string,
+    assetName: string,
+    delaySeconds: number,
+    startTime: number,
+    endTime: number
+  ) => void;
 };
 
 function readString(state: Record<string, unknown>, key: string): string {
@@ -39,6 +56,21 @@ function readInt(state: Record<string, unknown>, key: string): number {
     return Number.isNaN(parsed) ? 0 : parsed;
   }
   return 0;
+}
+
+function schedulePlaySoundClip(
+  context: TemplateContext,
+  assetId: string,
+  delaySeconds: number,
+  startTime: number,
+  endTime: number
+): void {
+  const recorder = context.instructionRecorder;
+  if (!recorder) {
+    throw new Error("PlaySoundClip requires the default prompt instruction recorder");
+  }
+  const resolvedId = resolveSoundAssetIdById(context.project, assetId);
+  recorder.playSound(resolvedId, delaySeconds, startTime, endTime);
 }
 
 export function createMuseLabRuntimeBridge(context: TemplateContext): MuseLabRuntimeBridge {
@@ -68,6 +100,17 @@ export function createMuseLabRuntimeBridge(context: TemplateContext): MuseLabRun
     },
     playSoundTrim: (assetId, startTime, endTime) => {
       context.playSound(assetId, { startTime, endTime });
+    },
+    playSoundClip: (assetId, delaySeconds, startTime, endTime) => {
+      schedulePlaySoundClip(context, assetId, delaySeconds, startTime, endTime);
+    },
+    playSoundClipByPath: (groupPath, assetName, delaySeconds, startTime, endTime) => {
+      const recorder = context.instructionRecorder;
+      if (!recorder) {
+        throw new Error("PlaySoundClipByPath requires the default prompt instruction recorder");
+      }
+      const resolvedId = resolveSoundAssetId(context.project, groupPath, assetName);
+      recorder.playSound(resolvedId, delaySeconds, startTime, endTime);
     },
   };
 }

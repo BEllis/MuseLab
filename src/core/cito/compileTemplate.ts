@@ -7,7 +7,7 @@ const IF_REGEX = /\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g;
 const EXPR_REGEX = /\{\{([^}]*)\}\}/g;
 
 const STATEMENT_PREFIX =
-  /^\s*rt\.(?:SetString|SetBool|SetInt|Emit|PlaySound|PlaySoundTrim)\s*\(/;
+  /^\s*(?:rt\.(?:SetString|SetBool|SetInt|Emit|PlaySound|PlaySoundTrim|PlaySoundClip|PlaySoundClipByPath)|prompter\.(?:Wait|RevealCharsBegin|RevealWordsBegin|RevealCharsOverTimeBegin|RevealWordsOverTimeBegin|RevealEnd))\s*\(/;
 
 type ShakeMode = "none" | "chars" | "phrase";
 

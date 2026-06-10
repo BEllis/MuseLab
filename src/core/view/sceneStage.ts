@@ -48,9 +48,13 @@ export async function getNodeChoices(
   return choices;
 }
 
-function previewTemplateContext(globalState: Story["globalState"]): TemplateContext {
+function previewTemplateContext(
+  project: Project,
+  globalState: Story["globalState"]
+): TemplateContext {
   return {
     state: { ...globalState },
+    project,
     setState: () => {},
     emit: () => {},
     call: () => undefined,
@@ -78,7 +82,12 @@ export async function renderNodePreviewHtml(
   globalState: Story["globalState"],
   options: RenderNodePreviewOptions
 ): Promise<string> {
-  return runTemplate(textTemplate, previewTemplateContext(globalState), options);
+  const result = await runTemplate(
+    textTemplate,
+    previewTemplateContext(options.project, globalState),
+    options
+  );
+  return result.html;
 }
 
 export async function renderNodePreviewHtmlForLocale(

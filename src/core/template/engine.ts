@@ -4,6 +4,7 @@ import { compileTemplate, getTemplateBindingNames } from "../cito/compileTemplat
 import type { TemplateContext } from "../cito/runtimeBridge";
 import { runTranspiledMethod, transpileCiToJs } from "../cito/transpile";
 import { createModuleBindings } from "../modules/moduleRuntime";
+import type { PromptInstruction } from "../prompt/promptInstructions";
 import { sanitizeHtml } from "./sanitize";
 
 export type { TemplateContext } from "../cito/runtimeBridge";
@@ -13,6 +14,11 @@ export type RunTemplateOptions = {
   disableShake?: boolean;
 };
 
+export type RunTemplateResult = {
+  html: string;
+  instructions: PromptInstruction[];
+};
+
 /**
  * Process template string: {{#if}}, {{ Cito expr }}, Format.* calls, then sanitize HTML.
  */
@@ -20,8 +26,10 @@ export async function runTemplate(
   template: string,
   context: TemplateContext,
   options: RunTemplateOptions
-): Promise<string> {
-  if (!template.trim()) return "";
+): Promise<RunTemplateResult> {
+  if (!template.trim()) {
+    return { html: "", instructions: [] };
+  }
 
   const compiled = compileTemplate(template, options.project);
   const js = await transpileCiToJs(compiled.ciSource);
@@ -37,8 +45,12 @@ export async function runTemplate(
     paramNames
   );
 
-  if (result === undefined || result === null) return "";
-  return sanitizeHtml(String(result));
+  const html =
+    result === undefined || result === null ? "" : sanitizeHtml(String(result));
+  return {
+    html,
+    instructions: bindings.promptRenderer.getInstructions(),
+  };
 }
 
 /**
@@ -55,7 +67,8 @@ export async function evaluateCondition(
     const compiled = compileCondition(condition, project);
     const js = await transpileCiToJs(compiled.ciSource);
     const bindings = createModuleBindings(project, {
-      ...context,
+      state: context.state,
+      project,
       setState: () => {},
       emit: () => {},
       call: () => undefined,

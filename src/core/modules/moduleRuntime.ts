@@ -7,6 +7,7 @@ import {
 } from "./htmlPromptRenderer";
 import { createFormatMarkerBridge } from "./formatMarkerRuntime";
 import { createMuseLabRuntimeBridge, type TemplateContext } from "@/core/cito/runtimeBridge";
+import { createPromptInstructionRecorder } from "@/core/prompt/promptInstructions";
 
 function defaultReturnValue(type: CitoType): unknown {
   switch (type) {
@@ -82,6 +83,15 @@ export function createCustomModuleInstance(
   return createNullStubModule(service);
 }
 
+const noopTimingMethods = {
+  wait: () => undefined,
+  revealCharsBegin: () => undefined,
+  revealWordsBegin: () => undefined,
+  revealCharsOverTimeBegin: () => undefined,
+  revealWordsOverTimeBegin: () => undefined,
+  revealEnd: () => undefined,
+};
+
 export function createPromptRenderer(
   project: Project,
   options: HtmlPromptRendererOptions = {}
@@ -108,6 +118,8 @@ export function createPromptRenderer(
           appendResult: (value) => custom.appendResult(value),
           applyFormat: (marker) => custom.applyFormat(marker),
           render: () => String(custom.render()),
+          getInstructions: () => [],
+          ...noopTimingMethods,
         };
       }
       if (
@@ -121,6 +133,8 @@ export function createPromptRenderer(
           appendResult: (value) => custom.AppendResult(value),
           applyFormat: (marker) => custom.ApplyFormat(marker),
           render: () => String(custom.Render()),
+          getInstructions: () => [],
+          ...noopTimingMethods,
         };
       }
       throw new Error("Prompt renderer must implement addLiteral, appendResult, applyFormat, render");
@@ -135,6 +149,7 @@ export type ModuleBindings = Record<string, unknown> & {
   rt: ReturnType<typeof createMuseLabRuntimeBridge>;
   prompter: ReturnType<typeof createPromptRendererBridge>;
   format: ReturnType<typeof createFormatMarkerBridge>;
+  promptRenderer: PromptRenderer;
 };
 
 export function createModuleBindings(
@@ -142,11 +157,17 @@ export function createModuleBindings(
   context: TemplateContext,
   options: HtmlPromptRendererOptions = {}
 ): ModuleBindings {
-  const renderer = createPromptRenderer(project, options);
+  const recorder = createPromptInstructionRecorder();
+  const renderer = createPromptRenderer(project, { ...options, recorder });
   const bindings: ModuleBindings = {
-    rt: createMuseLabRuntimeBridge(context),
+    rt: createMuseLabRuntimeBridge({
+      ...context,
+      project,
+      instructionRecorder: recorder,
+    }),
     prompter: createPromptRendererBridge(renderer),
     format: createFormatMarkerBridge(),
+    promptRenderer: renderer,
   };
 
   for (const service of project.modules) {

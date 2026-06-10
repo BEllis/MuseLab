@@ -30,6 +30,27 @@ const RUNTIME_METHODS: ModuleMethod[] = [
     ],
     returnType: "void",
   },
+  {
+    name: "PlaySoundClip",
+    parameters: [
+      { name: "assetId", type: "string" },
+      { name: "delaySeconds", type: "double" },
+      { name: "startTime", type: "double" },
+      { name: "endTime", type: "double" },
+    ],
+    returnType: "void",
+  },
+  {
+    name: "PlaySoundClipByPath",
+    parameters: [
+      { name: "groupPath", type: "string" },
+      { name: "assetName", type: "string" },
+      { name: "delaySeconds", type: "double" },
+      { name: "startTime", type: "double" },
+      { name: "endTime", type: "double" },
+    ],
+    returnType: "void",
+  },
 ];
 
 const FORMAT_METHODS: ModuleMethod[] = [
@@ -51,6 +72,12 @@ const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
   { name: "AddLiteral", parameters: [{ name: "text", type: "string" }], returnType: "void" },
   { name: "AppendResult", parameters: [{ name: "value", type: "string" }], returnType: "void" },
   { name: "ApplyFormat", parameters: [{ name: "marker", type: "string" }], returnType: "void" },
+  { name: "Wait", parameters: [{ name: "milliseconds", type: "int" }], returnType: "void" },
+  { name: "RevealCharsBegin", parameters: [{ name: "charsPerSecond", type: "double" }], returnType: "void" },
+  { name: "RevealWordsBegin", parameters: [{ name: "wordsPerSecond", type: "double" }], returnType: "void" },
+  { name: "RevealCharsOverTimeBegin", parameters: [{ name: "durationMs", type: "int" }], returnType: "void" },
+  { name: "RevealWordsOverTimeBegin", parameters: [{ name: "durationMs", type: "int" }], returnType: "void" },
+  { name: "RevealEnd", parameters: [], returnType: "void" },
   { name: "Render", parameters: [], returnType: "string" },
 ];
 

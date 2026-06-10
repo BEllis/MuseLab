@@ -43,4 +43,12 @@ public class MuseLabRuntime
     public void PlaySoundTrim(string assetId, double startTime, double endTime)
     {
     }
+
+    public void PlaySoundClip(string assetId, double delaySeconds, double startTime, double endTime)
+    {
+    }
+
+    public void PlaySoundClipByPath(string groupPath, string assetName, double delaySeconds, double startTime, double endTime)
+    {
+    }
 }

@@ -32,6 +32,17 @@ describe("compileTemplate", () => {
     expect(ciSource).toContain("return prompter.Render();");
   });
 
+  it("treats prompter timing and PlaySoundClip calls as statements", () => {
+    const { ciSource } = compileTemplate(
+      '{{ prompter.Wait(250) }}{{ prompter.RevealCharsBegin(-1) }}x{{ prompter.RevealEnd() }}{{ rt.PlaySoundClip("sfx", 0, -1, -1) }}',
+      project
+    );
+    expect(ciSource).toContain("prompter.Wait(250);");
+    expect(ciSource).toContain("prompter.RevealCharsBegin(-1);");
+    expect(ciSource).toContain("prompter.RevealEnd();");
+    expect(ciSource).toContain('rt.PlaySoundClip("sfx", 0, -1, -1);');
+  });
+
   it("maps Format tags into ApplyFormat calls", () => {
     const { ciSource } = compileTemplate(
       "{{ Format.BoldStart() }}x{{ Format.BoldEnd() }}",

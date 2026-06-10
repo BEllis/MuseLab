@@ -13,6 +13,7 @@ import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { BackToDesignerButton } from "@/components/BackToDesignerButton";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import type { Project, Story, StoryNode } from "@/core/model/types";
+import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import {
   clampPlayerResolution,
   CUSTOM_PLAYER_RESOLUTION_KEY,
@@ -459,6 +460,7 @@ function PlayerStage({
   runtime: {
     currentHtml: string;
     currentSpeaker: string;
+    promptInstructions: PromptInstruction[];
     choices: RuntimeChoice[];
     isTerminalScene: boolean;
   };
@@ -478,6 +480,10 @@ function PlayerStage({
       variant="full"
       dialogueHtml={runtime.currentHtml}
       dialogueSpeaker={runtime.currentSpeaker}
+      promptInstructions={runtime.promptInstructions}
+      onPlaySound={(assetId, options) => {
+        window.__playerPlaySound?.(assetId, options);
+      }}
       choices={runtime.choices}
       singleChoice={singleChoice}
       showContinue={runtime.isTerminalScene}
