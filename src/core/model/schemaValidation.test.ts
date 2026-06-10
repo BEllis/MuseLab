@@ -272,4 +272,103 @@ describe("MuseLab JSON schemas", () => {
 
     expect(result.valid).toBe(false);
   });
+
+  it("validates nested attributes on project entities", () => {
+    const result = validateStoryManifest({
+      formatVersion: MUSELAB_FORMAT_VERSION,
+      name: "Attributes",
+      attributes: {
+        exportTarget: { type: "string", value: "unity" },
+      },
+      assets: [
+        {
+          id: "muselab-default-backdrop",
+          type: "backdrop",
+          name: "default",
+          url: "data:image/png;base64,...",
+          attributes: {
+            tint: { type: "string", value: "#ffffff" },
+          },
+        },
+      ],
+      stories: [
+        {
+          id: STORY_ID,
+          name: "Main",
+          attributes: {
+            chapter: { type: "integer", value: 1 },
+          },
+          nodes: [
+            {
+              id: SCENE_ID,
+              type: "scene",
+              position: { x: 0, y: 0 },
+              attributes: {
+                border: {
+                  type: "object",
+                  value: {
+                    width: { type: "integer", value: 2 },
+                  },
+                },
+              },
+              actorConfigs: [
+                {
+                  assetId: BACKDROP_ID,
+                  expressionId: SCENE_ID,
+                  attributes: {
+                    x: { type: "number", value: 12.5 },
+                  },
+                },
+              ],
+              soundConfigs: [
+                {
+                  assetId: BACKDROP_ID,
+                  attributes: {
+                    fade: { type: "number", value: 0.5 },
+                  },
+                },
+              ],
+            },
+          ],
+          edges: [
+            {
+              id: EDGE_ID,
+              sourceNodeId: SCENE_ID,
+              targetNodeId: SCENE_ID,
+              attributes: {
+                style: { type: "string", value: "dashed" },
+              },
+            },
+          ],
+          globalState: {},
+        },
+      ],
+      locales: ["en"],
+      modules: [],
+    });
+
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects invalid attribute value types", () => {
+    const result = validateStoryManifest({
+      name: "Invalid attributes",
+      attributes: {
+        bad: { type: "integer", value: 1.5 },
+      },
+      assets: [],
+      stories: [
+        {
+          id: STORY_ID,
+          name: "Main",
+          nodes: [],
+          edges: [],
+          globalState: {},
+        },
+      ],
+      locales: ["en"],
+    });
+
+    expect(result.valid).toBe(false);
+  });
 });

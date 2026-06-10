@@ -66,6 +66,11 @@ import {
   wouldCreateAssetGroupCycle,
 } from "./assetTree";
 import { generateId } from "./id";
+import {
+  applyAttributesField,
+  copyOptionalAttributes,
+  normalizeOptionalAttributes,
+} from "./attributes";
 
 export { generateId } from "./id";
 
@@ -341,7 +346,9 @@ export function removeStory(project: Project, storyId: string): void {
 export function updateStory(
   project: Project,
   storyId: string,
-  patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">>
+  patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">> & {
+    attributes?: import("./types").Attributes | null;
+  }
 ): void {
   const story = getStory(project, storyId);
   if (patch.name !== undefined) {
@@ -365,6 +372,9 @@ export function updateStory(
     } else {
       delete story.groupId;
     }
+  }
+  if ("attributes" in patch) {
+    applyAttributesField(story, patch.attributes);
   }
 }
 
@@ -612,7 +622,9 @@ export function updateNode(
   project: Project,
   storyId: string,
   nodeId: string,
-  patch: Partial<Omit<StoryNode, "id">>
+  patch: Partial<Omit<StoryNode, "id" | "attributes">> & {
+    attributes?: import("./types").Attributes | null;
+  }
 ): void {
   const node = getStory(project, storyId).nodes.find((n) => n.id === nodeId);
   if (!node) return;
@@ -626,7 +638,13 @@ export function updateNode(
   if ("backdropId" in patch) {
     patch = { ...patch, backdropId: resolveBackdropId(project, patch.backdropId) };
   }
-  Object.assign(node, patch);
+  if ("attributes" in patch) {
+    applyAttributesField(node, patch.attributes);
+    const { attributes: _attributes, ...rest } = patch;
+    Object.assign(node, rest);
+  } else {
+    Object.assign(node, patch);
+  }
 }
 
 /** Add an edge between two nodes */
@@ -701,16 +719,22 @@ export function updateEdge(
   project: Project,
   storyId: string,
   edgeId: string,
-  patch: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>
+  patch: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">> & {
+    attributes?: import("./types").Attributes | null;
+  }
 ): void {
   const edge = getStory(project, storyId).edges.find((e) => e.id === edgeId);
   if (!edge) return;
-  Object.assign(edge, patch);
+  const { attributes, ...rest } = patch;
+  Object.assign(edge, rest);
   if ("vertices" in patch && patch.vertices === undefined) {
     delete edge.vertices;
   }
   if ("manualRoute" in patch && patch.manualRoute === undefined) {
     delete edge.manualRoute;
+  }
+  if ("attributes" in patch) {
+    applyAttributesField(edge, attributes);
   }
 }
 
@@ -797,7 +821,9 @@ export function updateActorExpression(
   project: Project,
   actorId: string,
   expressionId: string,
-  patch: Partial<Pick<ActorExpression, "name" | "sortOrder">>
+  patch: Partial<Pick<ActorExpression, "name" | "sortOrder">> & {
+    attributes?: import("./types").Attributes | null;
+  }
 ): void {
   const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
   if (!asset) return;
@@ -819,6 +845,9 @@ export function updateActorExpression(
   }
   if (patch.sortOrder !== undefined) {
     expression.sortOrder = patch.sortOrder;
+  }
+  if ("attributes" in patch) {
+    applyAttributesField(expression, patch.attributes);
   }
 }
 
@@ -891,6 +920,7 @@ export function updateAsset(
     >
   > & {
     defaultExpressionId?: string | null;
+    attributes?: import("./types").Attributes | null;
   }
 ): void {
   const asset = project.assets.find((a) => a.id === assetId);
@@ -919,7 +949,7 @@ export function updateAsset(
     }
     if (patch.defaultExpressionId === null) {
       delete asset.defaultExpressionId;
-    } else {
+    } else if (patch.defaultExpressionId !== undefined) {
       if (!findExpression(asset, patch.defaultExpressionId)) {
         throw new Error(`Expression "${patch.defaultExpressionId}" not found`);
       }
@@ -930,9 +960,13 @@ export function updateAsset(
     groupId: _groupId,
     sortOrder: _sortOrder,
     defaultExpressionId: _defaultExpressionId,
+    attributes,
     ...rest
   } = patch;
   Object.assign(asset, rest);
+  if ("attributes" in patch) {
+    applyAttributesField(asset, attributes);
+  }
 }
 
 /** Replace asset media in place; id and node references stay the same. */
@@ -986,7 +1020,9 @@ export function updateProject(
       | "defaultLocale"
       | "promptRendererTypescriptSource"
     >
-  >
+  > & {
+    attributes?: import("./types").Attributes | null;
+  }
 ): void {
   if (patch.name !== undefined) {
     project.name = patch.name;
@@ -1009,6 +1045,64 @@ export function updateProject(
   }
   if (patch.promptRendererTypescriptSource !== undefined) {
     project.promptRendererTypescriptSource = patch.promptRendererTypescriptSource;
+  }
+  if ("attributes" in patch) {
+    applyAttributesField(project, patch.attributes);
+  }
+}
+
+export function normalizeProjectAttributes(project: Project): void {
+  project.attributes = normalizeOptionalAttributes(project.attributes, "attributes");
+
+  for (const asset of project.assets) {
+    asset.attributes = normalizeOptionalAttributes(
+      asset.attributes,
+      `assets.${asset.id}.attributes`
+    );
+    if (asset.expressions) {
+      for (const expression of asset.expressions) {
+        expression.attributes = normalizeOptionalAttributes(
+          expression.attributes,
+          `assets.${asset.id}.expressions.${expression.id}.attributes`
+        );
+      }
+    }
+  }
+
+  for (const story of project.stories) {
+    story.attributes = normalizeOptionalAttributes(story.attributes, `stories.${story.id}.attributes`);
+
+    for (const node of story.nodes) {
+      node.attributes = normalizeOptionalAttributes(
+        node.attributes,
+        `stories.${story.id}.nodes.${node.id}.attributes`
+      );
+      if (node.actorConfigs) {
+        for (let i = 0; i < node.actorConfigs.length; i++) {
+          const config = node.actorConfigs[i];
+          config.attributes = normalizeOptionalAttributes(
+            config.attributes,
+            `stories.${story.id}.nodes.${node.id}.actorConfigs[${i}].attributes`
+          );
+        }
+      }
+      if (node.soundConfigs) {
+        for (let i = 0; i < node.soundConfigs.length; i++) {
+          const config = node.soundConfigs[i];
+          config.attributes = normalizeOptionalAttributes(
+            config.attributes,
+            `stories.${story.id}.nodes.${node.id}.soundConfigs[${i}].attributes`
+          );
+        }
+      }
+    }
+
+    for (const edge of story.edges) {
+      edge.attributes = normalizeOptionalAttributes(
+        edge.attributes,
+        `stories.${story.id}.edges.${edge.id}.attributes`
+      );
+    }
   }
 }
 
@@ -1044,6 +1138,7 @@ function toManifestStory(story: Story): Story {
       condition: edge.condition,
       vertices: edge.vertices,
       manualRoute: edge.manualRoute,
+      ...copyOptionalAttributes(edge),
     })),
     globalState: story.globalState,
     entryNodeId: story.entryNodeId,
@@ -1055,7 +1150,10 @@ function toManifestStory(story: Story): Story {
   if (story.sortOrder !== undefined) {
     manifest.sortOrder = story.sortOrder;
   }
-  return manifest;
+  return {
+    ...manifest,
+    ...copyOptionalAttributes(story),
+  };
 }
 
 function toManifestStoryGroups(groups: StoryGroup[] | undefined): StoryGroup[] | undefined {
@@ -1091,6 +1189,7 @@ function toManifestProject(project: Project): Project {
     thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
     promptRendererTypescriptSource: project.promptRendererTypescriptSource,
+    ...copyOptionalAttributes(project),
   };
   const storyGroups = toManifestStoryGroups(project.storyGroups);
   if (storyGroups) {
@@ -1171,6 +1270,7 @@ export function parseProject(json: string): Project {
   ensureDefaultBackdrop(project);
   normalizeStoryGroups(project);
   normalizeAssetGroups(project);
+  normalizeProjectAttributes(project);
   return project;
 }
 

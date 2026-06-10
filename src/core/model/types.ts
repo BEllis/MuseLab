@@ -1,3 +1,7 @@
+import type { Attributes } from "./attributes";
+
+export type { AttributeValue, AttributeValueType, Attributes } from "./attributes";
+
 /** Asset type: backdrop (image), actor (sprite), or sound (audio) */
 export type AssetType = "backdrop" | "actor" | "sound";
 
@@ -17,6 +21,8 @@ export interface ActorExpression {
   imageMimeType?: string;
   /** Web runtime: binary media stored in IndexedDB under actorId:expressionId. */
   blobStored?: boolean;
+  /** Optional custom export metadata (animations, colors, etc.). */
+  attributes?: Attributes;
 }
 
 /** Stored asset reference: id, type, name, and media location metadata. */
@@ -48,6 +54,8 @@ export interface Asset {
   groupId?: string;
   /** Sibling order within a folder or at the type root. */
   sortOrder?: number;
+  /** Optional custom export metadata (animations, colors, etc.). */
+  attributes?: Attributes;
 }
 
 /** Folder node for organizing assets in the Assets panel tree. */
@@ -65,6 +73,8 @@ export interface AssetGroup {
 export interface ActorSceneConfig {
   assetId: string;
   expressionId: string;
+  /** Optional per-scene placement metadata (position, animation overrides, etc.). */
+  attributes?: Attributes;
 }
 
 /** Sound config per node: which sound and how it behaves when the node loads */
@@ -75,6 +85,8 @@ export interface SoundConfig {
   loop?: boolean;
   startTime?: number;
   endTime?: number;
+  /** Optional per-slot playback metadata. */
+  attributes?: Attributes;
 }
 
 export type StoryNodeType = "start" | "scene" | "jump";
@@ -92,6 +104,8 @@ export interface StoryNode {
   /** Jump nodes only */
   jumpTargetStoryId?: string;
   jumpTargetStartNodeId?: string;
+  /** Optional custom export metadata. */
+  attributes?: Attributes;
 }
 
 /** Link between nodes; optional condition for player choices */
@@ -106,6 +120,8 @@ export interface StoryEdge {
   vertices?: { x: number; y: number }[];
   /** True once the user has manually shaped this edge. */
   manualRoute?: boolean;
+  /** Optional custom export metadata. */
+  attributes?: Attributes;
 }
 
 /** Designer layout for a synthetic End node attached to a terminal scene. */
@@ -131,6 +147,8 @@ export interface Story {
   groupId?: string;
   /** Sibling order within a folder or at the project root. */
   sortOrder?: number;
+  /** Optional custom export metadata. */
+  attributes?: Attributes;
 }
 
 /** Folder node for organizing stories in the Stories panel tree. */
@@ -206,6 +224,8 @@ export interface Project {
   playerResolution?: AspectRatio;
   /** Optional TypeScript override for IMuseLabPromptRenderer in preview/player */
   promptRendererTypescriptSource?: string;
+  /** Optional project-wide export metadata. */
+  attributes?: Attributes;
 }
 
 /** Slice passed to runtime and play validation for one story. */

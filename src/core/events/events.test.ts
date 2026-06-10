@@ -65,6 +65,57 @@ describe("applyEvent round trips", () => {
     expect(backward.project.defaultLocale).toBe("en");
   });
 
+  it("restores project attributes on undo", () => {
+    const state = starterAppState();
+    const event = {
+      ...createEventMeta(),
+      type: "updateProject" as const,
+      before: { attributes: null },
+      after: {
+        attributes: {
+          theme: { type: "string" as const, value: "dark" },
+        },
+      },
+    };
+    const forward = applyEvent(state, event, "forward");
+    expect(forward.project.attributes?.theme).toEqual({ type: "string", value: "dark" });
+    const backward = applyEvent(forward, event, "backward");
+    expect(backward.project.attributes).toBeUndefined();
+  });
+
+  it("restores node attributes on undo", () => {
+    const state = starterAppState();
+    const storyId = state.activeStoryId;
+    const node = {
+      id: "node-attrs",
+      type: "start" as const,
+      position: { x: 0, y: 0 },
+    };
+    state.project.stories.find((story) => story.id === storyId)!.nodes.push(node);
+    const event = {
+      ...createEventMeta(),
+      type: "updateNode" as const,
+      storyId,
+      nodeId: node.id,
+      before: { attributes: null },
+      after: {
+        attributes: {
+          animation: { type: "string" as const, value: "fade-in" },
+        },
+      },
+    };
+    const forward = applyEvent(state, event, "forward");
+    const updated = forward.project.stories
+      .find((story) => story.id === storyId)!
+      .nodes.find((entry) => entry.id === node.id);
+    expect(updated?.attributes?.animation).toEqual({ type: "string", value: "fade-in" });
+    const backward = applyEvent(forward, event, "backward");
+    const restored = backward.project.stories
+      .find((story) => story.id === storyId)!
+      .nodes.find((entry) => entry.id === node.id);
+    expect(restored?.attributes).toBeUndefined();
+  });
+
   it("restores default expression on undo", () => {
     const state = starterAppState();
     state.project.assets.push({

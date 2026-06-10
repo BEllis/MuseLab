@@ -5,6 +5,7 @@ import { getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { CloseButton } from "../CloseButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
 import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
+import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
 export function EdgeEditorPanel() {
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
@@ -97,6 +98,15 @@ export function EdgeEditorPanel() {
           }}
         />
       </label>
+
+      <AttributesEditor
+        attributes={edge.attributes}
+        onChange={(next, mergeKey) =>
+          updateEdge(edge.id, { attributes: next ?? null }, { mergeKey })
+        }
+        mergeKeyPrefix={`attribute:edge:${edge.id}`}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+      />
     </div>
   );
 }

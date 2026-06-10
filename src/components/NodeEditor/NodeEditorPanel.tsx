@@ -3,7 +3,8 @@ import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import type { MutationOptions } from "@/store/projectStore";
-import type { Project, SoundConfig, StoryNode, ActorSceneConfig } from "@/core/model/types";
+import type { NodePatch } from "@/core/events/types";
+import type { Attributes, Project, SoundConfig, StoryNode, ActorSceneConfig } from "@/core/model/types";
 import { getNodeDisplayName, isNodeLabelUnique } from "@/core/model/nodeNames";
 import { getStartNodes, isJumpNode, isSceneNode, isStartNode } from "@/core/model/nodeTypes";
 import { getNodeSpeakerForLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
@@ -17,6 +18,7 @@ import { CloseButton } from "../CloseButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
 import { TemplateTextEditor } from "./TemplateTextEditor";
 import { InspectorPanelId } from "../InspectorPanelMeta";
+import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
@@ -31,7 +33,7 @@ function NodeNameField({
 }: {
   node: StoryNode;
   story: ReturnType<typeof useActiveStory>["story"];
-  update: (patch: Partial<Omit<StoryNode, "id">>, options?: MutationOptions) => void;
+  update: (patch: NodePatch, options?: MutationOptions) => void;
   onFocus?: () => void;
   onBlur?: () => void;
   placeholder?: string;
@@ -75,16 +77,24 @@ function NodeNameField({
 
 function SoundConfigRow({
   config,
+  index,
+  nodeId,
   soundAssetIds,
   onChange,
+  onAttributesChange,
   onRemove,
   onSelectFocus,
+  flushHistoryCoalesce,
 }: {
   config: SoundConfig;
+  index: number;
+  nodeId: string;
   soundAssetIds: Array<{ id: string; name: string }>;
   onChange: (patch: Partial<SoundConfig>) => void;
+  onAttributesChange: (attributes: Attributes | undefined, mergeKey: string) => void;
   onRemove: () => void;
   onSelectFocus: () => void;
+  flushHistoryCoalesce: () => void;
 }) {
   return (
     <div
@@ -170,6 +180,14 @@ function SoundConfigRow({
           />
         </label>
       </div>
+      <AttributesEditor
+        title="Sound attributes"
+        attributes={config.attributes}
+        onChange={onAttributesChange}
+        mergeKeyPrefix={`attribute:node:${nodeId}:sound:${index}`}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+        compact
+      />
     </div>
   );
 }
@@ -186,18 +204,24 @@ function ActorRow({
   onReorderDragLeave,
   isDropTarget,
   onFocusPreview,
+  nodeId,
+  onAttributesChange,
+  flushHistoryCoalesce,
 }: {
   project: Project;
   config: ActorSceneConfig;
   name: string;
   index: number;
+  nodeId: string;
   onRemove: () => void;
   onExpressionChange: (expressionId: string) => void;
+  onAttributesChange: (attributes: Attributes | undefined, mergeKey: string) => void;
   onReorderDrop: (fromIndex: number, toIndex: number) => void;
   onReorderDragOver: () => void;
   onReorderDragLeave: () => void;
   isDropTarget: boolean;
   onFocusPreview: () => void;
+  flushHistoryCoalesce: () => void;
 }) {
   const actor = project.assets.find((asset) => asset.id === config.assetId && asset.type === "actor");
   const expressions = actor?.expressions ?? [];
@@ -236,69 +260,104 @@ function ActorRow({
 
   return (
     <div
-      draggable
-      tabIndex={0}
-      onFocus={onFocusPreview}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragLeave={onReorderDragLeave}
-      onDrop={onDrop}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        fontSize: "12px",
         padding: "4px 6px",
         borderRadius: "6px",
         background: isDropTarget ? "var(--app-accent-soft)" : "transparent",
-        cursor: "grab",
+        marginBottom: "4px",
       }}
     >
       <div
+        draggable
+        tabIndex={0}
+        onFocus={onFocusPreview}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragLeave={onReorderDragLeave}
+        onDrop={onDrop}
         style={{
-          width: ACTOR_THUMB_SIZE,
-          height: ACTOR_THUMB_SIZE,
-          flexShrink: 0,
-          borderRadius: "4px",
-          overflow: "hidden",
-          background: "var(--app-border-subtle)",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: "8px",
+          fontSize: "12px",
+          cursor: "grab",
         }}
       >
-        {thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt=""
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-        ) : (
-          <span style={{ fontSize: "10px", color: "var(--app-text-subtle)" }}>…</span>
-        )}
+        <div
+          style={{
+            width: ACTOR_THUMB_SIZE,
+            height: ACTOR_THUMB_SIZE,
+            flexShrink: 0,
+            borderRadius: "4px",
+            overflow: "hidden",
+            background: "var(--app-border-subtle)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {thumbUrl ? (
+            <img
+              src={thumbUrl}
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : (
+            <span style={{ fontSize: "10px", color: "var(--app-text-subtle)" }}>…</span>
+          )}
+        </div>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={name}>
+          {name}
+        </span>
+        <select
+          value={config.expressionId}
+          onChange={(e) => onExpressionChange(e.target.value)}
+          onFocus={onFocusPreview}
+          style={{ maxWidth: "96px", fontSize: "11px" }}
+        >
+          {expressions.map((expression) => (
+            <option key={expression.id} value={expression.id}>
+              {expression.name}
+            </option>
+          ))}
+        </select>
+        <CloseButton onClick={onRemove} title="Remove actor" />
       </div>
-      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={name}>
-        {name}
-      </span>
-      <select
-        value={config.expressionId}
-        onChange={(e) => onExpressionChange(e.target.value)}
-        onFocus={onFocusPreview}
-        style={{ maxWidth: "96px", fontSize: "11px" }}
-      >
-        {expressions.map((expression) => (
-          <option key={expression.id} value={expression.id}>
-            {expression.name}
-          </option>
-        ))}
-      </select>
-      <CloseButton onClick={onRemove} title="Remove actor" />
+      <AttributesEditor
+        title="Placement attributes"
+        attributes={config.attributes}
+        onChange={onAttributesChange}
+        mergeKeyPrefix={`attribute:node:${nodeId}:actor:${config.assetId}`}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+        compact
+      />
     </div>
+  );
+}
+
+function NodeAttributesSection({
+  nodeId,
+  attributes,
+  onChange,
+  flushHistoryCoalesce,
+}: {
+  nodeId: string;
+  attributes: Attributes | undefined;
+  onChange: (attributes: Attributes | undefined, mergeKey: string) => void;
+  flushHistoryCoalesce: () => void;
+}) {
+  return (
+    <AttributesEditor
+      attributes={attributes}
+      onChange={onChange}
+      mergeKeyPrefix={`attribute:node:${nodeId}`}
+      flushHistoryCoalesce={flushHistoryCoalesce}
+    />
   );
 }
 
@@ -328,7 +387,7 @@ export function NodeEditorPanel() {
   const backdropUrl = useAssetUrl(project, node?.backdropId ?? DEFAULT_BACKDROP_ID);
 
   const update = useCallback(
-    (patch: Partial<Omit<StoryNode, "id">>, options?: MutationOptions) => {
+    (patch: NodePatch, options?: MutationOptions) => {
       if (node) updateNode(node.id, patch, options);
     },
     [node, updateNode]
@@ -461,6 +520,12 @@ export function NodeEditorPanel() {
           onBlur={() => flushHistoryCoalesce()}
           placeholder="Start"
         />
+        <NodeAttributesSection
+          nodeId={node.id}
+          attributes={node.attributes}
+          onChange={(next, mergeKey) => update({ attributes: next ?? null }, { mergeKey })}
+          flushHistoryCoalesce={flushHistoryCoalesce}
+        />
       </div>
     );
   }
@@ -533,6 +598,12 @@ export function NodeEditorPanel() {
             ))}
           </select>
         </label>
+        <NodeAttributesSection
+          nodeId={node.id}
+          attributes={node.attributes}
+          onChange={(next, mergeKey) => update({ attributes: next ?? null }, { mergeKey })}
+          flushHistoryCoalesce={flushHistoryCoalesce}
+        />
       </div>
     );
   }
@@ -571,6 +642,44 @@ export function NodeEditorPanel() {
         config.assetId === assetId ? { ...config, expressionId } : config
       ),
     });
+  };
+
+  const updateActorAttributes = (
+    assetId: string,
+    attributes: Attributes | undefined,
+    mergeKey: string
+  ) => {
+    update(
+      {
+        actorConfigs: (node.actorConfigs ?? []).map((config) => {
+          if (config.assetId !== assetId) return config;
+          const next = { ...config };
+          if (attributes) {
+            next.attributes = attributes;
+          } else {
+            delete next.attributes;
+          }
+          return next;
+        }),
+      },
+      { mergeKey }
+    );
+  };
+
+  const updateSoundAttributes = (
+    index: number,
+    attributes: Attributes | undefined,
+    mergeKey: string
+  ) => {
+    const soundConfigs = [...(node.soundConfigs || [])];
+    const next = { ...soundConfigs[index] };
+    if (attributes) {
+      next.attributes = attributes;
+    } else {
+      delete next.attributes;
+    }
+    soundConfigs[index] = next;
+    update({ soundConfigs }, { mergeKey });
   };
 
   const currentBackdrop =
@@ -705,13 +814,18 @@ export function NodeEditorPanel() {
                     config={config}
                     name={actor?.name ?? config.assetId}
                     index={index}
+                    nodeId={node.id}
                     onRemove={() => removeActor(config.assetId)}
                     onExpressionChange={(expressionId) => updateActorExpression(config.assetId, expressionId)}
+                    onAttributesChange={(next, mergeKey) =>
+                      updateActorAttributes(config.assetId, next, mergeKey)
+                    }
                     onReorderDrop={reorderActors}
                     onReorderDragOver={() => setActorReorderDropIndex(index)}
                     onReorderDragLeave={() => setActorReorderDropIndex(null)}
                     isDropTarget={actorReorderDropIndex === index}
                     onFocusPreview={openScenePreview}
+                    flushHistoryCoalesce={flushHistoryCoalesce}
                   />
                 );
               })}
@@ -736,10 +850,14 @@ export function NodeEditorPanel() {
           <SoundConfigRow
             key={i}
             config={config}
+            index={i}
+            nodeId={node.id}
             soundAssetIds={sounds.map((a) => ({ id: a.id, name: a.name }))}
             onChange={(patch) => updateSoundConfig(i, patch)}
+            onAttributesChange={(next, mergeKey) => updateSoundAttributes(i, next, mergeKey)}
             onRemove={() => removeSoundConfig(i)}
             onSelectFocus={openScenePreview}
+            flushHistoryCoalesce={flushHistoryCoalesce}
           />
         ))}
       </div>
@@ -787,6 +905,13 @@ export function NodeEditorPanel() {
           </div>
         ))}
       </div>
+
+      <NodeAttributesSection
+        nodeId={node.id}
+        attributes={node.attributes}
+        onChange={(next, mergeKey) => update({ attributes: next ?? null }, { mergeKey })}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+      />
     </div>
   );
 }

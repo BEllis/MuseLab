@@ -10,6 +10,7 @@ import { getDefaultLocale } from "@/core/locale/prompts";
 import { CloseButton } from "./CloseButton";
 import { AddButton } from "./AddButton";
 import { StoryTreeView } from "./StoryTreeView";
+import { AttributesEditor } from "./AttributesEditor/AttributesEditor";
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
   return (
@@ -35,6 +36,7 @@ export function ProjectPanel() {
   const updateStory = useProjectStore((s) => s.updateStory);
   const addLocale = useProjectStore((s) => s.addLocale);
   const removeLocale = useProjectStore((s) => s.removeLocale);
+  const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
 
   const defaultLocale = getDefaultLocale(project);
 
@@ -119,6 +121,16 @@ export function ProjectPanel() {
         <StatRow label="Links" value={story.edges.length} />
         <StatRow label="Assets" value={project.assets.length} />
       </div>
+
+      <AttributesEditor
+        title="Project attributes"
+        attributes={project.attributes}
+        onChange={(next, mergeKey) =>
+          updateProject({ attributes: next ?? null }, { mergeKey })
+        }
+        mergeKeyPrefix="attribute:project"
+        flushHistoryCoalesce={flushHistoryCoalesce}
+      />
 
       <div style={{ marginBottom: "16px" }}>
         <strong style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>Locales</strong>
@@ -229,6 +241,16 @@ export function ProjectPanel() {
           </p>
         )}
       </div>
+
+      <AttributesEditor
+        title={`Story attributes (${story.name})`}
+        attributes={story.attributes}
+        onChange={(next, mergeKey) =>
+          updateStory(storyId, { attributes: next ?? null }, { mergeKey })
+        }
+        mergeKeyPrefix={`attribute:story:${storyId}`}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+      />
 
       <StoryTreeView />
     </div>

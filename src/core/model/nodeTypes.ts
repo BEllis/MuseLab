@@ -1,4 +1,5 @@
-import type { Story, StoryNode, StoryNodeType } from "./types";
+import { copyOptionalAttributes } from "./attributes";
+import type { ActorSceneConfig, SoundConfig, Story, StoryNode, StoryNodeType } from "./types";
 
 export function isStartNode(node: StoryNode): boolean {
   return node.type === "start";
@@ -20,6 +21,26 @@ export function countSceneNodes(story: Story): number {
   return story.nodes.filter(isSceneNode).length;
 }
 
+function normalizeActorSceneConfig(config: ActorSceneConfig): ActorSceneConfig {
+  return {
+    assetId: config.assetId,
+    expressionId: config.expressionId,
+    ...copyOptionalAttributes(config),
+  };
+}
+
+function normalizeSoundConfig(config: SoundConfig): SoundConfig {
+  return {
+    assetId: config.assetId,
+    startOnLoad: config.startOnLoad,
+    stopOnLoad: config.stopOnLoad,
+    loop: config.loop,
+    startTime: config.startTime,
+    endTime: config.endTime,
+    ...copyOptionalAttributes(config),
+  };
+}
+
 export function normalizeStoryNode(node: StoryNode): StoryNode {
   const type: StoryNodeType = node.type ?? "scene";
   if (type === "start") {
@@ -28,6 +49,7 @@ export function normalizeStoryNode(node: StoryNode): StoryNode {
       type: "start",
       position: node.position,
       label: node.label,
+      ...copyOptionalAttributes(node),
     };
   }
   if (type === "jump") {
@@ -38,6 +60,7 @@ export function normalizeStoryNode(node: StoryNode): StoryNode {
       position: rest.position,
       jumpTargetStoryId: rest.jumpTargetStoryId,
       jumpTargetStartNodeId: rest.jumpTargetStartNodeId,
+      ...copyOptionalAttributes(rest),
     };
   }
   return {
@@ -46,8 +69,9 @@ export function normalizeStoryNode(node: StoryNode): StoryNode {
     position: node.position,
     label: node.label,
     backdropId: node.backdropId,
-    actorConfigs: node.actorConfigs ?? [],
-    soundConfigs: node.soundConfigs ?? [],
+    actorConfigs: (node.actorConfigs ?? []).map(normalizeActorSceneConfig),
+    soundConfigs: (node.soundConfigs ?? []).map(normalizeSoundConfig),
+    ...copyOptionalAttributes(node),
   };
 }
 

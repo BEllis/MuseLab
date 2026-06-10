@@ -2,6 +2,7 @@ import type {
   ActorExpression,
   Asset,
   AssetGroup,
+  Attributes,
   EndNodeLayout,
   Project,
   ModuleInterface,
@@ -21,19 +22,34 @@ export type AppEventBase = {
 export type ProjectPatch = Partial<
   Pick<
     Project,
-    "name" | "thumbnailAspectRatio" | "playerResolution" | "locales" | "defaultLocale" | "promptRendererTypescriptSource"
+    | "name"
+    | "thumbnailAspectRatio"
+    | "playerResolution"
+    | "locales"
+    | "defaultLocale"
+    | "promptRendererTypescriptSource"
   >
->;
+> & {
+  attributes?: Attributes | null;
+};
 
-export type StoryPatch = Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">>;
+export type StoryPatch = Partial<
+  Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">
+> & {
+  attributes?: Attributes | null;
+};
 
 export type StoryGroupPatch = Partial<Pick<StoryGroup, "name" | "parentGroupId" | "sortOrder">>;
 
 export type AssetGroupPatch = Partial<Pick<AssetGroup, "name" | "parentGroupId" | "sortOrder">>;
 
-export type NodePatch = Partial<Omit<StoryNode, "id">>;
+export type NodePatch = Partial<Omit<StoryNode, "id" | "attributes">> & {
+  attributes?: Attributes | null;
+};
 
-export type EdgePatch = Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>;
+export type EdgePatch = Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">> & {
+  attributes?: Attributes | null;
+};
 
 export type AssetPatch = Partial<
   Pick<
@@ -51,13 +67,16 @@ export type AssetPatch = Partial<
 > & {
   /** null clears an explicit default expression (undo-safe through JSON persistence). */
   defaultExpressionId?: string | null;
+  attributes?: Attributes | null;
 };
 
 export type ModulePatch = Partial<
   Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
 >;
 
-export type ExpressionPatch = Partial<Pick<ActorExpression, "name" | "sortOrder">>;
+export type ExpressionPatch = Partial<Pick<ActorExpression, "name" | "sortOrder">> & {
+  attributes?: Attributes | null;
+};
 
 export type NodePromptValue = { textTemplate?: string; speaker?: string };
 

@@ -1,10 +1,18 @@
-import type { Project, StoryNode } from "@/core/model/types";
+import type { Project } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { getNodeSpeaker, getNodeTextTemplate } from "@/core/locale/prompts";
 import { getStory, getStoryGroup, getAssetGroup } from "@/core/model/project";
 import { collectDescendantGroupIds, getStoryGroups } from "@/core/model/storyTree";
 import { collectDescendantAssetGroupIds, getAssetGroups, getAssetGroupsForType } from "@/core/model/assetTree";
-import type { AppEvent, AssetGroupPatch, AssetPatch, StoryGroupPatch, StoryPatch } from "./types";
+import type { Asset } from "@/core/model/types";
+import type {
+  AppEvent,
+  AssetGroupPatch,
+  AssetPatch,
+  NodePatch,
+  StoryGroupPatch,
+  StoryPatch,
+} from "./types";
 import {
   createEventMeta,
   getNavigationSnapshot,
@@ -35,6 +43,10 @@ export function captureProjectPatch(
 ): ProjectPatch {
   const before: ProjectPatch = {};
   for (const key of Object.keys(patch) as Array<keyof ProjectPatch>) {
+    if (key === "attributes") {
+      before.attributes = capturePatchValue(project.attributes) as never;
+      continue;
+    }
     before[key] = capturePatchValue(project[key]) as never;
   }
   return before;
@@ -44,12 +56,16 @@ export function captureNodePatch(
   project: Project,
   storyId: string,
   nodeId: string,
-  patch: Partial<Omit<StoryNode, "id">>
-): Partial<Omit<StoryNode, "id">> {
+  patch: NodePatch
+): NodePatch {
   const node = getStory(project, storyId).nodes.find((entry) => entry.id === nodeId);
   if (!node) return {};
-  const before: Partial<Omit<StoryNode, "id">> = {};
-  for (const key of Object.keys(patch) as Array<keyof Omit<StoryNode, "id">>) {
+  const before: NodePatch = {};
+  for (const key of Object.keys(patch) as Array<keyof NodePatch>) {
+    if (key === "attributes") {
+      before.attributes = capturePatchValue(node.attributes) as never;
+      continue;
+    }
     const value = node[key];
     if (value !== undefined) {
       before[key] = clone(value) as never;
@@ -61,21 +77,21 @@ export function captureNodePatch(
 export function captureStoryPatch(
   project: Project,
   storyId: string,
-  patch: Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">>
-): Partial<Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">> {
+  patch: StoryPatch
+): StoryPatch {
   const story = getStory(project, storyId);
-  const before: Partial<
-    Pick<import("@/core/model/types").Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">
-  > = {};
-  for (const key of Object.keys(patch) as Array<
-    "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder"
-  >) {
+  const before: StoryPatch = {};
+  for (const key of Object.keys(patch) as Array<keyof StoryPatch>) {
     if (key === "groupId") {
       before.groupId = story.groupId;
       continue;
     }
     if (key === "sortOrder") {
       before.sortOrder = story.sortOrder;
+      continue;
+    }
+    if (key === "attributes") {
+      before.attributes = capturePatchValue(story.attributes) as never;
       continue;
     }
     before[key] = clone(story[key]) as never;
@@ -207,6 +223,10 @@ function captureAssetPatch(project: Project, assetId: string, patch: AssetPatch)
     if (patch[key] === undefined && key !== "groupId") continue;
     if (key === "groupId") {
       before.groupId = asset.groupId;
+      continue;
+    }
+    if (key === "attributes") {
+      before.attributes = capturePatchValue(asset.attributes) as never;
       continue;
     }
     before[key] = capturePatchValue(asset[key as keyof Asset]) as never;

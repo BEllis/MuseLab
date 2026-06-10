@@ -118,7 +118,15 @@ import {
   emptyStoredSession,
   type StoredProjectSession,
 } from "@/core/events/persistedSession";
-import type { AppEvent } from "@/core/events/types";
+import type {
+  AppEvent,
+  AssetPatch,
+  EdgePatch,
+  ExpressionPatch,
+  NodePatch,
+  ProjectPatch,
+  StoryPatch,
+} from "@/core/events/types";
 import { eventTouchesActiveStory, eventNeedsFullGraphRefresh } from "@/core/events/types";
 import {
   cloneProjectBundle,
@@ -407,28 +415,11 @@ interface ProjectState {
   canUndo: boolean;
   canRedo: boolean;
   setProject: (project: Project) => void;
-  updateProject: (
-    patch: Partial<
-      Pick<
-        Project,
-        | "name"
-        | "thumbnailAspectRatio"
-        | "playerResolution"
-        | "locales"
-        | "defaultLocale"
-        | "promptRendererTypescriptSource"
-      >
-    >,
-    options?: MutationOptions
-  ) => void;
+  updateProject: (patch: ProjectPatch, options?: MutationOptions) => void;
   setActiveStoryId: (storyId: string) => void;
   addStory: (name?: string, groupId?: string) => Story;
   removeStory: (storyId: string) => void;
-  updateStory: (
-    storyId: string,
-    patch: Partial<Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId">>,
-    options?: MutationOptions
-  ) => void;
+  updateStory: (storyId: string, patch: StoryPatch, options?: MutationOptions) => void;
   addStoryGroup: (name?: string, parentGroupId?: string) => StoryGroup;
   removeStoryGroup: (groupId: string) => void;
   updateStoryGroup: (
@@ -490,11 +481,7 @@ interface ProjectState {
     patch: Partial<EndNodeLayout>,
     options?: MutationOptions
   ) => void;
-  updateNode: (
-    nodeId: string,
-    patch: Partial<Omit<StoryNode, "id">>,
-    options?: MutationOptions
-  ) => void;
+  updateNode: (nodeId: string, patch: NodePatch, options?: MutationOptions) => void;
   updateNodePrompt: (
     locale: string,
     nodeId: string,
@@ -527,11 +514,7 @@ interface ProjectState {
     }
   ) => StoryEdge;
   removeEdge: (edgeId: string) => void;
-  updateEdge: (
-    edgeId: string,
-    patch: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>,
-    options?: MutationOptions
-  ) => void;
+  updateEdge: (edgeId: string, patch: EdgePatch, options?: MutationOptions) => void;
 
   addAsset: (
     type: Asset["type"],
@@ -544,7 +527,7 @@ interface ProjectState {
   updateActorExpression: (
     actorId: string,
     expressionId: string,
-    patch: Partial<Pick<ActorExpression, "name">>,
+    patch: ExpressionPatch,
     options?: MutationOptions
   ) => void;
   replaceActorExpressionMedia: (
@@ -553,13 +536,7 @@ interface ProjectState {
     options: { file?: File; path?: string }
   ) => Promise<void>;
   removeActorExpression: (actorId: string, expressionId: string) => void;
-  updateAsset: (
-    assetId: string,
-    patch: Partial<
-      Pick<Asset, "name" | "personality" | "appearance" | "voiceAccent" | "backstory" | "notes" | "expressions" | "defaultExpressionId">
-    >,
-    options?: MutationOptions
-  ) => void;
+  updateAsset: (assetId: string, patch: AssetPatch, options?: MutationOptions) => void;
   replaceAssetMedia: (
     assetId: string,
     options: { file?: File; path?: string }
@@ -1469,8 +1446,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const storyId = state.activeStoryId;
     const edge = getStory(state.project, storyId).edges.find((entry) => entry.id === edgeId);
     if (!edge) return;
-    const before: Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">> = {};
+    const before: EdgePatch = {};
     for (const key of Object.keys(patch) as Array<keyof typeof before>) {
+      if (key === "attributes") {
+        before.attributes = capturePatchValue(edge.attributes) as never;
+        continue;
+      }
       before[key] = JSON.parse(JSON.stringify(edge[key])) as never;
     }
     dispatchEvent(
@@ -1577,8 +1558,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const asset = state.project.assets.find((entry) => entry.id === actorId);
     const expression = asset?.expressions?.find((entry) => entry.id === expressionId);
     if (!expression) return;
-    const before: Partial<Pick<ActorExpression, "name">> = {};
+    const before: ExpressionPatch = {};
     for (const key of Object.keys(patch) as Array<keyof typeof before>) {
+      if (key === "attributes") {
+        before.attributes = capturePatchValue(expression.attributes) as never;
+        continue;
+      }
       before[key] = JSON.parse(JSON.stringify(expression[key])) as never;
     }
     dispatchEvent(
@@ -1645,13 +1630,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const state = get();
     const asset = state.project.assets.find((entry) => entry.id === assetId);
     if (!asset) return;
-    const before: Partial<
-      Pick<
-        Asset,
-        "name" | "personality" | "appearance" | "voiceAccent" | "backstory" | "notes" | "expressions" | "defaultExpressionId" | "groupId" | "sortOrder"
-      >
-    > = {};
+    const before: AssetPatch = {};
     for (const key of Object.keys(patch) as Array<keyof typeof before>) {
+      if (key === "attributes") {
+        before.attributes = capturePatchValue(asset.attributes) as never;
+        continue;
+      }
       before[key] = capturePatchValue(asset[key]) as never;
     }
     dispatchEvent(

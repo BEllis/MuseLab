@@ -12,6 +12,8 @@ import { AddButton } from "../AddButton";
 import { isElectron } from "@/utils/isElectron";
 import { getSortedActorExpressions } from "@/core/model/assetTree";
 import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
+import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
+import type { Attributes } from "@/core/model/types";
 
 const TEXTAREA_STYLE: React.CSSProperties = {
   display: "block",
@@ -125,6 +127,8 @@ function ExpressionRow({
   onRemove,
   onRename,
   onBlurRename,
+  onAttributesChange,
+  flushHistoryCoalesce,
   autoFocusName = false,
   nameRequired = false,
 }: {
@@ -136,6 +140,8 @@ function ExpressionRow({
   onRemove: () => void;
   onRename: (name: string) => void;
   onBlurRename: () => boolean;
+  onAttributesChange: (attributes: Attributes | undefined, mergeKey: string) => void;
+  flushHistoryCoalesce: () => void;
   autoFocusName?: boolean;
   nameRequired?: boolean;
 }) {
@@ -233,6 +239,14 @@ function ExpressionRow({
           Used in {usage} scene{usage === 1 ? "" : "s"}.
         </p>
       )}
+      <AttributesEditor
+        title="Expression attributes"
+        attributes={expression.attributes}
+        onChange={onAttributesChange}
+        mergeKeyPrefix={`attribute:expression:${asset.id}:${expression.id}`}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+        compact
+      />
     </div>
   );
 }
@@ -465,6 +479,15 @@ export function AssetEditorPanel() {
                   }
                 }}
                 onBlurRename={() => commitExpressionName(expression)}
+                onAttributesChange={(next, mergeKey) =>
+                  updateActorExpression(
+                    asset.id,
+                    expression.id,
+                    { attributes: next ?? null },
+                    { mergeKey }
+                  )
+                }
+                flushHistoryCoalesce={flushHistoryCoalesce}
               />
             ))}
           </div>
@@ -514,6 +537,15 @@ export function AssetEditorPanel() {
           </div>
         </>
       )}
+
+      <AttributesEditor
+        attributes={asset.attributes}
+        onChange={(next, mergeKey) =>
+          updateAsset(asset.id, { attributes: next ?? null }, { mergeKey })
+        }
+        mergeKeyPrefix={`attribute:asset:${asset.id}`}
+        flushHistoryCoalesce={flushHistoryCoalesce}
+      />
     </div>
   );
 }
