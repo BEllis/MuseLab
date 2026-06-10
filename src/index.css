@@ -157,28 +157,93 @@ select,
   width: 40px;
   height: 40px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--app-border);
   border-radius: 50%;
-  background: rgba(26, 26, 46, 0.92);
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
   backdrop-filter: blur(8px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
-  color: #eee;
+  box-shadow: 0 2px 12px var(--app-shadow);
+  color: var(--app-text);
   cursor: pointer;
   transition:
     background 0.15s ease,
     box-shadow 0.15s ease,
-    border-color 0.15s ease,
     transform 0.1s ease;
 }
 
 .app-player-overlay-button:hover {
-  background: rgba(40, 44, 68, 0.95);
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: var(--app-surface-raised);
+  box-shadow: 0 4px 16px var(--app-shadow);
 }
 
 .app-player-overlay-button:active {
   transform: scale(0.96);
+}
+
+.app-player {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-bg);
+}
+
+.app-player-header {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--app-surface-raised);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+}
+
+.app-player-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-player-header-label {
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.app-player-header-select,
+.app-player-header-input {
+  margin-left: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--app-border);
+  background: var(--app-input-bg);
+  color: var(--app-text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.app-player-header-input {
+  width: 64px;
+  padding: 4px 6px;
+}
+
+.app-player-header-separator {
+  color: var(--app-text-subtle);
+}
+
+.app-player-stage-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-canvas-bg);
+}
+
+.app-player-stage-frame {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--app-border);
 }
 
 .app-player-restart-button {

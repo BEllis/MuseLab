@@ -266,42 +266,16 @@ function PlayerViewInner({
   };
 
   return (
-    <div
-      style={{
-        height: "100%",
-        background: "#0a0a12",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <header
-        style={{
-          flexShrink: 0,
-          padding: "8px 16px",
-          background: "#16213e",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "16px",
-          flexWrap: "wrap",
-        }}
-      >
+    <div className="app-player">
+      <header className="app-player-header">
         <BackToDesignerButton variant="player" />
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <label style={{ color: "#aaa", fontSize: "14px" }}>
+        <div className="app-player-header-controls">
+          <label className="app-player-header-label">
             Locale
             <select
+              className="app-player-header-select"
               value={activeLocale}
               onChange={(e) => handleLocaleChange(e.target.value)}
-              style={{
-                marginLeft: "6px",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                border: "1px solid #444",
-                background: "#1a1a2e",
-                color: "#eee",
-                fontSize: "14px",
-              }}
             >
               {project.locales.map((locale) => (
                 <option key={locale} value={locale}>
@@ -310,20 +284,12 @@ function PlayerViewInner({
               ))}
             </select>
           </label>
-          <label style={{ color: "#aaa", fontSize: "14px" }}>
+          <label className="app-player-header-label">
             Resolution
             <select
+              className="app-player-header-select"
               value={resolutionKey}
               onChange={handleResolutionChange}
-              style={{
-                marginLeft: "6px",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                border: "1px solid #444",
-                background: "#1a1a2e",
-                color: "#eee",
-                fontSize: "14px",
-              }}
             >
               {STANDARD_PLAYER_RESOLUTIONS.map((r) => (
                 <option key={r.key} value={r.key}>
@@ -337,6 +303,7 @@ function PlayerViewInner({
             <>
               <input
                 type="number"
+                className="app-player-header-input"
                 min={1}
                 max={7680}
                 value={customWidth}
@@ -345,20 +312,12 @@ function PlayerViewInner({
                   setCustomWidth(width);
                   persistResolution(width, customHeight);
                 }}
-                style={{
-                  width: "64px",
-                  padding: "4px 6px",
-                  borderRadius: "4px",
-                  border: "1px solid #444",
-                  background: "#1a1a2e",
-                  color: "#eee",
-                  fontSize: "14px",
-                }}
                 aria-label="Width"
               />
-              <span style={{ color: "#888" }}>×</span>
+              <span className="app-player-header-separator">×</span>
               <input
                 type="number"
+                className="app-player-header-input"
                 min={1}
                 max={4320}
                 value={customHeight}
@@ -367,15 +326,6 @@ function PlayerViewInner({
                   setCustomHeight(height);
                   persistResolution(customWidth, height);
                 }}
-                style={{
-                  width: "64px",
-                  padding: "4px 6px",
-                  borderRadius: "4px",
-                  border: "1px solid #444",
-                  background: "#1a1a2e",
-                  color: "#eee",
-                  fontSize: "14px",
-                }}
                 aria-label="Height"
               />
             </>
@@ -383,24 +333,12 @@ function PlayerViewInner({
         </div>
       </header>
 
-      <div
-        ref={contentAreaRef}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#0a0a12",
-        }}
-      >
+      <div ref={contentAreaRef} className="app-player-stage-area">
         <div
+          className="app-player-stage-frame"
           style={{
             width: scaledWidth,
             height: scaledHeight,
-            position: "relative",
-            overflow: "hidden",
-            boxShadow: "0 0 0 1px rgba(255,255,255,0.1)",
           }}
         >
           <div
