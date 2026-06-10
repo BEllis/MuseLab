@@ -4,7 +4,11 @@ import { useActiveStory } from "@/hooks/useActiveStory";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { TemplateTextEditor } from "@/components/NodeEditor/TemplateTextEditor";
-import { getDefaultLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
+import {
+  getDefaultLocale,
+  getNodeSpeakerForLocale,
+  getNodeTextTemplateForLocale,
+} from "@/core/locale/prompts";
 import { renderNodePreviewHtml } from "@/core/view/sceneStage";
 import {
   fitAspectRatioInBox,
@@ -28,7 +32,9 @@ export function ScenePreviewOverlay() {
   const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const updateNodePrompt = useProjectStore((s) => s.updateNodePrompt);
+  const updateNodeSpeaker = useProjectStore((s) => s.updateNodeSpeaker);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
+  const switchEditorLocale = useSceneEditorPreviewStore((s) => s.switchEditorLocale);
   const { story, storyId } = useActiveStory();
 
   const node =
@@ -116,9 +122,41 @@ export function ScenePreviewOverlay() {
     [updateDraftTemplate]
   );
 
+  const handleSpeakerChange = useCallback(
+    (speaker: string) => {
+      if (!node) return;
+      updateNodeSpeaker(locale, node.id, speaker, {
+        mergeKey: `node-speaker:${node.id}:${locale}`,
+      });
+    },
+    [locale, node, updateNodeSpeaker]
+  );
+
+  const handleLocaleChange = useCallback(
+    (nextLocale: string) => {
+      if (!node || nextLocale === locale) return;
+      if (draftTemplate !== undefined) {
+        updateNodePrompt(locale, node.id, draftTemplate, {
+          mergeKey: `node-text:${node.id}:${locale}`,
+        });
+      }
+      flushHistoryCoalesce();
+      const freshPrompts = useProjectStore.getState().promptsByLocale;
+      switchEditorLocale(
+        nextLocale,
+        getNodeTextTemplateForLocale(freshPrompts, nextLocale, storyId, node.id)
+      );
+    },
+    [draftTemplate, flushHistoryCoalesce, locale, node, storyId, switchEditorLocale, updateNodePrompt]
+  );
+
   const stopEditorClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
   }, []);
+
+  const speaker = node
+    ? getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)
+    : "";
 
   if (!open || !node) return null;
 
@@ -189,6 +227,75 @@ export function ScenePreviewOverlay() {
             boxShadow: "0 -4px 24px var(--app-shadow)",
           }}
         >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "16px",
+              marginBottom: "8px",
+              flexShrink: 0,
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flex: 1,
+                minWidth: 0,
+                fontSize: "13px",
+              }}
+            >
+              <span style={{ color: "var(--app-text-muted)", flexShrink: 0 }}>Speaker</span>
+              <input
+                type="text"
+                value={speaker}
+                onChange={(e) => handleSpeakerChange(e.target.value)}
+                placeholder="Optional — supports Cito"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: "6px 8px",
+                  fontSize: "13px",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "4px",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  boxSizing: "border-box",
+                }}
+              />
+            </label>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontSize: "13px",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ color: "var(--app-text-muted)" }}>Locale</span>
+              <select
+                value={locale}
+                onChange={(e) => handleLocaleChange(e.target.value)}
+                style={{
+                  padding: "6px 8px",
+                  fontSize: "13px",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "4px",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                }}
+              >
+                {project.locales.map((entry) => (
+                  <option key={entry} value={entry}>
+                    {entry}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <TemplateTextEditor
             value={committedTemplate}
             onChange={handleTemplateChange}

@@ -13,6 +13,7 @@ type SceneEditorPreviewStore = {
   editingTemplate: boolean;
   showPreview: (options?: ShowPreviewOptions) => void;
   showTemplateEditor: (locale: string, draftTemplate: string) => void;
+  switchEditorLocale: (locale: string, draftTemplate: string) => void;
   hidePreview: () => void;
   updateDraftTemplate: (draftTemplate: string) => void;
 };
@@ -35,6 +36,11 @@ export const useSceneEditorPreviewStore = create<SceneEditorPreviewStore>((set) 
       locale,
       draftTemplate,
       editingTemplate: true,
+    }),
+  switchEditorLocale: (locale, draftTemplate) =>
+    set({
+      locale,
+      draftTemplate,
     }),
   hidePreview: () =>
     set({

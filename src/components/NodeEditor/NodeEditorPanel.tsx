@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
@@ -22,6 +22,62 @@ import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
+
+const promptDisplayStyle: React.CSSProperties = {
+  padding: "8px 10px",
+  lineHeight: 1.5,
+  border: "1px solid var(--app-border)",
+  borderRadius: "6px",
+  background: "var(--app-surface)",
+  color: "var(--app-text)",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  maxHeight: "160px",
+  overflowY: "auto",
+};
+
+function PromptReadOnlyField({
+  label,
+  value,
+  emptyText,
+  monospace = false,
+  action,
+}: {
+  label: ReactNode;
+  value: string;
+  emptyText: string;
+  monospace?: boolean;
+  action?: ReactNode;
+}) {
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "4px",
+        }}
+      >
+        <span>{label}</span>
+        {action}
+      </div>
+      <div
+        style={{
+          ...promptDisplayStyle,
+          fontSize: monospace ? "12px" : "13px",
+          fontFamily: monospace ? "monospace" : "inherit",
+        }}
+      >
+        {value ? (
+          value
+        ) : (
+          <span style={{ color: "var(--app-text-muted)", fontStyle: "italic" }}>{emptyText}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function NodeNameField({
   node,
@@ -368,7 +424,6 @@ export function NodeEditorPanel() {
   const { story, storyId } = useActiveStory();
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateNode = useProjectStore((s) => s.updateNode);
-  const updateNodeSpeaker = useProjectStore((s) => s.updateNodeSpeaker);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
   const showPreview = useSceneEditorPreviewStore((s) => s.showPreview);
   const showTemplateEditor = useSceneEditorPreviewStore((s) => s.showTemplateEditor);
@@ -466,13 +521,6 @@ export function NodeEditorPanel() {
   const openScenePreview = useCallback(() => {
     showPreview();
   }, [showPreview]);
-
-  const openScenePreviewForLocale = useCallback(
-    (locale: string) => {
-      showPreview({ locale });
-    },
-    [showPreview]
-  );
 
   const openTemplateEditor = useCallback(
     (locale: string) => {
@@ -829,56 +877,20 @@ export function NodeEditorPanel() {
         />
         {visibleLocales.map((locale) => (
           <div key={locale} style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", marginBottom: "8px" }}>
-              <div style={{ marginBottom: "4px" }}>Speaker ({locale})</div>
-              <input
-                type="text"
+            <div style={{ marginBottom: "8px" }}>
+              <PromptReadOnlyField
+                label={`Speaker (${locale})`}
                 value={getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)}
-                onChange={(e) =>
-                  updateNodeSpeaker(locale, node.id, e.target.value, {
-                    mergeKey: `node-speaker:${node.id}:${locale}`,
-                  })
-                }
-                onFocus={() => openScenePreviewForLocale(locale)}
-                placeholder="Optional — supports Cito, e.g. {{ rt.GetString('name') }}"
-                style={{ width: "100%", boxSizing: "border-box" }}
-              />
-            </label>
-            <div style={{ display: "block" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "4px",
-                }}
-              >
-                <span>Text template ({locale})</span>
-                <EditButton onClick={() => openTemplateEditor(locale)} />
-              </div>
-              <textarea
-                readOnly
-                value={getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)}
-                rows={4}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  marginTop: "4px",
-                  padding: "8px 10px",
-                  fontSize: "12px",
-                  lineHeight: 1.5,
-                  fontFamily: "monospace",
-                  boxSizing: "border-box",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "6px",
-                  background: "var(--app-input-bg)",
-                  color: "var(--app-text)",
-                  resize: "vertical",
-                  maxHeight: "160px",
-                  cursor: "default",
-                }}
+                emptyText="No speaker"
               />
             </div>
+            <PromptReadOnlyField
+              label={`Text template (${locale})`}
+              value={getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)}
+              emptyText="No template"
+              monospace
+              action={<EditButton onClick={() => openTemplateEditor(locale)} />}
+            />
           </div>
         ))}
       </div>
