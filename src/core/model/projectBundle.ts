@@ -9,7 +9,7 @@ import {
   serializeLocalePrompts,
   type PromptsByLocale,
 } from "../locale/prompts";
-import { normalizeLocales } from "../locale/localeTag";
+import { migrateProjectDefaultLocale, normalizeLocales } from "../locale/localeTag";
 import {
   createEmptyProject,
   finalizeProjectNodes,
@@ -51,7 +51,7 @@ export function cloneProjectBundle(bundle: ProjectBundle): ProjectBundle {
 
 export function migrateProjectBundle(project: Project, promptsByLocale?: PromptsByLocale): ProjectBundle {
   normalizeProjectModules(project);
-  project.locales = normalizeLocales(project.locales);
+  migrateProjectDefaultLocale(project);
   const defaultStoryId = project.stories[0]?.id;
   const basePrompts =
     promptsByLocale ??

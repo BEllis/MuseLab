@@ -1,10 +1,12 @@
 import type { EndNodeLayout, Story, StoryEdge } from "./types";
 import { isSceneNode } from "./nodeTypes";
-import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, MIN_NODE_GAP } from "@/utils/nodeOverlap";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "@/utils/nodeOverlap";
 
 export type { EndNodeLayout };
 
 const END_NODE_SIZE = 52;
+/** Horizontal gap between the scene's right edge and the End node. */
+export const END_NODE_GAP = 36;
 
 function sceneHasOutgoingLink(story: Story, sceneId: string): boolean {
   return story.edges.some((edge) => edge.sourceNodeId === sceneId);
@@ -16,14 +18,24 @@ export function getTerminalSceneIds(story: Story): string[] {
     .map((node) => node.id);
 }
 
+export function endNodePositionForSceneBounds(
+  scenePosition: { x: number; y: number },
+  sceneSize: { width: number; height: number }
+): { x: number; y: number } {
+  return {
+    x: scenePosition.x + sceneSize.width + END_NODE_GAP,
+    y: scenePosition.y + (sceneSize.height - END_NODE_SIZE) / 2,
+  };
+}
+
 export function defaultEndNodePosition(scenePosition: { x: number; y: number }): {
   x: number;
   y: number;
 } {
-  return {
-    x: scenePosition.x + DEFAULT_NODE_WIDTH + MIN_NODE_GAP,
-    y: scenePosition.y + (DEFAULT_NODE_HEIGHT - END_NODE_SIZE) / 2,
-  };
+  return endNodePositionForSceneBounds(scenePosition, {
+    width: DEFAULT_NODE_WIDTH,
+    height: DEFAULT_NODE_HEIGHT,
+  });
 }
 
 export function getEndNodeLayout(story: Story, sceneId: string): EndNodeLayout | undefined {
@@ -31,11 +43,21 @@ export function getEndNodeLayout(story: Story, sceneId: string): EndNodeLayout |
 }
 
 export function resolveEndNodePosition(
-  story: Story,
-  sceneId: string,
-  scenePosition: { x: number; y: number }
+  _story: Story,
+  _sceneId: string,
+  scenePosition: { x: number; y: number },
+  sceneSize: { width: number; height: number } = {
+    width: DEFAULT_NODE_WIDTH,
+    height: DEFAULT_NODE_HEIGHT,
+  }
 ): { x: number; y: number } {
-  return getEndNodeLayout(story, sceneId)?.position ?? defaultEndNodePosition(scenePosition);
+  return endNodePositionForSceneBounds(scenePosition, sceneSize);
+}
+
+/** Drop legacy designer-only end node layout; position now follows the parent scene. */
+export function normalizeEndNodeLayouts(story: Story): void {
+  if (!story.endNodeLayouts) return;
+  delete story.endNodeLayouts;
 }
 
 export function setEndNodeLayout(
@@ -98,27 +120,25 @@ export function mergeEndNodeLayout(
   return next;
 }
 
-export function isManualEndEdgeRoute(layout: EndNodeLayout | undefined): boolean {
-  return layout?.manualRoute === true || (layout?.vertices?.length ?? 0) > 0;
+export function isManualEndEdgeRoute(_layout: EndNodeLayout | undefined): boolean {
+  return false;
 }
 
-export function getEndEdgeRouter(layout: EndNodeLayout | undefined) {
-  return isManualEndEdgeRoute(layout)
-    ? { name: "normal" as const }
-    : {
-        name: "manhattan" as const,
-        args: {
-          padding: 12,
-          step: 10,
-          startDirections: ["right"],
-          endDirections: ["left"],
-          excludeTerminals: ["source", "target"] as ("source" | "target")[],
-        },
-      };
+export function getEndEdgeRouter(_layout: EndNodeLayout | undefined) {
+  return {
+    name: "manhattan" as const,
+    args: {
+      padding: 12,
+      step: 10,
+      startDirections: ["right"],
+      endDirections: ["left"],
+      excludeTerminals: ["source", "target"] as ("source" | "target")[],
+    },
+  };
 }
 
-export function getEndEdgeVertices(layout: EndNodeLayout | undefined): { x: number; y: number }[] {
-  return layout?.vertices ?? [];
+export function getEndEdgeVertices(_layout: EndNodeLayout | undefined): { x: number; y: number }[] {
+  return [];
 }
 
 export function endNodeLayoutFromEdgePatch(

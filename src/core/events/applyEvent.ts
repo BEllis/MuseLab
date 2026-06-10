@@ -19,6 +19,8 @@ import {
   updateStory as updateStoryInProject,
   removeStoryGroup as removeStoryGroupInProject,
   updateStoryGroup as updateStoryGroupInProject,
+  removeAssetGroup as removeAssetGroupInProject,
+  updateAssetGroup as updateAssetGroupInProject,
   addLocaleToProject,
   removeLocaleFromProject,
 } from "@/core/model/project";
@@ -195,6 +197,53 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
 
     case "updateStoryGroup":
       updateStoryGroupInProject(
+        state.project,
+        event.groupId,
+        useAfter ? event.after : event.before
+      );
+      break;
+
+    case "addAssetGroup": {
+      if (useAfter) {
+        if (!state.project.assetGroups) {
+          state.project.assetGroups = [];
+        }
+        state.project.assetGroups.push(cloneNode(event.after));
+      } else {
+        state.project.assetGroups = (state.project.assetGroups ?? []).filter(
+          (group) => group.id !== event.after.id
+        );
+      }
+      break;
+    }
+
+    case "removeAssetGroup": {
+      if (useAfter) {
+        removeAssetGroupInProject(state.project, event.before.rootGroupId);
+      } else {
+        if (!state.project.assetGroups) {
+          state.project.assetGroups = [];
+        }
+        for (const group of event.before.groups) {
+          if (!state.project.assetGroups.some((entry) => entry.id === group.id)) {
+            state.project.assetGroups.push(cloneNode(group));
+          }
+        }
+        for (const assignment of event.before.assetAssignments) {
+          const asset = state.project.assets.find((entry) => entry.id === assignment.assetId);
+          if (!asset) continue;
+          if (assignment.groupId) {
+            asset.groupId = assignment.groupId;
+          } else {
+            delete asset.groupId;
+          }
+        }
+      }
+      break;
+    }
+
+    case "updateAssetGroup":
+      updateAssetGroupInProject(
         state.project,
         event.groupId,
         useAfter ? event.after : event.before

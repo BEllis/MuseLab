@@ -4,6 +4,7 @@ import { useActiveStory } from "@/hooks/useActiveStory";
 import { getEdgeOptionTextForLocale } from "@/core/locale/prompts";
 import { CloseButton } from "../CloseButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
+import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
 
 export function EdgeEditorPanel() {
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
@@ -45,9 +46,7 @@ export function EdgeEditorPanel() {
         <strong>Link</strong>
         <CloseButton onClick={() => clearSelection()} />
       </div>
-      <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--app-text-muted)" }}>
-        {sourceLabel} → {targetLabel}
-      </p>
+      <InspectorPanelId id={edge.id} />
 
       <div style={{ marginBottom: "8px" }}>
         <LocaleVisibilityToggle
@@ -76,6 +75,12 @@ export function EdgeEditorPanel() {
           </label>
         ))}
       </div>
+
+      <InspectorPanelDetails>
+        <p style={inspectorSubtextStyle}>
+          {sourceLabel} → {targetLabel}
+        </p>
+      </InspectorPanelDetails>
 
       <label style={{ display: "block" }}>
         Condition (Cito expression; leave empty to always show)

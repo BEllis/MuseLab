@@ -8,6 +8,7 @@ import {
   isExpressionNameUnique,
   resolveExpression,
 } from "./actorExpressions";
+import { updateAsset as updateAssetInProject } from "../model/project";
 
 function actorAsset(overrides: Partial<Asset> = {}): Asset {
   return {
@@ -56,6 +57,34 @@ describe("getDefaultExpressionId", () => {
       ],
     });
     expect(getDefaultExpressionId(asset)).toBe(asset.expressions![1].id);
+  });
+
+  it("prefers explicit defaultExpressionId over name", () => {
+    const asset = actorAsset({
+      expressions: [createExpression("happy"), createExpression("default")],
+    });
+    asset.defaultExpressionId = asset.expressions![0].id;
+    expect(getDefaultExpressionId(asset)).toBe(asset.expressions![0].id);
+  });
+
+  it("can be set via updateAsset when previously unset", () => {
+    const project: Project = {
+      name: "Test",
+      assets: [
+        actorAsset({
+          expressions: [createExpression("happy"), createExpression("default")],
+        }),
+      ],
+      locales: ["en"],
+      modules: [],
+      stories: [],
+    };
+    const actor = project.assets[0]!;
+    expect(getDefaultExpressionId(actor)).toBe(actor.expressions![1].id);
+
+    updateAssetInProject(project, actor.id, { defaultExpressionId: actor.expressions![0].id });
+    expect(actor.defaultExpressionId).toBe(actor.expressions![0].id);
+    expect(getDefaultExpressionId(actor)).toBe(actor.expressions![0].id);
   });
 });
 

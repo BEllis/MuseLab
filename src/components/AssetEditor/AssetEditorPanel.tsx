@@ -1,14 +1,17 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import type { Asset, AssetType, ActorExpression } from "@/core/model/types";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
 import { getAssetUsage } from "@/core/assets/assetUsage";
-import { getExpressionUsage } from "@/core/assets/actorExpressions";
-import { canRemoveAsset, canRenameAsset, canReplaceAsset, isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
+import { getExpressionUsage, isDefaultExpression } from "@/core/assets/actorExpressions";
+import { canRenameAsset, canReplaceAsset, isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
 import { CloseButton } from "../CloseButton";
+import { ReplaceImageButton } from "../ReplaceImageButton";
 import { AddButton } from "../AddButton";
 import { isElectron } from "@/utils/isElectron";
+import { getSortedActorExpressions } from "@/core/model/assetTree";
+import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
 
 const PANEL_STYLE: React.CSSProperties = {
   width: "320px",
@@ -46,7 +49,7 @@ function UsageSummary({ asset }: { asset: Asset }) {
 
   if (usage.total === 0) {
     return (
-      <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--app-text-muted)" }}>
+      <p style={inspectorSubtextStyle}>
         Not used in any scenes.
       </p>
     );
@@ -64,9 +67,22 @@ function UsageSummary({ asset }: { asset: Asset }) {
   }
 
   return (
-    <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--app-text-muted)" }}>
+    <p style={inspectorSubtextStyle}>
       Used in {parts.join(", ")}.
     </p>
+  );
+}
+
+function AssetDetailsUnderName({ asset, isDefault }: { asset: Asset; isDefault: boolean }) {
+  return (
+    <InspectorPanelDetails>
+      <UsageSummary asset={asset} />
+      {isDefault && (
+        <p style={{ ...inspectorSubtextStyle, fontSize: "11px" }}>
+          Built-in default backdrop. You can replace its image; name and removal stay fixed.
+        </p>
+      )}
+    </InspectorPanelDetails>
   );
 }
 
@@ -79,9 +95,13 @@ function ActorNotesFields({
   updateAsset: ReturnType<typeof useProjectStore.getState>["updateAsset"];
   flushHistoryCoalesce: () => void;
 }) {
-  const fields: Array<{ key: "personality" | "appearance" | "backstory" | "notes"; label: string }> = [
+  const fields: Array<{
+    key: "personality" | "appearance" | "voiceAccent" | "backstory" | "notes";
+    label: string;
+  }> = [
     { key: "personality", label: "Personality" },
     { key: "appearance", label: "Appearance" },
+    { key: "voiceAccent", label: "Voice / Accent" },
     { key: "backstory", label: "Backstory" },
     { key: "notes", label: "Notes" },
   ];
@@ -108,28 +128,46 @@ function ActorNotesFields({
 function ExpressionRow({
   asset,
   expression,
+  isDefault,
+  onSetDefault,
   onReplace,
   onRemove,
   onRename,
   onBlurRename,
+  autoFocusName = false,
+  nameRequired = false,
 }: {
   asset: Asset;
   expression: ActorExpression;
+  isDefault: boolean;
+  onSetDefault: () => void;
   onReplace: () => void;
   onRemove: () => void;
   onRename: (name: string) => void;
-  onBlurRename: () => void;
+  onBlurRename: () => boolean;
+  autoFocusName?: boolean;
+  nameRequired?: boolean;
 }) {
   const project = useProjectStore((s) => s.project);
   const previewUrl = useActorExpressionUrl(project, asset.id, expression.id);
   const usage = getExpressionUsage(project, asset.id, expression.id);
   const isLast = (asset.expressions?.length ?? 0) <= 1;
   const canDelete = usage === 0 && !isLast;
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const deleteTitle = isLast
     ? "An actor must have at least one expression"
     : usage > 0
       ? `Used in ${usage} scene${usage === 1 ? "" : "s"}`
       : "Remove expression";
+  const showNameRequired = nameRequired && expression.name.trim().length === 0;
+
+  useEffect(() => {
+    if (!autoFocusName) return;
+    const input = nameInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [autoFocusName, expression.id]);
 
   return (
     <div
@@ -140,7 +178,7 @@ function ExpressionRow({
         marginBottom: "8px",
       }}
     >
-      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <div
           style={{
             width: "48px",
@@ -160,50 +198,44 @@ function ExpressionRow({
           ) : null}
         </div>
         <label style={{ flex: 1, fontSize: "12px" }}>
-          Name
+          Name{isDefault ? " (default)" : ""}
           <input
+            ref={nameInputRef}
             type="text"
             value={expression.name}
+            placeholder="Expression name"
             onChange={(e) => onRename(e.target.value)}
-            onBlur={onBlurRename}
-            style={{ display: "block", width: "100%", marginTop: "4px", padding: "4px 6px", boxSizing: "border-box" }}
+            onBlur={() => {
+              if (!onBlurRename()) {
+                nameInputRef.current?.focus();
+              }
+            }}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: "4px",
+              padding: "4px 6px",
+              boxSizing: "border-box",
+              border: showNameRequired
+                ? "1px solid var(--app-accent)"
+                : "1px solid var(--app-border)",
+              boxShadow: showNameRequired ? "0 0 0 2px var(--app-accent-subtle, rgba(59, 130, 246, 0.2))" : undefined,
+              background: showNameRequired ? "var(--app-accent-soft, #e8f2ff)" : undefined,
+            }}
           />
         </label>
-      </div>
-      <div style={{ display: "flex", gap: "8px" }}>
-        <button
-          type="button"
-          onClick={onReplace}
-          style={{
-            flex: 1,
-            padding: "6px 8px",
-            fontSize: "12px",
-            border: "1px solid var(--app-border)",
-            borderRadius: "6px",
-            background: "var(--app-surface)",
-            cursor: "pointer",
-          }}
-        >
-          Replace image…
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={!canDelete}
-          title={deleteTitle}
-          style={{
-            padding: "6px 8px",
-            fontSize: "12px",
-            border: "1px solid var(--app-border)",
-            borderRadius: "6px",
-            background: "var(--app-surface)",
-            color: "var(--app-danger, #c0392b)",
-            cursor: canDelete ? "pointer" : "not-allowed",
-            opacity: canDelete ? 1 : 0.5,
-          }}
-        >
-          Remove
-        </button>
+        <div style={{ display: "flex", gap: "4px", flexShrink: 0, alignItems: "center" }}>
+          <input
+            type="radio"
+            name={`default-expression-${asset.id}`}
+            checked={isDefault}
+            onChange={onSetDefault}
+            title="Default expression"
+            style={{ margin: 0, flexShrink: 0 }}
+          />
+          <ReplaceImageButton onClick={onReplace} title="Replace image…" />
+          <CloseButton onClick={onRemove} disabled={!canDelete} title={deleteTitle} />
+        </div>
       </div>
       {usage > 0 && (
         <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--app-text-muted)" }}>
@@ -220,7 +252,6 @@ export function AssetEditorPanel() {
   const setSelectedAssetId = useProjectStore((s) => s.setSelectedAssetId);
   const updateAsset = useProjectStore((s) => s.updateAsset);
   const replaceAssetMedia = useProjectStore((s) => s.replaceAssetMedia);
-  const removeAsset = useProjectStore((s) => s.removeAsset);
   const addActorExpression = useProjectStore((s) => s.addActorExpression);
   const updateActorExpression = useProjectStore((s) => s.updateActorExpression);
   const replaceActorExpressionMedia = useProjectStore((s) => s.replaceActorExpressionMedia);
@@ -229,16 +260,25 @@ export function AssetEditorPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceExpressionRef = useRef<{ actorId: string; expressionId: string } | null>(null);
   const [expressionNameError, setExpressionNameError] = useState<string | null>(null);
+  const [pendingExpressionId, setPendingExpressionId] = useState<string | null>(null);
 
   const asset = selectedAssetId
     ? project.assets.find((a) => a.id === selectedAssetId)
     : undefined;
+  const sortedExpressions = useMemo(
+    () => (asset?.type === "actor" ? getSortedActorExpressions(project, asset.id) : []),
+    [project, asset]
+  );
   const previewUrl = useAssetUrl(project, asset?.type === "actor" ? null : (asset?.id ?? null));
+
+  useEffect(() => {
+    setPendingExpressionId(null);
+    setExpressionNameError(null);
+  }, [selectedAssetId]);
 
   if (!asset) return null;
 
   const renamable = canRenameAsset(asset.id);
-  const removable = canRemoveAsset(asset.id);
   const replaceable = canReplaceAsset(asset.id) && asset.type !== "actor";
   const isDefault = isDefaultBackdrop(asset.id);
 
@@ -267,7 +307,6 @@ export function AssetEditorPanel() {
       const file = input.files?.[0];
       if (file) void replaceAssetMedia(asset.id, { file });
       input.value = "";
-      replaceExpressionRef.current = null;
     };
     input.click();
   };
@@ -302,20 +341,32 @@ export function AssetEditorPanel() {
     input.click();
   };
 
-  const handleRemove = async () => {
-    await removeAsset(asset.id);
-    setSelectedAssetId(null);
-  };
-
   const handleAddExpression = () => {
-    const name = window.prompt("Expression name", "happy")?.trim();
-    if (!name) return;
+    if ((asset.expressions ?? []).some((entry) => entry.name.trim().length === 0)) {
+      setExpressionNameError("Name the new expression before adding another");
+      return;
+    }
     try {
-      addActorExpression(asset.id, name);
+      const expression = addActorExpression(asset.id, "");
+      setPendingExpressionId(expression.id);
       setExpressionNameError(null);
     } catch (error) {
       setExpressionNameError(error instanceof Error ? error.message : "Could not add expression");
     }
+  };
+
+  const commitExpressionName = (expression: ActorExpression): boolean => {
+    if (expression.name.trim().length === 0) {
+      setExpressionNameError("Expression name is required");
+      setPendingExpressionId(expression.id);
+      return false;
+    }
+    setExpressionNameError(null);
+    if (pendingExpressionId === expression.id) {
+      setPendingExpressionId(null);
+    }
+    flushHistoryCoalesce();
+    return true;
   };
 
   return (
@@ -332,6 +383,8 @@ export function AssetEditorPanel() {
         <strong>{assetTypeLabel(asset.type)}</strong>
         <CloseButton onClick={() => setSelectedAssetId(null)} />
       </div>
+
+      <InspectorPanelId id={asset.id} />
 
       <label style={{ display: "block", marginBottom: "12px" }}>
         Name
@@ -352,6 +405,8 @@ export function AssetEditorPanel() {
           }}
         />
       </label>
+
+      <AssetDetailsUnderName asset={asset} isDefault={isDefault} />
 
       {asset.type === "actor" ? (
         <>
@@ -377,16 +432,26 @@ export function AssetEditorPanel() {
                 {expressionNameError}
               </p>
             )}
-            {(asset.expressions ?? []).map((expression) => (
+            {sortedExpressions.map((expression) => (
               <ExpressionRow
                 key={expression.id}
                 asset={asset}
                 expression={expression}
+                isDefault={isDefaultExpression(asset, expression.id)}
+                onSetDefault={() => {
+                  if (isDefaultExpression(asset, expression.id)) return;
+                  updateAsset(asset.id, { defaultExpressionId: expression.id });
+                }}
+                autoFocusName={pendingExpressionId === expression.id}
+                nameRequired={pendingExpressionId === expression.id || expression.name.trim().length === 0}
                 onReplace={() => triggerReplaceExpression(expression.id)}
                 onRemove={() => {
                   try {
                     removeActorExpression(asset.id, expression.id);
                     setExpressionNameError(null);
+                    if (pendingExpressionId === expression.id) {
+                      setPendingExpressionId(null);
+                    }
                   } catch (error) {
                     setExpressionNameError(
                       error instanceof Error ? error.message : "Could not remove expression"
@@ -408,7 +473,7 @@ export function AssetEditorPanel() {
                     );
                   }
                 }}
-                onBlurRename={() => flushHistoryCoalesce()}
+                onBlurRename={() => commitExpressionName(expression)}
               />
             ))}
           </div>
@@ -461,36 +526,6 @@ export function AssetEditorPanel() {
             </button>
           )}
         </>
-      )}
-
-      {isDefault && (
-        <p style={{ margin: "0 0 12px", fontSize: "11px", color: "var(--app-text-muted)" }}>
-          Built-in default backdrop. You can replace its image; name and removal stay fixed.
-        </p>
-      )}
-
-      <UsageSummary asset={asset} />
-
-      <p style={{ margin: "0 0 12px", fontSize: "11px", color: "var(--app-text-subtle)" }}>
-        ID: <code style={{ fontSize: "11px" }}>{asset.id}</code>
-      </p>
-
-      {removable && (
-        <button
-          type="button"
-          onClick={() => void handleRemove()}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            border: "1px solid var(--app-border)",
-            borderRadius: "6px",
-            background: "var(--app-surface)",
-            color: "var(--app-danger, #c0392b)",
-            cursor: "pointer",
-          }}
-        >
-          Remove asset
-        </button>
       )}
     </div>
   );

@@ -20,6 +20,10 @@ export function assertValidLocaleTag(value: string): string {
   return normalized;
 }
 
+function sortLocaleTags(locales: string[]): string[] {
+  return [...locales].sort((a, b) => a.localeCompare(b));
+}
+
 export function normalizeLocales(locales: string[] | undefined): string[] {
   if (!locales || locales.length === 0) {
     return [...DEFAULT_LOCALES];
@@ -34,7 +38,56 @@ export function normalizeLocales(locales: string[] | undefined): string[] {
   if (normalized.length === 0) {
     return [...DEFAULT_LOCALES];
   }
-  return normalized;
+  return sortLocaleTags(normalized);
+}
+
+export function getDefaultLocaleTag(
+  locales: string[] | undefined,
+  defaultLocale?: string
+): string {
+  const normalized = normalizeLocales(locales);
+  if (defaultLocale) {
+    const tag = assertValidLocaleTag(defaultLocale);
+    if (normalized.includes(tag)) {
+      return tag;
+    }
+  }
+  return normalized[0] ?? DEFAULT_LOCALES[0];
+}
+
+/** Preserve legacy default (pre-sort first entry) and ensure defaultLocale is valid. */
+export function migrateProjectDefaultLocale(project: {
+  locales: string[];
+  defaultLocale?: string;
+}): void {
+  const legacyDefault = project.locales[0];
+  project.locales = normalizeLocales(project.locales);
+
+  if (project.defaultLocale) {
+    try {
+      const tag = assertValidLocaleTag(project.defaultLocale);
+      if (project.locales.includes(tag)) {
+        project.defaultLocale = tag;
+        return;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  if (legacyDefault) {
+    try {
+      const tag = assertValidLocaleTag(legacyDefault);
+      if (project.locales.includes(tag)) {
+        project.defaultLocale = tag;
+        return;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  project.defaultLocale = project.locales[0];
 }
 
 export function parseLocaleFromPromptsFileName(fileName: string): string | null {

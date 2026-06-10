@@ -16,6 +16,7 @@ import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
 import { TemplateTextEditor } from "./TemplateTextEditor";
+import { InspectorPanelId } from "../InspectorPanelMeta";
 
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
@@ -461,6 +462,7 @@ export function NodeEditorPanel() {
           <strong>Start</strong>
           <CloseButton onClick={() => clearSelection()} />
         </div>
+        <InspectorPanelId id={node.id} />
         <NodeNameField
           node={node}
           story={story}
@@ -476,7 +478,6 @@ export function NodeEditorPanel() {
     const targetStoryId = node.jumpTargetStoryId ?? storyId;
     const targetStory = project.stories.find((entry) => entry.id === targetStoryId);
     const targetStarts = targetStory ? getStartNodes(targetStory) : [];
-    const displayName = getNodeDisplayName(node, project);
 
     return (
       <div style={panelShellStyle}>
@@ -491,16 +492,14 @@ export function NodeEditorPanel() {
           <strong>Jump To</strong>
           <CloseButton onClick={() => clearSelection()} />
         </div>
-        <p
-          style={{
-            margin: "0 0 12px",
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "var(--app-text)",
-          }}
-        >
-          {displayName}
-        </p>
+        <InspectorPanelId id={node.id} />
+        <NodeNameField
+          node={node}
+          story={story}
+          update={update}
+          onBlur={() => flushHistoryCoalesce()}
+          placeholder="Jump To"
+        />
         <label style={{ display: "block", marginBottom: "8px" }}>
           Target story
           <select
@@ -601,6 +600,7 @@ export function NodeEditorPanel() {
         <CloseButton onClick={() => clearSelection()} />
       </div>
 
+      <InspectorPanelId id={node.id} />
       <NodeNameField
         node={node}
         story={story}

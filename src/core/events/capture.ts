@@ -1,9 +1,10 @@
 import type { Project, StoryNode } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
 import { getNodeSpeaker, getNodeTextTemplate } from "@/core/locale/prompts";
-import { getStory, getStoryGroup } from "@/core/model/project";
+import { getStory, getStoryGroup, getAssetGroup } from "@/core/model/project";
 import { collectDescendantGroupIds, getStoryGroups } from "@/core/model/storyTree";
-import type { AppEvent, StoryGroupPatch, StoryPatch } from "./types";
+import { collectDescendantAssetGroupIds, getAssetGroups, getAssetGroupsForType } from "@/core/model/assetTree";
+import type { AppEvent, AssetGroupPatch, AssetPatch, StoryGroupPatch, StoryPatch } from "./types";
 import {
   createEventMeta,
   getNavigationSnapshot,
@@ -23,13 +24,18 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/** Clone a patch field for event `before` state; undefined becomes null so undo survives JSON persistence. */
+export function capturePatchValue<T>(value: T | undefined): T | null {
+  return value === undefined ? null : clone(value);
+}
+
 export function captureProjectPatch(
   project: Project,
   patch: ProjectPatch
 ): ProjectPatch {
   const before: ProjectPatch = {};
   for (const key of Object.keys(patch) as Array<keyof ProjectPatch>) {
-    before[key] = clone(project[key]) as never;
+    before[key] = capturePatchValue(project[key]) as never;
   }
   return before;
 }
@@ -150,6 +156,116 @@ export function buildStoryTreeMoveEvents(before: Project, after: Project): AppEv
       before: captureStoryGroupPatch(before, group.id, patch),
       after: patch,
     });
+  }
+
+  return events;
+}
+
+export function captureAssetGroupPatch(
+  project: Project,
+  groupId: string,
+  patch: AssetGroupPatch
+): AssetGroupPatch {
+  const group = getAssetGroup(project, groupId);
+  const before: AssetGroupPatch = {};
+  for (const key of Object.keys(patch) as Array<keyof AssetGroupPatch>) {
+    if (patch[key] === undefined) continue;
+    before[key] = clone(group[key]) as never;
+  }
+  return before;
+}
+
+export function captureRemoveAssetGroupPayload(
+  project: Project,
+  groupId: string
+): import("./types").RemoveAssetGroupPayload {
+  const group = getAssetGroup(project, groupId);
+  const groups = getAssetGroupsForType(project, group.assetType);
+  const descendantIds = collectDescendantAssetGroupIds(groups, groupId);
+  const removedGroupIds = new Set([groupId, ...descendantIds]);
+  const removedGroups = getAssetGroups(project)
+    .filter((entry) => removedGroupIds.has(entry.id))
+    .map(clone);
+  const assetAssignments = project.assets
+    .filter((asset) => asset.groupId && removedGroupIds.has(asset.groupId))
+    .map((asset) => ({ assetId: asset.id, groupId: asset.groupId }));
+
+  return {
+    rootGroupId: groupId,
+    groups: removedGroups,
+    assetAssignments,
+  };
+}
+
+function captureAssetPatch(project: Project, assetId: string, patch: AssetPatch): AssetPatch {
+  const asset = project.assets.find((entry) => entry.id === assetId);
+  if (!asset) {
+    throw new Error(`Asset "${assetId}" not found`);
+  }
+  const before: AssetPatch = {};
+  for (const key of Object.keys(patch) as Array<keyof AssetPatch>) {
+    if (patch[key] === undefined && key !== "groupId") continue;
+    if (key === "groupId") {
+      before.groupId = asset.groupId;
+      continue;
+    }
+    before[key] = capturePatchValue(asset[key as keyof Asset]) as never;
+  }
+  return before;
+}
+
+export function buildAssetTreeMoveEvents(before: Project, after: Project): AppEvent[] {
+  const events: AppEvent[] = [];
+
+  for (const asset of after.assets) {
+    const prev = before.assets.find((entry) => entry.id === asset.id);
+    if (!prev) continue;
+    const patch: AssetPatch = {};
+    if (prev.groupId !== asset.groupId) patch.groupId = asset.groupId;
+    if (prev.sortOrder !== asset.sortOrder) patch.sortOrder = asset.sortOrder;
+    if (Object.keys(patch).length === 0) continue;
+    events.push({
+      ...createEventMeta(),
+      type: "updateAsset",
+      assetId: asset.id,
+      before: captureAssetPatch(before, asset.id, patch),
+      after: patch,
+    });
+  }
+
+  for (const group of getAssetGroups(after)) {
+    const prev = getAssetGroups(before).find((entry) => entry.id === group.id);
+    if (!prev) continue;
+    const patch: AssetGroupPatch = {};
+    if (prev.parentGroupId !== group.parentGroupId) patch.parentGroupId = group.parentGroupId;
+    if (prev.sortOrder !== group.sortOrder) patch.sortOrder = group.sortOrder;
+    if (Object.keys(patch).length === 0) continue;
+    events.push({
+      ...createEventMeta(),
+      type: "updateAssetGroup",
+      groupId: group.id,
+      before: captureAssetGroupPatch(before, group.id, patch),
+      after: patch,
+    });
+  }
+
+  for (const asset of after.assets) {
+    if (asset.type !== "actor") continue;
+    const prev = before.assets.find((entry) => entry.id === asset.id);
+    if (!prev?.expressions) continue;
+    for (const expression of asset.expressions ?? []) {
+      const prevExpression = prev.expressions?.find((entry) => entry.id === expression.id);
+      if (!prevExpression) continue;
+      if (prevExpression.sortOrder === expression.sortOrder) continue;
+      events.push({
+        ...createEventMeta(),
+        type: "updateActorExpression",
+        actorId: asset.id,
+        expressionId: expression.id,
+        before: { sortOrder: prevExpression.sortOrder },
+        after: { sortOrder: expression.sortOrder },
+      });
+    }
   }
 
   return events;

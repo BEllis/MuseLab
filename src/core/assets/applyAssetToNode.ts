@@ -20,7 +20,7 @@ export function patchNodeForAssetDrop(
       return {
         actorConfigs: [
           ...actorConfigs,
-          { assetId: data.assetId, expressionId: getDefaultExpressionId(actor) },
+          { assetId: data.assetId, expressionId: data.expressionId ?? getDefaultExpressionId(actor) },
         ],
       };
     }

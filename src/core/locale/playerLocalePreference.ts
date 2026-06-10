@@ -1,15 +1,16 @@
-import { normalizeLocales } from "./localeTag";
+import { getDefaultLocaleTag, normalizeLocales } from "./localeTag";
 
 export interface PlayerLocaleContext {
   projectName: string;
   locales: string[];
+  defaultLocale?: string;
   projectKey?: string | null;
   storedLocale?: string | null;
 }
 
 export function resolvePlayerLocale(context: PlayerLocaleContext): string {
   const locales = normalizeLocales(context.locales);
-  const defaultLocale = locales[0];
+  const defaultLocale = getDefaultLocaleTag(locales, context.defaultLocale);
 
   const stored =
     context.storedLocale ??
@@ -25,11 +26,13 @@ export function resolvePlayerLocale(context: PlayerLocaleContext): string {
 export function getStoredPlayerLocale(
   projectName: string,
   locales: string[],
-  projectKey?: string | null
+  projectKey?: string | null,
+  defaultLocale?: string
 ): string {
   return resolvePlayerLocale({
     projectName,
     locales,
+    defaultLocale,
     projectKey,
   });
 }
@@ -66,16 +69,18 @@ function storageKey(projectName: string, projectKey?: string | null): string {
 export async function readElectronPlayerLocale(
   projectKey: string,
   projectName: string,
-  locales: string[]
+  locales: string[],
+  defaultLocale?: string
 ): Promise<string> {
   if (window.electronAPI?.getPlayerLocale) {
     const stored = await window.electronAPI.getPlayerLocale(projectKey);
     return resolvePlayerLocale({
       projectName,
       locales,
+      defaultLocale,
       projectKey,
       storedLocale: stored,
     });
   }
-  return getStoredPlayerLocale(projectName, locales, projectKey);
+  return getStoredPlayerLocale(projectName, locales, projectKey, defaultLocale);
 }

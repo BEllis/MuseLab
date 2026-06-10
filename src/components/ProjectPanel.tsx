@@ -6,6 +6,7 @@ import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
 import { getStartNodes, countSceneNodes } from "@/core/model/nodeTypes";
 import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
+import { getDefaultLocale } from "@/core/locale/prompts";
 import { CloseButton } from "./CloseButton";
 import { AddButton } from "./AddButton";
 
@@ -33,6 +34,8 @@ export function ProjectPanel() {
   const updateStory = useProjectStore((s) => s.updateStory);
   const addLocale = useProjectStore((s) => s.addLocale);
   const removeLocale = useProjectStore((s) => s.removeLocale);
+
+  const defaultLocale = getDefaultLocale(project);
 
   const [name, setName] = useState(project.name);
   const [newLocale, setNewLocale] = useState("");
@@ -119,20 +122,33 @@ export function ProjectPanel() {
       <div style={{ marginBottom: "16px" }}>
         <strong style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>Locales</strong>
         <ul style={{ margin: "0 0 8px", padding: 0, listStyle: "none" }}>
-          {project.locales.map((locale, index) => (
+          {project.locales.map((locale) => {
+            const isDefault = locale === defaultLocale;
+            return (
             <li
               key={locale}
               style={{
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
+                gap: "6px",
                 fontSize: "12px",
                 marginBottom: "4px",
               }}
             >
-              <span>
+              <input
+                type="radio"
+                name="default-locale"
+                checked={isDefault}
+                onChange={() => {
+                  if (isDefault) return;
+                  updateProject({ defaultLocale: locale });
+                }}
+                title="Default locale"
+                style={{ margin: 0, flexShrink: 0 }}
+              />
+              <span style={{ flex: 1 }}>
                 {locale}
-                {index === 0 ? " (default)" : ""}
+                {isDefault ? " (default)" : ""}
               </span>
               <CloseButton
                 title="Remove locale"
@@ -140,7 +156,8 @@ export function ProjectPanel() {
                 onClick={() => removeLocale(locale)}
               />
             </li>
-          ))}
+            );
+          })}
         </ul>
         <div style={{ display: "flex", gap: "6px" }}>
           <input

@@ -61,7 +61,7 @@ function PlayerViewInner({
   const storedResolution = getProjectPlayerResolution(project);
   const storedPresetKey = findPlayerResolutionPresetKey(storedResolution);
   const [activeLocale, setActiveLocale] = useState(() =>
-    getStoredPlayerLocale(project.name, project.locales, loadedMlvnPath)
+    getStoredPlayerLocale(project.name, project.locales, loadedMlvnPath, project.defaultLocale)
   );
   const [tick, setTick] = useState(0);
   const [runtime, setRuntime] = useState<RuntimeState | null>(null);
@@ -78,7 +78,8 @@ function PlayerViewInner({
       const locale = await readElectronPlayerLocale(
         loadedMlvnPath ?? project.name,
         project.name,
-        project.locales
+        project.locales,
+        project.defaultLocale
       );
       if (!cancelled) {
         setActiveLocale(locale);
@@ -87,7 +88,7 @@ function PlayerViewInner({
     return () => {
       cancelled = true;
     };
-  }, [loadedMlvnPath, project.name, project.locales]);
+  }, [loadedMlvnPath, project.name, project.locales, project.defaultLocale]);
 
   const runner = useMemo(
     () =>

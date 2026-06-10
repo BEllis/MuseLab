@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseProject, serializeProject } from "@/core/model/project";
 import {
   defaultEndNodePosition,
+  END_NODE_GAP,
+  endNodePositionForSceneBounds,
   endNodeLayoutsEqual,
   getTerminalSceneIds,
   mergeEndNodeLayout,
@@ -26,18 +28,31 @@ function storyWithNodes(
 }
 
 describe("endNodeLayout", () => {
-  it("resolves stored end position over the default layout", () => {
+  it("derives end position from the parent scene", () => {
     const story = storyWithNodes(
       [{ id: "scene-a", type: "scene", position: { x: 0, y: 0 } }],
       [],
       { "scene-a": { position: { x: 400, y: 120 } } }
     );
+    const scenePosition = { x: 40, y: 80 };
 
-    expect(resolveEndNodePosition(story, "scene-a", { x: 0, y: 0 })).toEqual({
-      x: 400,
-      y: 120,
-    });
+    expect(resolveEndNodePosition(story, "scene-a", scenePosition)).toEqual(
+      defaultEndNodePosition(scenePosition)
+    );
     expect(defaultEndNodePosition({ x: 0, y: 0 }).x).toBeGreaterThan(0);
+  });
+
+  it("centers the end node vertically against the scene bounds", () => {
+    const scenePosition = { x: 10, y: 20 };
+    const sceneSize = { width: 220, height: 140 };
+
+    expect(endNodePositionForSceneBounds(scenePosition, sceneSize)).toEqual({
+      x: scenePosition.x + sceneSize.width + END_NODE_GAP,
+      y: scenePosition.y + (sceneSize.height - 52) / 2,
+    });
+    expect(resolveEndNodePosition(storyWithNodes([]), "scene-a", scenePosition, sceneSize)).toEqual(
+      endNodePositionForSceneBounds(scenePosition, sceneSize)
+    );
   });
 
   it("drops stored layouts when a scene is no longer terminal", () => {
@@ -108,9 +123,7 @@ describe("endNodeLayout", () => {
     });
 
     const project = parseProject(raw);
-    expect(project.stories[0]?.endNodeLayouts?.["660e8400-e29b-41d4-a716-446655440001"]).toEqual(
-      layout
-    );
+    expect(project.stories[0]?.endNodeLayouts).toBeUndefined();
   });
 });
 

@@ -129,7 +129,7 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
   switch (incoming.type) {
     case "updateProject":
       if (existing.type !== "updateProject") return null;
-      return { ...existing, after: incoming.after };
+      return { ...existing, after: { ...existing.after, ...incoming.after } };
     case "updateStory":
       if (existing.type !== "updateStory" || existing.storyId !== incoming.storyId) return null;
       return { ...existing, after: incoming.after };
@@ -201,7 +201,7 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
       return { ...existing, after: incoming.after };
     case "updateAsset":
       if (existing.type !== "updateAsset" || existing.assetId !== incoming.assetId) return null;
-      return { ...existing, after: incoming.after };
+      return { ...existing, after: { ...existing.after, ...incoming.after } };
     case "updateActorExpression":
       if (
         existing.type !== "updateActorExpression" ||

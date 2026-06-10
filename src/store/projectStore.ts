@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Project, Story, StoryGroup } from "@/core/model/types";
+import type { Project, Story, StoryGroup, AssetGroup, AssetType } from "@/core/model/types";
 import {
   createEmptyProject,
   createStarterProject,
@@ -17,9 +17,11 @@ import {
   normalizeEdgeTargetPorts,
   addStory as addStoryInProject,
   addStoryGroup as addStoryGroupInProject,
+  addAssetGroup as addAssetGroupInProject,
   addModule as addModuleInProject,
   getStory,
   getStoryGroup,
+  getAssetGroup,
   getFirstStoryId,
 } from "@/core/model/project";
 import { validatePlayEntry } from "@/core/model/graphHierarchy";
@@ -38,6 +40,11 @@ import {
   type StoryTreePlacement,
   type StoryTreeSibling,
 } from "@/core/model/storyTree";
+import {
+  placeAssetTreeItem as placeAssetTreeItemInProject,
+  type AssetTreePlacement,
+  type AssetTreeSibling,
+} from "@/core/model/assetTree";
 import {
   defaultEndNodePosition,
   endNodeLayoutsEqual,
@@ -66,14 +73,18 @@ import { applyEvent } from "@/core/events/applyEvent";
 import type { AppState } from "@/core/events/appState";
 import {
   captureNodePatch,
+  capturePatchValue,
   captureProjectPatch,
   captureRemoveEdgePayload,
   captureRemoveNodePayload,
   captureRemoveStoryPayload,
   captureRemoveStoryGroupPayload,
+  captureRemoveAssetGroupPayload,
   captureStoryPatch,
   captureStoryGroupPatch,
+  captureAssetGroupPatch,
   buildStoryTreeMoveEvents,
+  buildAssetTreeMoveEvents,
   captureNodePromptsByLocale,
   buildEmptySelection,
   buildNavigationAfterAddStory,
@@ -405,6 +416,7 @@ interface ProjectState {
         | "thumbnailAspectRatio"
         | "playerResolution"
         | "locales"
+        | "defaultLocale"
         | "promptRendererTypescriptSource"
       >
     >,
@@ -426,6 +438,14 @@ interface ProjectState {
     options?: MutationOptions
   ) => void;
   placeStoryTreeItem: (item: StoryTreeSibling, placement: StoryTreePlacement) => void;
+  addAssetGroup: (assetType: AssetType, name?: string, parentGroupId?: string) => AssetGroup;
+  removeAssetGroup: (groupId: string) => void;
+  updateAssetGroup: (
+    groupId: string,
+    patch: Partial<Pick<AssetGroup, "name" | "parentGroupId" | "sortOrder">>,
+    options?: MutationOptions
+  ) => void;
+  placeAssetTreeItem: (item: AssetTreeSibling, placement: AssetTreePlacement) => void;
   setSelection: (nodeIds: string[], edgeIds: string[]) => void;
   setSelectedAssetId: (assetId: string | null) => void;
   setSelectedModuleId: (moduleId: string | null) => void;
@@ -537,7 +557,7 @@ interface ProjectState {
   updateAsset: (
     assetId: string,
     patch: Partial<
-      Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
+      Pick<Asset, "name" | "personality" | "appearance" | "voiceAccent" | "backstory" | "notes" | "expressions" | "defaultExpressionId">
     >,
     options?: MutationOptions
   ) => void;
@@ -841,6 +861,60 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     dispatchEventBatch(get, set, events, {
       mergeKey: `story-tree-move:${item.kind}:${item.id}`,
     });
+  },
+
+  addAssetGroup: (assetType, name, parentGroupId) => {
+    const state = get();
+    const bundle = cloneProjectBundle(getBundle(state));
+    const group = addAssetGroupInProject(bundle.project, assetType, name, parentGroupId);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "addAssetGroup",
+      before: null,
+      after: group,
+    });
+    return group;
+  },
+
+  removeAssetGroup: (groupId) => {
+    const state = get();
+    getAssetGroup(state.project, groupId);
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "removeAssetGroup",
+      before: captureRemoveAssetGroupPayload(state.project, groupId),
+      after: null,
+    });
+  },
+
+  updateAssetGroup: (groupId, patch, options) => {
+    const state = get();
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateAssetGroup",
+        groupId,
+        before: captureAssetGroupPatch(state.project, groupId, patch),
+        after: patch,
+      },
+      options
+    );
+  },
+
+  placeAssetTreeItem: (item, placement) => {
+    const state = get();
+    const before = state.project;
+    const bundle = cloneProjectBundle(getBundle(state));
+    placeAssetTreeItemInProject(bundle.project, item, placement);
+    const events = buildAssetTreeMoveEvents(before, bundle.project);
+    if (events.length === 0) return;
+    const mergeKey =
+      item.kind === "expression"
+        ? `asset-tree-move:expression:${item.actorId}:${item.id}`
+        : `asset-tree-move:${item.kind}:${item.id}`;
+    dispatchEventBatch(get, set, events, { mergeKey });
   },
 
   setSelection: (nodeIds, edgeIds) => {
@@ -1573,10 +1647,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const asset = state.project.assets.find((entry) => entry.id === assetId);
     if (!asset) return;
     const before: Partial<
-      Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
+      Pick<
+        Asset,
+        "name" | "personality" | "appearance" | "voiceAccent" | "backstory" | "notes" | "expressions" | "defaultExpressionId" | "groupId" | "sortOrder"
+      >
     > = {};
     for (const key of Object.keys(patch) as Array<keyof typeof before>) {
-      before[key] = JSON.parse(JSON.stringify(asset[key])) as never;
+      before[key] = capturePatchValue(asset[key]) as never;
     }
     dispatchEvent(
       get,

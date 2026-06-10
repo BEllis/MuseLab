@@ -9,6 +9,14 @@ import {
 import type { StoryTreeNode, StoryTreePlacement, StoryTreeSibling } from "@/core/model/storyTree";
 import { AddButton } from "./AddButton";
 import { CloseButton } from "./CloseButton";
+import {
+  ChevronIcon,
+  FolderIcon,
+  TreeChevronToggle,
+  TreeDragHandle,
+  TreeToggleSpacer,
+  treeRowPaddingLeft,
+} from "./tree/treeViewUi";
 
 const STORY_TREE_DRAG_MIME = "application/x-muselab-story-tree-item";
 
@@ -40,67 +48,8 @@ function readDragItem(
   return raw ? decodeDragItem(raw) : null;
 }
 
-function DragHandleIcon() {
-  return (
-    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden>
-      <circle cx="3" cy="2.5" r="1" fill="currentColor" />
-      <circle cx="7" cy="2.5" r="1" fill="currentColor" />
-      <circle cx="3" cy="7" r="1" fill="currentColor" />
-      <circle cx="7" cy="7" r="1" fill="currentColor" />
-      <circle cx="3" cy="11.5" r="1" fill="currentColor" />
-      <circle cx="7" cy="11.5" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 function placementKey(placement: InsertionTarget): string {
   return `${placement.parentGroupId ?? "root"}:${placement.index}`;
-}
-
-function ChevronIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-      <path
-        d={expanded ? "M3 4.5 6 7.5 9 4.5" : "M4.5 3 7.5 6 4.5 9"}
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M1.75 4.25h4l1 1.25H12.25V11H1.75V4.25Z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function StoryIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M3 2.75h4.25v8.5H3.2c-.12 0-.2-.08-.2-.2V2.75Z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7.25 2.75H11v7.95c0 .12-.08.2-.2.2H7.25V2.75Z"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export function StoryTreeView() {
@@ -303,20 +252,11 @@ export function StoryTreeView() {
   );
 
   const renderDragHandle = (item: StoryTreeDragItem, disabled: boolean) => (
-    <span
-      className="story-tree-drag-handle"
-      draggable={!disabled}
-      title="Drag to reorder"
-      aria-label="Drag to reorder"
-      onDragStart={(event) => {
-        event.stopPropagation();
-        handleDragStart(event, item);
-      }}
+    <TreeDragHandle
+      disabled={disabled}
+      onDragStart={(event) => handleDragStart(event, item)}
       onDragEnd={clearDragState}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <DragHandleIcon />
-    </span>
+    />
   );
 
   const renderNameEditor = () => (
@@ -347,7 +287,7 @@ export function StoryTreeView() {
       <li
         key={`insert-${placement.parentGroupId ?? "root"}-${placement.index}`}
         className={`story-tree-insertion${active ? " is-active" : ""}`}
-        style={{ paddingLeft: `${8 + depth * 14}px` }}
+        style={{ paddingLeft: `${treeRowPaddingLeft(depth)}px` }}
         onDragOver={(event) => handleInsertionDragOver(event, placement)}
         onDragLeave={(event) => {
           if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
@@ -368,9 +308,10 @@ export function StoryTreeView() {
       <li key={node.id} className="story-tree-item">
         <div
           className={`story-tree-row${selected ? " is-selected" : ""}`}
-          style={{ paddingLeft: `${8 + depth * 14}px` }}
+          style={{ paddingLeft: `${treeRowPaddingLeft(depth)}px` }}
           onClick={() => setActiveStoryId(node.id)}
         >
+          <TreeToggleSpacer />
           {renderDragHandle({ kind: "story", id: node.id }, isEditing)}
           <span className="story-tree-icon">
             <StoryIcon />
@@ -416,7 +357,7 @@ export function StoryTreeView() {
           <li key={node.id} className="story-tree-item">
             <div
               className={`story-tree-row story-tree-group-row${isNestTarget ? " is-nest-target" : ""}`}
-              style={{ paddingLeft: `${8 + depth * 14}px` }}
+              style={{ paddingLeft: `${treeRowPaddingLeft(depth)}px` }}
               onDragOver={(event) => handleGroupNestDragOver(event, node.id)}
               onDragLeave={(event) => {
                 if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
@@ -424,18 +365,15 @@ export function StoryTreeView() {
               }}
               onDrop={(event) => handleGroupNestDrop(event, node.id)}
             >
-              {renderDragHandle({ kind: "group", id: node.id }, isEditing)}
-              <button
-                type="button"
-                className="story-tree-toggle"
-                aria-label={expanded ? "Collapse folder" : "Expand folder"}
+              <TreeChevronToggle
+                expanded={expanded}
+                ariaLabel={expanded ? "Collapse folder" : "Expand folder"}
                 onClick={(event) => {
                   event.stopPropagation();
                   toggleGroup(node.id);
                 }}
-              >
-                <ChevronIcon expanded={expanded} />
-              </button>
+              />
+              {renderDragHandle({ kind: "group", id: node.id }, isEditing)}
               <span className="story-tree-icon">
                 <FolderIcon />
               </span>

@@ -8,7 +8,6 @@ import {
 import {
   dispatchViewCommand,
   reloadPage,
-  runEditCommand,
   runProjectEditCommand,
   toggleFullscreen,
 } from "@/core/view/viewCommands";
@@ -160,12 +159,6 @@ export function MenuBar() {
           disabled: !canRedo,
           action: () => runProjectEditCommand("redo"),
         },
-        { type: "separator" },
-        { label: "Cut", shortcut: modShortcut("X"), action: () => runEditCommand("cut") },
-        { label: "Copy", shortcut: modShortcut("C"), action: () => runEditCommand("copy") },
-        { label: "Paste", shortcut: modShortcut("V"), action: () => runEditCommand("paste") },
-        { type: "separator" },
-        { label: "Select All", shortcut: modShortcut("A"), action: () => runEditCommand("selectAll") },
       ],
     },
     {

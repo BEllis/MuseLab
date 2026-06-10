@@ -49,6 +49,47 @@ describe("applyEvent round trips", () => {
     expect(roundTrip(state, event)).toEqual(state);
   });
 
+  it("restores default locale on undo", () => {
+    const state = starterAppState();
+    state.project.locales = ["de", "en"];
+    state.project.defaultLocale = "en";
+    const event = {
+      ...createEventMeta(),
+      type: "updateProject" as const,
+      before: { defaultLocale: "en" },
+      after: { defaultLocale: "de" },
+    };
+    const forward = applyEvent(state, event, "forward");
+    expect(forward.project.defaultLocale).toBe("de");
+    const backward = applyEvent(forward, event, "backward");
+    expect(backward.project.defaultLocale).toBe("en");
+  });
+
+  it("restores default expression on undo", () => {
+    const state = starterAppState();
+    state.project.assets.push({
+      id: "actor-1",
+      type: "actor",
+      name: "Hero",
+      expressions: [
+        { id: "expr-1", name: "happy" },
+        { id: "expr-2", name: "sad" },
+      ],
+    });
+    const event = {
+      ...createEventMeta(),
+      type: "updateAsset" as const,
+      assetId: "actor-1",
+      before: { defaultExpressionId: null },
+      after: { defaultExpressionId: "expr-2" },
+    };
+    const forward = applyEvent(state, event, "forward");
+    const actor = forward.project.assets.find((asset) => asset.id === "actor-1");
+    expect(actor?.defaultExpressionId).toBe("expr-2");
+    const backward = applyEvent(forward, event, "backward");
+    expect(backward.project.assets.find((asset) => asset.id === "actor-1")?.defaultExpressionId).toBeUndefined();
+  });
+
   it("restores active story navigation", () => {
     const state = starterAppState();
     const story = state.project.stories[0]!;
@@ -184,6 +225,18 @@ describe("applyEvent round trips", () => {
 });
 
 describe("eventLog", () => {
+  it("preserves null before values through JSON serialization", () => {
+    const event = {
+      ...createEventMeta(),
+      type: "updateAsset" as const,
+      assetId: "actor-1",
+      before: { defaultExpressionId: null },
+      after: { defaultExpressionId: "expr-2" },
+    };
+    const parsed = JSON.parse(JSON.stringify(event)) as typeof event;
+    expect(parsed.before.defaultExpressionId).toBeNull();
+  });
+
   it("coalesces repeated text edits into one undo step", () => {
     let log = createEventLogState();
     const base = {

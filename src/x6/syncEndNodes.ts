@@ -83,6 +83,54 @@ function addEndGraphNode(graph: Graph, endId: string, position: { x: number; y: 
   });
 }
 
+function ensureEndGraphNode(
+  graph: Graph,
+  endId: string,
+  position: { x: number; y: number }
+): Node | null {
+  let endCell = graph.getCellById(endId);
+  if (!endCell?.isNode()) {
+    addEndGraphNode(graph, endId, position);
+    endCell = graph.getCellById(endId);
+  } else {
+    const endNode = endCell as Node;
+    if (endNode.shape !== END_NODE_SHAPE) {
+      graph.removeNode(endId);
+      addEndGraphNode(graph, endId, position);
+      endCell = graph.getCellById(endId);
+    } else {
+      applyGraphNodePosition(endNode, position);
+    }
+  }
+  return endCell?.isNode() ? (endCell as Node) : null;
+}
+
+/** Keep a terminal scene's End node (and synthetic edge) aligned while the scene moves. */
+export function repositionEndNodeForScene(
+  graph: Graph,
+  story: Story,
+  sceneId: string
+): void {
+  if (!getTerminalSceneIds(story).includes(sceneId)) return;
+
+  const sceneCell = graph.getCellById(sceneId);
+  if (!sceneCell?.isNode()) return;
+
+  const sceneNode = sceneCell as Node;
+  const endId = endNodeIdForScene(sceneId);
+  const endPosition = resolveEndNodePosition(
+    story,
+    sceneId,
+    sceneNode.getPosition(),
+    sceneNode.getSize()
+  );
+
+  const endNode = ensureEndGraphNode(graph, endId, endPosition);
+  if (!endNode) return;
+
+  syncSyntheticEndEdge(graph, sceneId, endId, story);
+}
+
 export function syncEndNodes(graph: Graph, story: Story): void {
   const terminalSceneIds = new Set(getTerminalSceneIds(story));
   const expectedEndIds = new Set(
@@ -96,26 +144,9 @@ export function syncEndNodes(graph: Graph, story: Story): void {
   }
 
   for (const sceneId of terminalSceneIds) {
+    repositionEndNodeForScene(graph, story, sceneId);
+
     const endId = endNodeIdForScene(sceneId);
-    const sceneCell = graph.getCellById(sceneId);
-    if (!sceneCell?.isNode()) continue;
-
-    const endPosition = resolveEndNodePosition(story, sceneId, sceneCell.getPosition());
-
-    let endCell = graph.getCellById(endId);
-    if (!endCell?.isNode()) {
-      addEndGraphNode(graph, endId, endPosition);
-      endCell = graph.getCellById(endId);
-    } else {
-      const endNode = endCell as Node;
-      if (endNode.shape !== END_NODE_SHAPE) {
-        graph.removeNode(endId);
-        addEndGraphNode(graph, endId, endPosition);
-      } else {
-        applyGraphNodePosition(endNode, endPosition);
-      }
-    }
-
     const endNode = graph.getCellById(endId);
     if (!endNode?.isNode()) continue;
 
@@ -124,8 +155,6 @@ export function syncEndNodes(graph: Graph, story: Story): void {
     if (!endNode.hasPort(FREE_IN_PORT)) {
       endNode.addPort({ id: FREE_IN_PORT, group: "in" });
     }
-
-    syncSyntheticEndEdge(graph, sceneId, endId, story);
   }
 
   for (const edge of graph.getEdges()) {

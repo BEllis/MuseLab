@@ -17,12 +17,11 @@ import {
 } from "./connectionDrop";
 import { verticesFromGraphEdge } from "./edgeConfig";
 import { purgeDanglingEdges, purgeFreeOutPreviews } from "./syncEdges";
+import { repositionEndNodeForScene } from "./syncEndNodes";
 import { syncProjectToGraph } from "./syncProjectToGraph";
 import {
   isEndNodeId,
   isSyntheticEndEdgeId,
-  sceneIdFromEndNodeId,
-  sceneIdFromSyntheticEndEdgeId,
 } from "./constants";
 
 export type { ConnectionDropOnBlank };
@@ -239,21 +238,7 @@ export function bindGraphEvents(
   graph.on("edge:change:vertices", ({ edge, options }) => {
     if (isSyncingRef.current || options?.silent) return;
 
-    if (isSyntheticEndEdgeId(edge.id)) {
-      const sceneId = sceneIdFromSyntheticEndEdgeId(edge.id);
-      if (!sceneId) return;
-      const vertices = verticesFromGraphEdge(edge);
-      const manualRoute = vertices.length > 0;
-      useProjectStore.getState().updateEndNodeLayout(
-        sceneId,
-        {
-          vertices: manualRoute ? vertices : undefined,
-          manualRoute: manualRoute || undefined,
-        },
-        { mergeKey: `end-node-edge:${sceneId}` }
-      );
-      return;
-    }
+    if (isSyntheticEndEdgeId(edge.id)) return;
 
     const vertices = verticesFromGraphEdge(edge);
     const manualRoute = vertices.length > 0;
@@ -273,16 +258,24 @@ export function bindGraphEvents(
     useProjectStore.getState().flushHistoryCoalesce();
   });
 
+  graph.on("node:change:size", ({ node, options }) => {
+    if (isSyncingRef.current || options?.silent || isEndNodeId(node.id)) return;
+
+    const { story } = getActiveGraphContext();
+    repositionEndNodeForScene(graph, story, node.id);
+  });
+
+  graph.on("node:moving", ({ node }) => {
+    if (isSyncingRef.current || isProjectHistoryReplayActive()) return;
+    if (isEndNodeId(node.id)) return;
+
+    const { story } = getActiveGraphContext();
+    repositionEndNodeForScene(graph, story, node.id);
+  });
+
   graph.on("node:moved", ({ node }) => {
     if (isSyncingRef.current || isProjectHistoryReplayActive()) return;
-
-    if (isEndNodeId(node.id)) {
-      const sceneId = sceneIdFromEndNodeId(node.id);
-      if (!sceneId) return;
-      const position = node.getPosition();
-      useProjectStore.getState().updateEndNodeLayout(sceneId, { position });
-      return;
-    }
+    if (isEndNodeId(node.id)) return;
 
     commitStoryNodeMove(graph, node);
   });

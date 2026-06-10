@@ -75,6 +75,13 @@ function collectMigratableIds(project: Project): Set<string> {
     }
   }
 
+  for (const group of project.assetGroups ?? []) {
+    if (needsMigration(group.id)) ids.add(group.id);
+    if (group.parentGroupId && needsMigration(group.parentGroupId)) {
+      ids.add(group.parentGroupId);
+    }
+  }
+
   return ids;
 }
 
@@ -173,6 +180,7 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
   for (const asset of project.assets) {
     const oldAssetId = asset.id;
     asset.id = remap(asset.id, idMap) ?? asset.id;
+    asset.groupId = remap(asset.groupId, idMap);
 
     if (asset.path && oldAssetId !== asset.id) {
       asset.path = replaceIdSegment(asset.path, oldAssetId, asset.id);
@@ -188,6 +196,8 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
         }
       }
     }
+
+    asset.defaultExpressionId = remap(asset.defaultExpressionId, idMap);
   }
 
   for (const service of project.modules ?? []) {
@@ -197,6 +207,11 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
   }
 
   for (const group of project.storyGroups ?? []) {
+    group.id = remap(group.id, idMap) ?? group.id;
+    group.parentGroupId = remap(group.parentGroupId, idMap);
+  }
+
+  for (const group of project.assetGroups ?? []) {
     group.id = remap(group.id, idMap) ?? group.id;
     group.parentGroupId = remap(group.parentGroupId, idMap);
   }

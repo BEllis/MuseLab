@@ -10,6 +10,7 @@ import {
 import { generateModuleCiStub } from "@/core/modules/generateModuleCi";
 import { CloseButton } from "../CloseButton";
 import { AddButton } from "../AddButton";
+import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
 
 const PANEL_STYLE: React.CSSProperties = {
   width: "360px",
@@ -285,11 +286,7 @@ export function ModuleEditorPanel() {
         <CloseButton onClick={() => setSelectedModuleId(null)} title="Close" />
       </div>
 
-      {isBuiltIn && (
-        <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--app-text-muted)" }}>
-          Built-in interface — cannot be modified.
-        </p>
-      )}
+      <InspectorPanelId id={selectedModuleId} />
 
       <label style={{ fontSize: "12px", display: "block", marginBottom: "10px" }}>
         Interface name
@@ -304,6 +301,12 @@ export function ModuleEditorPanel() {
           style={INPUT_STYLE}
         />
       </label>
+
+      {isBuiltIn && (
+        <InspectorPanelDetails>
+          <p style={inspectorSubtextStyle}>Built-in interface — cannot be modified.</p>
+        </InspectorPanelDetails>
+      )}
 
       <label style={{ fontSize: "12px", display: "block", marginBottom: "12px" }}>
         Binding name

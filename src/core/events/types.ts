@@ -1,6 +1,7 @@
 import type {
   ActorExpression,
   Asset,
+  AssetGroup,
   EndNodeLayout,
   Project,
   ModuleInterface,
@@ -20,7 +21,7 @@ export type AppEventBase = {
 export type ProjectPatch = Partial<
   Pick<
     Project,
-    "name" | "thumbnailAspectRatio" | "playerResolution" | "locales" | "promptRendererTypescriptSource"
+    "name" | "thumbnailAspectRatio" | "playerResolution" | "locales" | "defaultLocale" | "promptRendererTypescriptSource"
   >
 >;
 
@@ -28,19 +29,35 @@ export type StoryPatch = Partial<Pick<Story, "name" | "entryNodeId" | "globalSta
 
 export type StoryGroupPatch = Partial<Pick<StoryGroup, "name" | "parentGroupId" | "sortOrder">>;
 
+export type AssetGroupPatch = Partial<Pick<AssetGroup, "name" | "parentGroupId" | "sortOrder">>;
+
 export type NodePatch = Partial<Omit<StoryNode, "id">>;
 
 export type EdgePatch = Partial<Pick<StoryEdge, "condition" | "vertices" | "manualRoute">>;
 
 export type AssetPatch = Partial<
-  Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
->;
+  Pick<
+    Asset,
+    | "name"
+    | "personality"
+    | "appearance"
+    | "voiceAccent"
+    | "backstory"
+    | "notes"
+    | "expressions"
+    | "groupId"
+    | "sortOrder"
+  >
+> & {
+  /** null clears an explicit default expression (undo-safe through JSON persistence). */
+  defaultExpressionId?: string | null;
+};
 
 export type ModulePatch = Partial<
   Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
 >;
 
-export type ExpressionPatch = Partial<Pick<ActorExpression, "name">>;
+export type ExpressionPatch = Partial<Pick<ActorExpression, "name" | "sortOrder">>;
 
 export type NodePromptValue = { textTemplate?: string; speaker?: string };
 
@@ -129,6 +146,31 @@ export type UpdateStoryGroupEvent = AppEventBase & {
   groupId: string;
   before: StoryGroupPatch;
   after: StoryGroupPatch;
+};
+
+export type AddAssetGroupEvent = AppEventBase & {
+  type: "addAssetGroup";
+  before: null;
+  after: AssetGroup;
+};
+
+export type RemoveAssetGroupPayload = {
+  rootGroupId: string;
+  groups: AssetGroup[];
+  assetAssignments: Array<{ assetId: string; groupId?: string }>;
+};
+
+export type RemoveAssetGroupEvent = AppEventBase & {
+  type: "removeAssetGroup";
+  before: RemoveAssetGroupPayload;
+  after: null;
+};
+
+export type UpdateAssetGroupEvent = AppEventBase & {
+  type: "updateAssetGroup";
+  groupId: string;
+  before: AssetGroupPatch;
+  after: AssetGroupPatch;
 };
 
 export type AddNodeEvent = AppEventBase & {
@@ -370,6 +412,9 @@ export type AppEvent =
   | AddStoryGroupEvent
   | RemoveStoryGroupEvent
   | UpdateStoryGroupEvent
+  | AddAssetGroupEvent
+  | RemoveAssetGroupEvent
+  | UpdateAssetGroupEvent
   | AddNodeEvent
   | CloneNodeEvent
   | RemoveNodeEvent

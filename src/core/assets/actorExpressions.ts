@@ -38,12 +38,22 @@ export function findExpression(actor: Asset, expressionId: string): ActorExpress
 
 export function getDefaultExpressionId(actor: Asset): string {
   const expressions = actor.expressions ?? [];
+  if (expressions.length === 0) {
+    throw new Error(`Actor ${actor.id} has no expressions`);
+  }
+  if (actor.defaultExpressionId) {
+    const explicit = findExpression(actor, actor.defaultExpressionId);
+    if (explicit) return explicit.id;
+  }
   const namedDefault = expressions.find(
     (expr) => normalizeExpressionName(expr.name).toLowerCase() === DEFAULT_EXPRESSION_NAME
   );
   if (namedDefault) return namedDefault.id;
-  if (expressions.length > 0) return expressions[0].id;
-  throw new Error(`Actor ${actor.id} has no expressions`);
+  return expressions[0].id;
+}
+
+export function isDefaultExpression(actor: Asset, expressionId: string): boolean {
+  return getDefaultExpressionId(actor) === expressionId;
 }
 
 export function resolveExpression(actor: Asset, expressionId?: string): ActorExpression {
@@ -88,6 +98,15 @@ export function createExpression(
   return expression;
 }
 
+/** Placeholder expression awaiting a user-provided name in the editor. */
+export function createBlankExpression(): ActorExpression {
+  return {
+    id: generateId(),
+    name: "",
+    url: PLACEHOLDER_EXPRESSION_URL,
+  };
+}
+
 function stripActorLevelMedia(asset: Asset): ExpressionMediaOptions {
   const media: ExpressionMediaOptions = {};
   if (asset.path) media.path = asset.path;
@@ -123,10 +142,12 @@ export function ensureActorExpressions(asset: Asset): void {
   const legacyMedia = stripActorLevelMedia(asset);
   if (hasMedia(legacyMedia)) {
     asset.expressions = [createExpression(DEFAULT_EXPRESSION_NAME, legacyMedia)];
+    asset.defaultExpressionId = asset.expressions[0].id;
     return;
   }
 
   asset.expressions = [createExpression(DEFAULT_EXPRESSION_NAME)];
+  asset.defaultExpressionId = asset.expressions[0].id;
 }
 
 export function ensureAllActorExpressions(project: Project): void {

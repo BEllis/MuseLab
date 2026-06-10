@@ -5,6 +5,8 @@ export type AssetType = "backdrop" | "actor" | "sound";
 export interface ActorExpression {
   id: string;
   name: string;
+  /** Sibling order within the parent actor. */
+  sortOrder?: number;
   /** Archive-relative path, e.g. assets/actors/{actorId}/{expressionId}.png */
   path?: string;
   /** Built-in placeholder data URL only; omitted from saved MLVN manifests. */
@@ -35,10 +37,28 @@ export interface Asset {
   /** Actor only: designer notes for AI / reference. */
   personality?: string;
   appearance?: string;
+  voiceAccent?: string;
   backstory?: string;
   notes?: string;
   /** Actor only: named expression sprites; at least one required after migration. */
   expressions?: ActorExpression[];
+  /** Actor only: expression used when no specific expression is chosen. */
+  defaultExpressionId?: string;
+  /** Optional asset group for hierarchy in the Assets panel tree. */
+  groupId?: string;
+  /** Sibling order within a folder or at the type root. */
+  sortOrder?: number;
+}
+
+/** Folder node for organizing assets in the Assets panel tree. */
+export interface AssetGroup {
+  id: string;
+  name: string;
+  assetType: AssetType;
+  /** Parent folder id; omitted for root-level groups within a type section. */
+  parentGroupId?: string;
+  /** Sibling order within a parent folder or at the type root. */
+  sortOrder?: number;
 }
 
 /** Per-scene actor placement: which expression image to show. */
@@ -172,8 +192,12 @@ export interface Project {
   stories: Story[];
   /** Optional hierarchy folders for the Stories panel. */
   storyGroups?: StoryGroup[];
-  /** Supported locale tags; first entry is the default */
+  /** Optional hierarchy folders for the Assets panel tree. */
+  assetGroups?: AssetGroup[];
+  /** Supported locale tags in alphabetical order. */
   locales: string[];
+  /** Default locale tag; must appear in locales. */
+  defaultLocale?: string;
   /** Custom module interfaces available in Cito code */
   modules: ModuleInterface[];
   /** Scene thumbnail aspect ratio in the designer canvas */

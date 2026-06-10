@@ -93,6 +93,16 @@ body {
   -webkit-font-smoothing: antialiased;
   background: var(--app-bg);
   color: var(--app-text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #root {
@@ -475,6 +485,98 @@ body {
   border-radius: 4px;
   background: var(--app-input-bg);
   color: var(--app-text);
+}
+
+.asset-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.asset-tree-section {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--app-border-subtle);
+}
+
+.asset-tree-section:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.asset-tree-section .story-tree-toolbar {
+  margin-bottom: 0;
+}
+
+.asset-tree-section-header {
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 6px;
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 4px;
+}
+
+.asset-tree-section .story-tree-list {
+  padding-top: 6px;
+}
+
+.story-tree-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.story-tree-toggle-spacer {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.story-tree-name-static {
+  cursor: default;
+}
+
+.story-tree-drag-handle.is-disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.story-tree-expression-dot {
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.story-tree-placeholder-row {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.story-tree-placeholder-row:hover .story-tree-placeholder-label {
+  color: var(--app-text-muted);
+}
+
+.story-tree-placeholder-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--app-text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-assets-panel.is-drop-active {

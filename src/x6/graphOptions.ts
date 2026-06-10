@@ -7,6 +7,7 @@ import {
   STORY_EDGE_SHAPE,
   isEndNodeId,
   isOutPort,
+  isSyntheticEndEdgeId,
   magnetPortId,
 } from "./constants";
 import { autoEdgeRouter, storyEdgeConnector } from "./edgeConfig";
@@ -93,12 +94,27 @@ export function createGraphOptions(container: HTMLElement): Options {
         return true;
       },
     },
-    interacting: {
-      magnetConnectable: true,
-      nodeMovable: true,
-      vertexMovable: true,
-      vertexAddable: true,
-      vertexDeletable: true,
+    interacting(cellView) {
+      const cell = cellView.cell;
+      if (cell.isNode() && isEndNodeId(cell.id)) {
+        return { nodeMovable: false };
+      }
+      if (cell.isEdge() && isSyntheticEndEdgeId(cell.id)) {
+        return {
+          edgeMovable: false,
+          vertexMovable: false,
+          vertexAddable: false,
+          vertexDeletable: false,
+          magnetConnectable: false,
+        };
+      }
+      return {
+        magnetConnectable: true,
+        nodeMovable: true,
+        vertexMovable: true,
+        vertexAddable: true,
+        vertexDeletable: true,
+      };
     },
   };
 }

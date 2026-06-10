@@ -1,5 +1,5 @@
 import type { LocalePrompts, Project, StoryEdge, StoryNode, StoryPrompts } from "../model/types";
-import { DEFAULT_LOCALES, normalizeLocales } from "./localeTag";
+import { normalizeLocales, getDefaultLocaleTag } from "./localeTag";
 import { MUSELAB_FORMAT_VERSION, PROMPTS_SCHEMA_ID } from "../model/formatVersion";
 
 export type PromptsByLocale = Record<string, LocalePrompts>;
@@ -194,7 +194,7 @@ export function getEdgeOptionTextForLocale(
 }
 
 export function getDefaultLocale(project: Project): string {
-  return normalizeLocales(project.locales)[0] ?? DEFAULT_LOCALES[0];
+  return getDefaultLocaleTag(project.locales, project.defaultLocale);
 }
 
 export function removeNodeFromAllLocales(

@@ -2,6 +2,8 @@ import type {
   Project,
   Story,
   StoryGroup,
+  AssetGroup,
+  AssetType,
   StoryNode,
   StoryEdge,
   Asset,
@@ -20,16 +22,18 @@ import {
 } from "../assets/defaultBackdrop";
 import {
   createExpression,
+  createBlankExpression,
   DEFAULT_EXPRESSION_NAME,
   ensureActorExpressions,
   ensureAllActorExpressions,
   findExpression,
+  getDefaultExpressionId,
   getExpressionUsage,
   isExpressionNameUnique,
   migrateActorSceneReferences,
   normalizeExpressionName,
 } from "../assets/actorExpressions";
-import { assertValidLocaleTag, normalizeLocales } from "../locale/localeTag";
+import { assertValidLocaleTag, DEFAULT_LOCALES, getDefaultLocaleTag, migrateProjectDefaultLocale, normalizeLocales } from "../locale/localeTag";
 import { MUSELAB_FORMAT_VERSION, STORY_SCHEMA_ID } from "./formatVersion";
 import {
   deriveUniqueNodeLabel,
@@ -39,7 +43,12 @@ import {
   migrateJumpNodeTargets,
 } from "./nodeNames";
 import { isJumpNode, isSceneNode, getStartNodes, migrateStoryNodes, normalizeStoryNode } from "./nodeTypes";
-import { pruneEndNodeLayouts, clearEndNodeLayout, setEndNodeLayout } from "./endNodeLayout";
+import {
+  normalizeEndNodeLayouts,
+  pruneEndNodeLayouts,
+  clearEndNodeLayout,
+  setEndNodeLayout,
+} from "./endNodeLayout";
 import {
   collectDescendantGroupIds,
   getStoryGroups,
@@ -47,6 +56,15 @@ import {
   normalizeStoryGroups,
   wouldCreateStoryGroupCycle,
 } from "./storyTree";
+import {
+  collectDescendantAssetGroupIds,
+  getAssetGroups,
+  getAssetGroupsForType,
+  nextAssetTreeSortOrder,
+  nextExpressionSortOrder,
+  normalizeAssetGroups,
+  wouldCreateAssetGroupCycle,
+} from "./assetTree";
 import { generateId } from "./id";
 
 export { generateId } from "./id";
@@ -87,6 +105,7 @@ export function createEmptyProject(name: string = "Untitled"): Project {
       },
     ],
     locales: [...normalizeLocales(undefined)],
+    defaultLocale: DEFAULT_LOCALES[0],
     modules: [],
   };
   ensureDefaultBackdrop(project);
@@ -346,6 +365,91 @@ export function updateStory(
     } else {
       delete story.groupId;
     }
+  }
+}
+
+export function getAssetGroup(project: Project, groupId: string): AssetGroup {
+  const group = getAssetGroups(project).find((entry) => entry.id === groupId);
+  if (!group) {
+    throw new Error(`Asset group "${groupId}" not found`);
+  }
+  return group;
+}
+
+export function addAssetGroup(
+  project: Project,
+  assetType: AssetType,
+  name?: string,
+  parentGroupId?: string
+): AssetGroup {
+  if (parentGroupId) {
+    const parent = getAssetGroup(project, parentGroupId);
+    if (parent.assetType !== assetType) {
+      throw new Error(`Asset group "${parentGroupId}" is not a ${assetType} group`);
+    }
+  }
+  if (!project.assetGroups) {
+    project.assetGroups = [];
+  }
+  const typeGroups = getAssetGroupsForType(project, assetType);
+  const group: AssetGroup = {
+    id: generateId(),
+    name: name ?? `Group ${typeGroups.length + 1}`,
+    assetType,
+    parentGroupId,
+    sortOrder: nextAssetTreeSortOrder(project, assetType, parentGroupId),
+  };
+  project.assetGroups.push(group);
+  return group;
+}
+
+export function removeAssetGroup(project: Project, groupId: string): void {
+  const group = getAssetGroup(project, groupId);
+  const groups = getAssetGroupsForType(project, group.assetType);
+  if (!groups.some((entry) => entry.id === groupId)) {
+    throw new Error(`Asset group "${groupId}" not found`);
+  }
+
+  const removedGroupIds = new Set([groupId, ...collectDescendantAssetGroupIds(groups, groupId)]);
+  const promoteToGroupId = group.parentGroupId;
+
+  for (const asset of project.assets) {
+    if (asset.groupId && removedGroupIds.has(asset.groupId)) {
+      asset.groupId = promoteToGroupId;
+    }
+  }
+
+  project.assetGroups = getAssetGroups(project).filter((entry) => !removedGroupIds.has(entry.id));
+}
+
+export function updateAssetGroup(
+  project: Project,
+  groupId: string,
+  patch: Partial<Pick<AssetGroup, "name" | "parentGroupId" | "sortOrder">>
+): void {
+  const group = getAssetGroup(project, groupId);
+  if (patch.name !== undefined) {
+    group.name = patch.name;
+  }
+  if (patch.sortOrder !== undefined) {
+    group.sortOrder = patch.sortOrder;
+  }
+  if (patch.parentGroupId !== undefined) {
+    const nextParentGroupId = patch.parentGroupId || undefined;
+    if (nextParentGroupId === groupId) {
+      throw new Error("An asset group cannot be its own parent");
+    }
+    if (nextParentGroupId) {
+      const parent = getAssetGroup(project, nextParentGroupId);
+      if (parent.assetType !== group.assetType) {
+        throw new Error(`Asset group "${nextParentGroupId}" is not a ${group.assetType} group`);
+      }
+      const groups = getAssetGroupsForType(project, group.assetType);
+      if (wouldCreateAssetGroupCycle(groups, groupId, nextParentGroupId)) {
+        throw new Error("Asset group hierarchy cannot contain cycles");
+      }
+    }
+    group.parentGroupId = nextParentGroupId;
   }
 }
 
@@ -624,6 +728,7 @@ export function addAsset(
     name,
     path: options.path,
     url: options.url,
+    sortOrder: nextAssetTreeSortOrder(project, type, undefined),
   };
   project.assets.push(asset);
   if (type === "actor") {
@@ -647,6 +752,7 @@ export function addActorFromImage(
     id: generateId(),
     type: "actor",
     name,
+    sortOrder: nextAssetTreeSortOrder(project, "actor", undefined),
     expressions: [
       createExpression(DEFAULT_EXPRESSION_NAME, {
         path: options.path,
@@ -654,6 +760,8 @@ export function addActorFromImage(
       }),
     ],
   };
+  asset.expressions![0].sortOrder = 0;
+  asset.defaultExpressionId = asset.expressions![0].id;
   project.assets.push(asset);
   return asset;
 }
@@ -664,11 +772,23 @@ export function addActorExpression(project: Project, actorId: string, name: stri
     throw new Error(`Actor "${actorId}" not found`);
   }
   ensureActorExpressions(asset);
+
   const normalized = normalizeExpressionName(name);
-  if (!normalized || !isExpressionNameUnique(asset, normalized)) {
+  if (!normalized) {
+    if ((asset.expressions ?? []).some((entry) => entry.name === "")) {
+      throw new Error("Name the new expression before adding another");
+    }
+    const expression = createBlankExpression();
+    expression.sortOrder = nextExpressionSortOrder(project, actorId);
+    asset.expressions = [...(asset.expressions ?? []), expression];
+    return expression;
+  }
+
+  if (!isExpressionNameUnique(asset, normalized)) {
     throw new Error(`Expression name "${name}" is not unique for this actor`);
   }
   const expression = createExpression(normalized);
+  expression.sortOrder = nextExpressionSortOrder(project, actorId);
   asset.expressions = [...(asset.expressions ?? []), expression];
   return expression;
 }
@@ -677,7 +797,7 @@ export function updateActorExpression(
   project: Project,
   actorId: string,
   expressionId: string,
-  patch: Partial<Pick<ActorExpression, "name">>
+  patch: Partial<Pick<ActorExpression, "name" | "sortOrder">>
 ): void {
   const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
   if (!asset) return;
@@ -686,10 +806,19 @@ export function updateActorExpression(
 
   if (patch.name !== undefined) {
     const normalized = normalizeExpressionName(patch.name);
-    if (!normalized || !isExpressionNameUnique(asset, normalized, expressionId)) {
+    if (!normalized) {
+      if (expression.name !== "") {
+        throw new Error("Expression name cannot be empty");
+      }
+      expression.name = "";
+    } else if (!isExpressionNameUnique(asset, normalized, expressionId)) {
       throw new Error(`Expression name "${patch.name}" is not unique for this actor`);
+    } else {
+      expression.name = normalized;
     }
-    expression.name = normalized;
+  }
+  if (patch.sortOrder !== undefined) {
+    expression.sortOrder = patch.sortOrder;
   }
 }
 
@@ -736,7 +865,11 @@ export function removeActorExpression(
     throw new Error("Cannot remove an expression that is used in scenes");
   }
 
+  const wasDefault = getDefaultExpressionId(asset) === expressionId;
   asset.expressions = asset.expressions.filter((expression) => expression.id !== expressionId);
+  if (wasDefault) {
+    asset.defaultExpressionId = asset.expressions[0]?.id;
+  }
 }
 
 /** Update an asset (e.g. rename or actor notes) */
@@ -744,8 +877,21 @@ export function updateAsset(
   project: Project,
   assetId: string,
   patch: Partial<
-    Pick<Asset, "name" | "personality" | "appearance" | "backstory" | "notes" | "expressions">
-  >
+    Pick<
+      Asset,
+      | "name"
+      | "personality"
+      | "appearance"
+      | "voiceAccent"
+      | "backstory"
+      | "notes"
+      | "expressions"
+      | "groupId"
+      | "sortOrder"
+    >
+  > & {
+    defaultExpressionId?: string | null;
+  }
 ): void {
   const asset = project.assets.find((a) => a.id === assetId);
   if (!asset) return;
@@ -753,7 +899,40 @@ export function updateAsset(
     asset.name = "default";
     return;
   }
-  Object.assign(asset, patch);
+  if (patch.sortOrder !== undefined) {
+    asset.sortOrder = patch.sortOrder;
+  }
+  if ("groupId" in patch) {
+    if (patch.groupId) {
+      const group = getAssetGroup(project, patch.groupId);
+      if (group.assetType !== asset.type) {
+        throw new Error(`Asset group "${patch.groupId}" is not a ${asset.type} group`);
+      }
+      asset.groupId = patch.groupId;
+    } else {
+      delete asset.groupId;
+    }
+  }
+  if ("defaultExpressionId" in patch) {
+    if (asset.type !== "actor") {
+      throw new Error("Only actors have a default expression");
+    }
+    if (patch.defaultExpressionId === null) {
+      delete asset.defaultExpressionId;
+    } else {
+      if (!findExpression(asset, patch.defaultExpressionId)) {
+        throw new Error(`Expression "${patch.defaultExpressionId}" not found`);
+      }
+      asset.defaultExpressionId = patch.defaultExpressionId;
+    }
+  }
+  const {
+    groupId: _groupId,
+    sortOrder: _sortOrder,
+    defaultExpressionId: _defaultExpressionId,
+    ...rest
+  } = patch;
+  Object.assign(asset, rest);
 }
 
 /** Replace asset media in place; id and node references stay the same. */
@@ -804,6 +983,7 @@ export function updateProject(
       | "thumbnailAspectRatio"
       | "playerResolution"
       | "locales"
+      | "defaultLocale"
       | "promptRendererTypescriptSource"
     >
   >
@@ -819,6 +999,13 @@ export function updateProject(
   }
   if (patch.locales !== undefined) {
     project.locales = normalizeLocales(patch.locales);
+  }
+  if (patch.defaultLocale !== undefined) {
+    const tag = assertValidLocaleTag(patch.defaultLocale);
+    if (!normalizeLocales(project.locales).includes(tag)) {
+      throw new Error(`Locale "${tag}" is not in the project`);
+    }
+    project.defaultLocale = tag;
   }
   if (patch.promptRendererTypescriptSource !== undefined) {
     project.promptRendererTypescriptSource = patch.promptRendererTypescriptSource;
@@ -881,12 +1068,25 @@ function toManifestStoryGroups(groups: StoryGroup[] | undefined): StoryGroup[] |
   }));
 }
 
+function toManifestAssetGroups(groups: AssetGroup[] | undefined): AssetGroup[] | undefined {
+  if (!groups || groups.length === 0) return undefined;
+  return groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    assetType: group.assetType,
+    ...(group.parentGroupId ? { parentGroupId: group.parentGroupId } : {}),
+    ...(group.sortOrder !== undefined ? { sortOrder: group.sortOrder } : {}),
+  }));
+}
+
 function toManifestProject(project: Project): Project {
+  const locales = normalizeLocales(project.locales);
   const manifest: Project = {
     name: project.name,
     assets: project.assets,
     stories: project.stories.map(toManifestStory),
-    locales: normalizeLocales(project.locales),
+    locales,
+    defaultLocale: getDefaultLocaleTag(locales, project.defaultLocale),
     modules: project.modules ?? [],
     thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
@@ -895,6 +1095,10 @@ function toManifestProject(project: Project): Project {
   const storyGroups = toManifestStoryGroups(project.storyGroups);
   if (storyGroups) {
     manifest.storyGroups = storyGroups;
+  }
+  const assetGroups = toManifestAssetGroups(project.assetGroups);
+  if (assetGroups) {
+    manifest.assetGroups = assetGroups;
   }
   return manifest;
 }
@@ -957,14 +1161,16 @@ export function parseProject(json: string): Project {
   }
 
   const project = migrateLegacyProjectData(data);
-  project.locales = normalizeLocales(project.locales);
+  migrateProjectDefaultLocale(project);
   for (const story of project.stories) {
     story.globalState = story.globalState ?? {};
     normalizeStoryEdgeTargetPorts(story);
+    normalizeEndNodeLayouts(story);
   }
   normalizeProjectModules(project);
   ensureDefaultBackdrop(project);
   normalizeStoryGroups(project);
+  normalizeAssetGroups(project);
   return project;
 }
 
@@ -987,7 +1193,7 @@ export function addLocaleToProject(project: Project, locale: string): void {
   if (locales.includes(tag)) {
     throw new Error(`Locale "${tag}" already exists`);
   }
-  project.locales = [...locales, tag];
+  project.locales = normalizeLocales([...locales, tag]);
 }
 
 export function removeLocaleFromProject(project: Project, locale: string): void {
@@ -1000,4 +1206,7 @@ export function removeLocaleFromProject(project: Project, locale: string): void 
     throw new Error(`Locale "${tag}" is not in the project`);
   }
   project.locales = locales.filter((entry) => entry !== tag);
+  if (project.defaultLocale === tag) {
+    project.defaultLocale = project.locales[0];
+  }
 }

@@ -6,6 +6,8 @@ export type AssetDragKind = "backdrop" | "actor" | "sound";
 export interface AssetDragData {
   type: AssetDragKind;
   assetId: string;
+  /** Actor only: which expression sprite to place when dropped on a scene. */
+  expressionId?: string;
 }
 
 export function setAssetDragData(dataTransfer: DataTransfer, data: AssetDragData): void {
@@ -20,6 +22,7 @@ export function getAssetDragData(dataTransfer: DataTransfer): AssetDragData | nu
     const data = JSON.parse(raw) as AssetDragData;
     if (data.type !== "backdrop" && data.type !== "actor" && data.type !== "sound") return null;
     if (typeof data.assetId !== "string") return null;
+    if (data.expressionId !== undefined && typeof data.expressionId !== "string") return null;
     return data;
   } catch {
     return null;

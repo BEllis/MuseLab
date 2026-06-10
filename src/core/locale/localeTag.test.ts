@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   assertValidLocaleTag,
+  getDefaultLocaleTag,
   isValidLocaleTag,
+  migrateProjectDefaultLocale,
   normalizeLocales,
   parseLocaleFromPromptsFileName,
 } from "./localeTag";
@@ -22,9 +24,10 @@ describe("localeTag", () => {
     expect(isValidLocaleTag("")).toBe(false);
   });
 
-  it("normalizes locales and deduplicates", () => {
+  it("normalizes locales, deduplicates, and sorts alphabetically", () => {
     expect(normalizeLocales(undefined)).toEqual(["en"]);
-    expect(normalizeLocales(["EN", "de", "de"])).toEqual(["en", "de"]);
+    expect(normalizeLocales(["EN", "de", "de"])).toEqual(["de", "en"]);
+    expect(normalizeLocales(["fr", "en", "de"])).toEqual(["de", "en", "fr"]);
   });
 
   it("assertValidLocaleTag throws for invalid input", () => {
@@ -35,5 +38,17 @@ describe("localeTag", () => {
     expect(parseLocaleFromPromptsFileName("prompts.en.json")).toBe("en");
     expect(parseLocaleFromPromptsFileName("prompts.pt-br.json")).toBe("pt-br");
     expect(parseLocaleFromPromptsFileName("project.json")).toBeNull();
+  });
+
+  it("uses explicit defaultLocale when set", () => {
+    expect(getDefaultLocaleTag(["de", "en", "fr"], "fr")).toBe("fr");
+    expect(getDefaultLocaleTag(["de", "en"], "en")).toBe("en");
+  });
+
+  it("migrates legacy default locale before alphabetical sort", () => {
+    const project = { locales: ["de", "en", "fr"] };
+    migrateProjectDefaultLocale(project);
+    expect(project.locales).toEqual(["de", "en", "fr"]);
+    expect(project.defaultLocale).toBe("de");
   });
 });
