@@ -259,9 +259,14 @@ export function StoryTreeView() {
     [clearDragState, dropIntoGroup, getActiveDragItem]
   );
 
-  const renderDragHandle = (item: StoryTreeDragItem, disabled: boolean) => (
+  const renderDragHandle = (
+    item: StoryTreeDragItem,
+    disabled: boolean,
+    onSelect?: () => void
+  ) => (
     <TreeDragHandle
       disabled={disabled}
+      onSelect={disabled ? undefined : onSelect}
       onDragStart={(event) => handleDragStart(event, item)}
       onDragEnd={clearDragState}
     />
@@ -320,7 +325,9 @@ export function StoryTreeView() {
           onClick={() => setActiveStoryId(node.id)}
         >
           <TreeToggleSpacer />
-          {renderDragHandle({ kind: "story", id: node.id }, isEditing)}
+          {renderDragHandle({ kind: "story", id: node.id }, isEditing, () =>
+            setActiveStoryId(node.id)
+          )}
           <span className="story-tree-icon">
             <StoryIcon />
           </span>
@@ -338,7 +345,7 @@ export function StoryTreeView() {
               {node.name}
             </button>
           )}
-          <span onClick={(event) => event.stopPropagation()}>
+          <span className="story-tree-row-actions" onClick={(event) => event.stopPropagation()}>
             <CloseButton
               title="Delete story"
               disabled={project.stories.length <= 1}
@@ -399,7 +406,7 @@ export function StoryTreeView() {
                   {node.name}
                 </button>
               )}
-              <span onClick={(event) => event.stopPropagation()}>
+              <span className="story-tree-row-actions" onClick={(event) => event.stopPropagation()}>
                 <CloseButton
                   title="Delete folder"
                   onClick={() => handleDeleteGroup(node.id, node.name)}
@@ -430,23 +437,13 @@ export function StoryTreeView() {
           <ChevronIcon expanded={sectionExpanded} />
           <span>Stories</span>
         </button>
-        <div ref={addMenuRef} style={{ position: "relative" }}>
+        <div ref={addMenuRef} className="app-tree-add-menu">
           <AddButton
             onClick={() => setAddMenuOpen((open) => !open)}
             title="Add story or group"
           />
           {addMenuOpen && (
-            <div
-              className="app-context-menu"
-              style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: "4px",
-                zIndex: 20,
-                minWidth: "140px",
-              }}
-            >
+            <div className="app-context-menu app-tree-add-menu-dropdown">
               <button
                 type="button"
                 className="app-context-menu-item"

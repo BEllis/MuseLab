@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 export const TREE_ROW_BASE_PADDING = 8;
 export const TREE_ROW_DEPTH_INDENT = 14;
 
@@ -108,12 +110,16 @@ export function TreeDragHandle({
   draggable = true,
   onDragStart,
   onDragEnd,
+  onSelect,
 }: {
   disabled?: boolean;
   draggable?: boolean;
   onDragStart?: (event: React.DragEvent) => void;
   onDragEnd?: () => void;
+  onSelect?: () => void;
 }) {
+  const draggedRef = useRef(false);
+
   return (
     <span
       className={`story-tree-drag-handle${disabled ? " is-disabled" : ""}`}
@@ -122,11 +128,24 @@ export function TreeDragHandle({
       aria-label={disabled ? undefined : "Drag to reorder"}
       aria-hidden={disabled || undefined}
       onDragStart={(event) => {
+        draggedRef.current = true;
         event.stopPropagation();
         onDragStart?.(event);
       }}
-      onDragEnd={onDragEnd}
-      onClick={(event) => event.stopPropagation()}
+      onDragEnd={() => {
+        onDragEnd?.();
+        window.setTimeout(() => {
+          draggedRef.current = false;
+        }, 0);
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (draggedRef.current) {
+          draggedRef.current = false;
+          return;
+        }
+        onSelect?.();
+      }}
     >
       <DragHandleIcon />
     </span>

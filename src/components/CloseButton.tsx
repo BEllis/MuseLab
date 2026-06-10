@@ -15,6 +15,10 @@ export function CloseButton({ onClick, title = "Close", disabled = false }: Clos
       style={{
         width: "22px",
         height: "22px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
         fontSize: "14px",
         lineHeight: 1,
       }}

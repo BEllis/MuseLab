@@ -631,9 +631,14 @@ function AssetTreeSection({
     [clearDragState, dropIntoGroup, getActiveDragItem]
   );
 
-  const renderDragHandle = (item: AssetTreeDragItem, disabled: boolean) => (
+  const renderDragHandle = (
+    item: AssetTreeDragItem,
+    disabled: boolean,
+    onSelect?: () => void
+  ) => (
     <TreeDragHandle
       disabled={disabled}
+      onSelect={disabled ? undefined : onSelect}
       onDragStart={(event) => handleDragStart(event, item)}
       onDragEnd={clearDragState}
     />
@@ -789,7 +794,9 @@ function AssetTreeSection({
             onClick={() => selectAsset(actorId)}
           >
             <TreeToggleSpacer />
-            {renderDragHandle({ kind: "expression", actorId, id: expression.id }, isEditing)}
+            {renderDragHandle({ kind: "expression", actorId, id: expression.id }, isEditing, () =>
+              selectAsset(actorId)
+            )}
             <ExpressionThumb
               project={project}
               actorId={actorId}
@@ -874,7 +881,9 @@ function AssetTreeSection({
           ) : (
             <TreeToggleSpacer />
           )}
-          {renderDragHandle({ kind: "asset", id: node.id }, isEditing)}
+          {renderDragHandle({ kind: "asset", id: node.id }, isEditing, () =>
+            selectAsset(node.id)
+          )}
           {node.assetType === "actor" ? (
             <span className="story-tree-icon">
               <ActorIcon />
@@ -1028,23 +1037,13 @@ function AssetTreeSection({
           <ChevronIcon expanded={sectionExpanded} />
           <span>{sectionTitle(assetType)}</span>
         </button>
-        <div ref={addMenuRef} style={{ position: "relative" }}>
+        <div ref={addMenuRef} className="app-tree-add-menu">
           <AddButton
             onClick={() => setAddMenuOpen((open) => !open)}
             title={`Add ${sectionTitle(assetType).toLowerCase()} item`}
           />
           {addMenuOpen && (
-            <div
-              className="app-context-menu"
-              style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: "4px",
-                zIndex: 20,
-                minWidth: "160px",
-              }}
-            >
+            <div className="app-context-menu app-tree-add-menu-dropdown">
               {assetType === "backdrop" && (
                 <button
                   type="button"

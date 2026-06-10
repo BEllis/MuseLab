@@ -535,6 +535,12 @@ select,
   white-space: nowrap;
 }
 
+.story-tree-row-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .story-tree-name-input {
   flex: 1;
   min-width: 0;
@@ -556,8 +562,13 @@ select,
   margin-bottom: 10px;
   border: 1px solid var(--app-border-subtle);
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   background: var(--app-surface);
+  position: relative;
+}
+
+.asset-tree-section:has(.app-tree-add-menu-dropdown) {
+  z-index: 10;
 }
 
 .asset-tree-section:last-child {
@@ -575,6 +586,21 @@ select,
   background: var(--app-surface-muted);
   border: none;
   border-radius: 0;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+
+.app-tree-add-menu {
+  position: relative;
+}
+
+.app-tree-add-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 160px;
 }
 
 .asset-tree-section:has(> .story-tree-list) .asset-tree-section-header {
