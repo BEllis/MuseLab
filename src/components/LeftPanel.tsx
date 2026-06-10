@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { AssetsPanel } from "./AssetsPanel";
 import { ProjectPanel } from "./ProjectPanel";
 import { ModulesPanel } from "./ModulesPanel";
@@ -23,10 +23,19 @@ const LEFT_PANEL_TABS: ReadonlyArray<{
 ];
 
 const LEFT_PANEL_WIDTH_KEY = "muselab-left-panel-width";
+const LEFT_PANEL_COLLAPSED_KEY = "muselab-left-panel-collapsed";
 const DEFAULT_LEFT_PANEL_WIDTH = 240;
 const MIN_LEFT_PANEL_WIDTH = 160;
 const MAX_LEFT_PANEL_WIDTH = 480;
 const COLLAPSED_LEFT_PANEL_WIDTH = 44;
+
+function readStoredCollapsed(): boolean {
+  try {
+    return localStorage.getItem(LEFT_PANEL_COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 function LeftPanelCollapseIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -44,13 +53,21 @@ function LeftPanelCollapseIcon({ collapsed }: { collapsed: boolean }) {
 
 export function LeftPanel() {
   const [tab, setTab] = useState<LeftPanelTab>("project");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readStoredCollapsed);
   const { width, isResizing, onResizePointerDown } = useHorizontalResize({
     initialWidth: DEFAULT_LEFT_PANEL_WIDTH,
     minWidth: MIN_LEFT_PANEL_WIDTH,
     maxWidth: MAX_LEFT_PANEL_WIDTH,
     storageKey: LEFT_PANEL_WIDTH_KEY,
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LEFT_PANEL_COLLAPSED_KEY, collapsed ? "true" : "false");
+    } catch {
+      // ignore
+    }
+  }, [collapsed]);
 
   const activeTab = LEFT_PANEL_TABS.find((entry) => entry.id === tab) ?? LEFT_PANEL_TABS[0];
   const shellWidth = collapsed ? COLLAPSED_LEFT_PANEL_WIDTH : width;
