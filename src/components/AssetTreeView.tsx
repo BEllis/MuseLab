@@ -11,8 +11,12 @@ import {
   type AssetTreePlacement,
   type AssetTreeSibling,
 } from "@/core/model/assetTree";
-import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
-import { canRemoveAsset, isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
+import {
+  DEFAULT_BACKDROP_ID,
+  canRemoveAsset,
+  canReplaceAsset,
+  isDefaultBackdrop,
+} from "@/core/assets/defaultBackdrop";
 import { getAssetUrlAsync, getActorExpressionUrlAsync } from "@/core/assets/resolver";
 import { getExpressionUsage } from "@/core/assets/actorExpressions";
 import { setAssetDragData } from "@/utils/dragDrop";
@@ -195,12 +199,14 @@ function ExpressionThumb({
   expressionId,
   onCanvasDragStart,
   onCanvasDragEnd,
+  onSelect,
 }: {
   project: Project;
   actorId: string;
   expressionId: string;
   onCanvasDragStart: () => void;
   onCanvasDragEnd: () => void;
+  onSelect: () => void;
 }) {
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -238,7 +244,10 @@ function ExpressionThumb({
         });
       }}
       onDragEnd={onCanvasDragEnd}
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
       style={{
         width: THUMB_SIZE,
         height: THUMB_SIZE,
@@ -286,6 +295,7 @@ function AssetTreeSection({
   const updateAssetGroup = useProjectStore((s) => s.updateAssetGroup);
   const updateActorExpression = useProjectStore((s) => s.updateActorExpression);
   const replaceActorExpressionMedia = useProjectStore((s) => s.replaceActorExpressionMedia);
+  const replaceAssetMedia = useProjectStore((s) => s.replaceAssetMedia);
   const removeActorExpression = useProjectStore((s) => s.removeActorExpression);
   const placeAssetTreeItem = useProjectStore((s) => s.placeAssetTreeItem);
 
@@ -303,6 +313,7 @@ function AssetTreeSection({
   const dragItemRef = useRef<AssetTreeDragItem | null>(null);
   const canvasDragRef = useRef(false);
   const replaceExpressionRef = useRef<{ actorId: string; expressionId: string } | null>(null);
+  const replaceAssetRef = useRef<string | null>(null);
 
   const tree = useMemo(() => buildAssetTreeForType(project, assetType), [project, assetType]);
   const hasAssetsOfType = useMemo(
@@ -421,6 +432,41 @@ function AssetTreeSection({
     [fileInputRef, replaceActorExpressionMedia]
   );
 
+  const triggerReplaceAsset = useCallback(
+    (assetId: string, type: Exclude<AssetType, "actor">) => {
+      if (!canReplaceAsset(assetId)) return;
+
+      if (isElectron() && window.electronAPI?.openFileDialog) {
+        window.electronAPI.openFileDialog({ type, multiple: false }).then((paths) => {
+          const filePath = paths[0];
+          if (!filePath) return;
+          void replaceAssetMedia(assetId, { path: filePath });
+        });
+        return;
+      }
+
+      replaceAssetRef.current = assetId;
+      const input = fileInputRef.current;
+      if (!input) return;
+      input.accept =
+        type === "sound"
+          ? "audio/mpeg,audio/wav,audio/ogg,audio/mp4"
+          : "image/png,image/jpeg,image/gif,image/webp";
+      input.multiple = false;
+      input.onchange = () => {
+        const file = input.files?.[0];
+        const targetId = replaceAssetRef.current;
+        if (file && targetId) {
+          void replaceAssetMedia(targetId, { file });
+        }
+        input.value = "";
+        replaceAssetRef.current = null;
+      };
+      input.click();
+    },
+    [fileInputRef, replaceAssetMedia]
+  );
+
   const handleDeleteExpression = useCallback(
     (actorId: string, expressionId: string) => {
       try {
@@ -435,10 +481,15 @@ function AssetTreeSection({
   const startEdit = useCallback(
     (kind: "asset" | "group" | "expression", id: string, name: string, actorId?: string) => {
       if (kind === "asset" && isDefaultBackdrop(id)) return;
+      if (kind === "asset") {
+        setSelectedAssetId(id);
+      } else if (kind === "expression" && actorId) {
+        setSelectedAssetId(actorId);
+      }
       setEditing({ kind, id, actorId });
       setEditName(name);
     },
-    []
+    [setSelectedAssetId]
   );
 
   const commitEdit = useCallback(() => {
@@ -689,6 +740,15 @@ function AssetTreeSection({
             }}
           />
           <span className="story-tree-name story-tree-name-static">Default (required)</span>
+          <span
+            style={{ display: "inline-flex", gap: "4px", flexShrink: 0 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ReplaceImageButton
+              onClick={() => triggerReplaceAsset(DEFAULT_BACKDROP_ID, "backdrop")}
+              title="Replace image…"
+            />
+          </span>
         </div>
       </li>
     );
@@ -742,6 +802,7 @@ function AssetTreeSection({
                   canvasDragRef.current = false;
                 }, 0);
               }}
+              onSelect={() => selectAsset(actorId)}
             />
             {isEditing ? (
               renderNameEditor()
@@ -847,14 +908,25 @@ function AssetTreeSection({
               {node.name}
             </button>
           )}
-          {canRemoveAsset(node.id) && (
-            <span onClick={(event) => event.stopPropagation()}>
-              <CloseButton
-                title="Remove asset"
-                onClick={() => handleDeleteAsset(node.id, node.name)}
-              />
+          {(canReplaceAsset(node.id) && node.assetType !== "actor") || canRemoveAsset(node.id) ? (
+            <span
+              style={{ display: "inline-flex", gap: "4px", flexShrink: 0 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {canReplaceAsset(node.id) && node.assetType !== "actor" && (
+                <ReplaceImageButton
+                  onClick={() => triggerReplaceAsset(node.id, node.assetType)}
+                  title={node.assetType === "sound" ? "Replace audio…" : "Replace image…"}
+                />
+              )}
+              {canRemoveAsset(node.id) && (
+                <CloseButton
+                  title="Remove asset"
+                  onClick={() => handleDeleteAsset(node.id, node.name)}
+                />
+              )}
             </span>
-          )}
+          ) : null}
         </div>
         {hasExpressions && actorExpanded && (
           <ul className="story-tree-list">

@@ -10,6 +10,7 @@ import type { StoryTreeNode, StoryTreePlacement, StoryTreeSibling } from "@/core
 import { AddButton } from "./AddButton";
 import { CloseButton } from "./CloseButton";
 import {
+  ChevronIcon,
   FolderIcon,
   StoryIcon,
   TreeChevronToggle,
@@ -70,6 +71,7 @@ export function StoryTreeView() {
   const [insertionTarget, setInsertionTarget] = useState<InsertionTarget | null>(null);
   const [nestGroupId, setNestGroupId] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [sectionExpanded, setSectionExpanded] = useState(true);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const dragItemRef = useRef<StoryTreeDragItem | null>(null);
 
@@ -122,10 +124,16 @@ export function StoryTreeView() {
     });
   }, []);
 
-  const startEdit = useCallback((kind: "story" | "group", id: string, name: string) => {
-    setEditing({ kind, id });
-    setEditName(name);
-  }, []);
+  const startEdit = useCallback(
+    (kind: "story" | "group", id: string, name: string) => {
+      if (kind === "story") {
+        setActiveStoryId(id);
+      }
+      setEditing({ kind, id });
+      setEditName(name);
+    },
+    [setActiveStoryId]
+  );
 
   const commitEdit = useCallback(() => {
     if (!editing) return;
@@ -412,8 +420,16 @@ export function StoryTreeView() {
   };
 
   return (
-    <div className="story-tree">
-      <div className="story-tree-toolbar">
+    <div className="story-tree asset-tree-section">
+      <div className="story-tree-toolbar asset-tree-section-header">
+        <button
+          type="button"
+          className="story-tree-section-title"
+          onClick={() => setSectionExpanded((expanded) => !expanded)}
+        >
+          <ChevronIcon expanded={sectionExpanded} />
+          <span>Stories</span>
+        </button>
         <div ref={addMenuRef} style={{ position: "relative" }}>
           <AddButton
             onClick={() => setAddMenuOpen((open) => !open)}
@@ -455,7 +471,9 @@ export function StoryTreeView() {
           )}
         </div>
       </div>
-      <ul className="story-tree-list story-tree-root">{renderLevel(undefined, 0, tree)}</ul>
+      {sectionExpanded && (
+        <ul className="story-tree-list story-tree-root">{renderLevel(undefined, 0, tree)}</ul>
+      )}
     </div>
   );
 }

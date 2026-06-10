@@ -9,6 +9,7 @@ import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
 import { getDefaultLocale } from "@/core/locale/prompts";
 import { CloseButton } from "./CloseButton";
 import { AddButton } from "./AddButton";
+import { StoryTreeView } from "./StoryTreeView";
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
   return (
@@ -228,6 +229,8 @@ export function ProjectPanel() {
           </p>
         )}
       </div>
+
+      <StoryTreeView />
     </div>
   );
 }

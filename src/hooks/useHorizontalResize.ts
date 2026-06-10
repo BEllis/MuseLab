@@ -5,6 +5,8 @@ type UseHorizontalResizeOptions = {
   minWidth: number;
   maxWidth: number;
   storageKey?: string;
+  /** Which edge the drag handle sits on. Default `right` (left panel). Use `left` for right-side panels. */
+  resizeEdge?: "left" | "right";
 };
 
 function readStoredWidth(storageKey: string | undefined, fallback: number): number {
@@ -28,6 +30,7 @@ export function useHorizontalResize({
   minWidth,
   maxWidth,
   storageKey,
+  resizeEdge = "right",
 }: UseHorizontalResizeOptions) {
   const [width, setWidth] = useState(() =>
     clampWidth(readStoredWidth(storageKey, initialWidth), minWidth, maxWidth)
@@ -61,7 +64,12 @@ export function useHorizontalResize({
       const startWidth = widthRef.current;
 
       const onPointerMove = (moveEvent: PointerEvent) => {
-        const nextWidth = clampWidth(startWidth + (moveEvent.clientX - startX), minWidth, maxWidth);
+        const delta = moveEvent.clientX - startX;
+        const nextWidth = clampWidth(
+          resizeEdge === "left" ? startWidth - delta : startWidth + delta,
+          minWidth,
+          maxWidth
+        );
         setWidth(nextWidth);
       };
 
@@ -83,7 +91,7 @@ export function useHorizontalResize({
       window.addEventListener("pointerup", finishResize);
       window.addEventListener("pointercancel", finishResize);
     },
-    [maxWidth, minWidth, storageKey]
+    [maxWidth, minWidth, resizeEdge, storageKey]
   );
 
   return { width, isResizing, onResizePointerDown };

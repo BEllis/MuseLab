@@ -32,16 +32,7 @@ export function EdgeEditorPanel() {
   const targetLabel = story.nodes.find((n) => n.id === edge.targetNodeId)?.label ?? edge.targetNodeId;
 
   return (
-    <div
-      style={{
-        width: "320px",
-        borderLeft: "1px solid var(--app-border)",
-        padding: "12px",
-        background: "var(--app-surface-muted)",
-        overflowY: "auto",
-        maxHeight: "100vh",
-      }}
-    >
+    <div className="app-inspector-panel-body">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
         <strong>Link</strong>
         <CloseButton onClick={() => clearSelection()} />

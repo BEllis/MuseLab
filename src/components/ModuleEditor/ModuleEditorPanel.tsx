@@ -12,15 +12,6 @@ import { CloseButton } from "../CloseButton";
 import { AddButton } from "../AddButton";
 import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
 
-const PANEL_STYLE: React.CSSProperties = {
-  width: "360px",
-  borderLeft: "1px solid var(--app-border)",
-  padding: "12px",
-  background: "var(--app-surface-muted)",
-  overflowY: "auto",
-  maxHeight: "100vh",
-};
-
 const INPUT_STYLE: React.CSSProperties = {
   display: "block",
   width: "100%",
@@ -273,7 +264,7 @@ export function ModuleEditorPanel() {
       : "";
 
   return (
-    <aside style={PANEL_STYLE}>
+    <aside className="app-inspector-panel-body">
       <div
         style={{
           display: "flex",

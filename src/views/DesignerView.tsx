@@ -4,6 +4,7 @@ import { AssetEditorPanel } from "@/components/AssetEditor/AssetEditorPanel";
 import { NodeEditorPanel } from "@/components/NodeEditor/NodeEditorPanel";
 import { EdgeEditorPanel } from "@/components/EdgeEditor/EdgeEditorPanel";
 import { ModuleEditorPanel } from "@/components/ModuleEditor/ModuleEditorPanel";
+import { InspectorPanelShell } from "@/components/InspectorPanelShell";
 import { LeftPanel } from "@/components/LeftPanel";
 import { useProjectStore } from "@/store/projectStore";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
@@ -50,10 +51,14 @@ export default function DesignerView() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <FlowCanvas />
       </div>
-      {inspector?.kind === "module" && <ModuleEditorPanel />}
-      {inspector?.kind === "asset" && <AssetEditorPanel />}
-      {inspector?.kind === "node" && <NodeEditorPanel />}
-      {inspector?.kind === "edge" && <EdgeEditorPanel />}
+      {inspector && (
+        <InspectorPanelShell>
+          {inspector.kind === "module" && <ModuleEditorPanel />}
+          {inspector.kind === "asset" && <AssetEditorPanel />}
+          {inspector.kind === "node" && <NodeEditorPanel />}
+          {inspector.kind === "edge" && <EdgeEditorPanel />}
+        </InspectorPanelShell>
+      )}
     </div>
   );
 }

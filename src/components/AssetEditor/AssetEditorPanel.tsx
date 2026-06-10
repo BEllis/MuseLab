@@ -13,15 +13,6 @@ import { isElectron } from "@/utils/isElectron";
 import { getSortedActorExpressions } from "@/core/model/assetTree";
 import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
 
-const PANEL_STYLE: React.CSSProperties = {
-  width: "320px",
-  borderLeft: "1px solid var(--app-border)",
-  padding: "12px",
-  background: "var(--app-surface-muted)",
-  overflowY: "auto",
-  maxHeight: "100vh",
-};
-
 const TEXTAREA_STYLE: React.CSSProperties = {
   display: "block",
   width: "100%",
@@ -370,7 +361,7 @@ export function AssetEditorPanel() {
   };
 
   return (
-    <div style={PANEL_STYLE}>
+    <div className="app-inspector-panel-body">
       <input ref={fileInputRef} type="file" style={{ display: "none" }} />
       <div
         style={{
@@ -481,7 +472,22 @@ export function AssetEditorPanel() {
       ) : (
         <>
           <div style={{ marginBottom: "12px" }}>
-            <div style={{ marginBottom: "6px", fontSize: "12px" }}>Preview</div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "6px",
+              }}
+            >
+              <div style={{ fontSize: "12px" }}>Preview</div>
+              {replaceable && (
+                <ReplaceImageButton
+                  onClick={triggerReplace}
+                  title={asset.type === "sound" ? "Replace audio…" : "Replace image…"}
+                />
+              )}
+            </div>
             {asset.type === "sound" ? (
               previewUrl ? (
                 <audio key={previewUrl} controls src={previewUrl} style={{ width: "100%" }} />
@@ -506,25 +512,6 @@ export function AssetEditorPanel() {
               <div style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>No image loaded.</div>
             )}
           </div>
-
-          {replaceable && (
-            <button
-              type="button"
-              onClick={triggerReplace}
-              style={{
-                width: "100%",
-                marginBottom: isDefault ? "8px" : "12px",
-                padding: "8px 12px",
-                border: "1px solid var(--app-border)",
-                borderRadius: "6px",
-                background: "var(--app-surface)",
-                color: "var(--app-text)",
-                cursor: "pointer",
-              }}
-            >
-              Replace {asset.type === "sound" ? "audio" : "image"}…
-            </button>
-          )}
         </>
       )}
     </div>

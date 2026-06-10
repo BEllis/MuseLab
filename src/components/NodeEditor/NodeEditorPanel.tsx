@@ -21,15 +21,6 @@ import { InspectorPanelId } from "../InspectorPanelMeta";
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
 
-const panelShellStyle: React.CSSProperties = {
-  width: "320px",
-  borderLeft: "1px solid var(--app-border)",
-  padding: "12px",
-  background: "var(--app-surface-muted)",
-  overflowY: "auto",
-  maxHeight: "100vh",
-};
-
 function NodeNameField({
   node,
   story,
@@ -450,7 +441,7 @@ export function NodeEditorPanel() {
 
   if (isStartNode(node)) {
     return (
-      <div style={panelShellStyle}>
+      <div className="app-inspector-panel-body">
         <div
           style={{
             display: "flex",
@@ -480,7 +471,7 @@ export function NodeEditorPanel() {
     const targetStarts = targetStory ? getStartNodes(targetStory) : [];
 
     return (
-      <div style={panelShellStyle}>
+      <div className="app-inspector-panel-body">
         <div
           style={{
             display: "flex",
@@ -587,7 +578,7 @@ export function NodeEditorPanel() {
     backdrops.find((a) => a.id === DEFAULT_BACKDROP_ID);
 
   return (
-    <div style={panelShellStyle}>
+    <div className="app-inspector-panel-body">
       <div
         style={{
           display: "flex",
