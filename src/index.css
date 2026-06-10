@@ -336,6 +336,11 @@ select,
   left: -3px;
 }
 
+.app-inspector-panel-shell.is-expanded {
+  flex: 1;
+  min-width: 0;
+}
+
 .app-inspector-panel {
   display: flex;
   flex-direction: column;

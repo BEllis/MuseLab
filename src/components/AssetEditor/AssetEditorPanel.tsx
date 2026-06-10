@@ -6,12 +6,17 @@ import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
 import { getAssetUsage } from "@/core/assets/assetUsage";
 import { getExpressionUsage, isDefaultExpression } from "@/core/assets/actorExpressions";
 import { canRenameAsset, canReplaceAsset, isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
-import { CloseButton } from "../CloseButton";
 import { ReplaceImageButton } from "../ReplaceImageButton";
 import { AddButton } from "../AddButton";
+import { CloseButton } from "../CloseButton";
 import { isElectron } from "@/utils/isElectron";
 import { getSortedActorExpressions } from "@/core/model/assetTree";
-import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
+import {
+  InspectorPanelDetails,
+  InspectorPanelHeader,
+  InspectorPanelId,
+  inspectorSubtextStyle,
+} from "../InspectorPanelMeta";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 import type { Attributes } from "@/core/model/types";
 
@@ -377,17 +382,10 @@ export function AssetEditorPanel() {
   return (
     <div className="app-inspector-panel-body">
       <input ref={fileInputRef} type="file" style={{ display: "none" }} />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}
-      >
-        <strong>{assetTypeLabel(asset.type)}</strong>
-        <CloseButton onClick={() => setSelectedAssetId(null)} />
-      </div>
+      <InspectorPanelHeader
+        title={assetTypeLabel(asset.type)}
+        onClose={() => setSelectedAssetId(null)}
+      />
 
       <InspectorPanelId id={asset.id} />
 

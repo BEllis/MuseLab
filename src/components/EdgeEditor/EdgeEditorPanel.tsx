@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { getEdgeOptionTextForLocale } from "@/core/locale/prompts";
-import { CloseButton } from "../CloseButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
-import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
+import {
+  InspectorPanelDetails,
+  InspectorPanelHeader,
+  InspectorPanelId,
+  inspectorSubtextStyle,
+} from "../InspectorPanelMeta";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
 export function EdgeEditorPanel() {
@@ -34,10 +38,7 @@ export function EdgeEditorPanel() {
 
   return (
     <div className="app-inspector-panel-body">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-        <strong>Link</strong>
-        <CloseButton onClick={() => clearSelection()} />
-      </div>
+      <InspectorPanelHeader title="Link" onClose={() => clearSelection()} marginBottom="8px" />
       <InspectorPanelId id={edge.id} />
 
       <div style={{ marginBottom: "8px" }}>

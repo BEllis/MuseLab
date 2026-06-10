@@ -17,7 +17,7 @@ import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
 import { EditButton } from "../EditButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
-import { InspectorPanelId } from "../InspectorPanelMeta";
+import { InspectorPanelHeader, InspectorPanelId } from "../InspectorPanelMeta";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
 const ACTOR_THUMB_SIZE = 36;
@@ -490,17 +490,7 @@ export function NodeEditorPanel() {
   if (isStartNode(node)) {
     return (
       <div className="app-inspector-panel-body">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "12px",
-          }}
-        >
-          <strong>Start</strong>
-          <CloseButton onClick={() => clearSelection()} />
-        </div>
+        <InspectorPanelHeader title="Start" onClose={() => clearSelection()} />
         <InspectorPanelId id={node.id} />
         <NodeNameField
           node={node}
@@ -526,17 +516,7 @@ export function NodeEditorPanel() {
 
     return (
       <div className="app-inspector-panel-body">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "12px",
-          }}
-        >
-          <strong>Jump To</strong>
-          <CloseButton onClick={() => clearSelection()} />
-        </div>
+        <InspectorPanelHeader title="Jump To" onClose={() => clearSelection()} />
         <InspectorPanelId id={node.id} />
         <NodeNameField
           node={node}
@@ -677,17 +657,7 @@ export function NodeEditorPanel() {
 
   return (
     <div className="app-inspector-panel-body">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}
-      >
-        <strong>Scene</strong>
-        <CloseButton onClick={() => clearSelection()} />
-      </div>
+      <InspectorPanelHeader title="Scene" onClose={() => clearSelection()} />
 
       <InspectorPanelId id={node.id} />
       <NodeNameField

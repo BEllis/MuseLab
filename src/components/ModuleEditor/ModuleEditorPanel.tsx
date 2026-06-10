@@ -8,9 +8,13 @@ import {
   type BuiltInModuleId,
 } from "@/core/modules/builtInModules";
 import { generateModuleCiStub } from "@/core/modules/generateModuleCi";
-import { CloseButton } from "../CloseButton";
 import { AddButton } from "../AddButton";
-import { InspectorPanelDetails, InspectorPanelId, inspectorSubtextStyle } from "../InspectorPanelMeta";
+import {
+  InspectorPanelDetails,
+  InspectorPanelHeader,
+  InspectorPanelId,
+  inspectorSubtextStyle,
+} from "../InspectorPanelMeta";
 
 const INPUT_STYLE: React.CSSProperties = {
   display: "block",
@@ -265,17 +269,11 @@ export function ModuleEditorPanel() {
 
   return (
     <aside className="app-inspector-panel-body">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}
-      >
-        <strong style={{ fontSize: "13px" }}>Module</strong>
-        <CloseButton onClick={() => setSelectedModuleId(null)} title="Close" />
-      </div>
+      <InspectorPanelHeader
+        title="Module"
+        titleStyle={{ fontSize: "13px" }}
+        onClose={() => setSelectedModuleId(null)}
+      />
 
       <InspectorPanelId id={selectedModuleId} />
 

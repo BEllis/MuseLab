@@ -3,9 +3,8 @@ import { validatePlayEntry } from "@/core/model/graphHierarchy";
 import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
 import { countSceneNodes, getStartNodes } from "@/core/model/nodeTypes";
-import { CloseButton } from "../CloseButton";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
-import { InspectorPanelId } from "../InspectorPanelMeta";
+import { InspectorPanelHeader, InspectorPanelId } from "../InspectorPanelMeta";
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
   return (
@@ -42,17 +41,7 @@ export function StoryEditorPanel() {
 
   return (
     <div className="app-inspector-panel-body">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}
-      >
-        <strong>Story</strong>
-        <CloseButton onClick={() => setSelectedStoryId(null)} />
-      </div>
+      <InspectorPanelHeader title="Story" onClose={() => setSelectedStoryId(null)} />
 
       <InspectorPanelId id={story.id} />
 

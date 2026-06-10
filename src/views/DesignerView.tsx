@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FlowCanvas } from "@/components/FlowCanvas";
 import { AssetEditorPanel } from "@/components/AssetEditor/AssetEditorPanel";
 import { NodeEditorPanel } from "@/components/NodeEditor/NodeEditorPanel";
@@ -44,6 +44,7 @@ function useSingleSelectionInspector():
 export default function DesignerView() {
   const inspector = useSingleSelectionInspector();
   const hidePreview = useSceneEditorPreviewStore((s) => s.hidePreview);
+  const [inspectorExpanded, setInspectorExpanded] = useState(false);
 
   useEffect(() => {
     if (inspector?.kind !== "node") {
@@ -51,14 +52,34 @@ export default function DesignerView() {
     }
   }, [inspector?.kind, hidePreview]);
 
+  useEffect(() => {
+    if (!inspector) {
+      setInspectorExpanded(false);
+    }
+  }, [inspector]);
+
+  const toggleInspectorExpanded = useCallback(() => {
+    setInspectorExpanded((expanded) => {
+      if (!expanded) {
+        hidePreview();
+      }
+      return !expanded;
+    });
+  }, [hidePreview]);
+
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <LeftPanel />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <FlowCanvas />
-      </div>
+      {!inspectorExpanded && (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <FlowCanvas />
+        </div>
+      )}
       {inspector && (
-        <InspectorPanelShell>
+        <InspectorPanelShell
+          expanded={inspectorExpanded}
+          onToggleExpanded={toggleInspectorExpanded}
+        >
           {inspector.kind === "module" && <ModuleEditorPanel />}
           {inspector.kind === "asset" && <AssetEditorPanel />}
           {inspector.kind === "story" && <StoryEditorPanel />}
