@@ -7,8 +7,8 @@ export default {
     const url = new URL(request.url);
     const { pathname } = url;
 
-    if (pathname === "/app") {
-      return Response.redirect(new URL("/app/", url), 308);
+    if (pathname === "/designer") {
+      return Response.redirect(new URL("/designer/", url), 308);
     }
 
     const response = await env.ASSETS.fetch(request);
@@ -16,8 +16,8 @@ export default {
       return response;
     }
 
-    if (pathname.startsWith("/app/")) {
-      return env.ASSETS.fetch(new Request(new URL("/app/index.html", url), request));
+    if (pathname.startsWith("/designer/")) {
+      return env.ASSETS.fetch(new Request(new URL("/designer/index.html", url), request));
     }
 
     return response;

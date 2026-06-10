@@ -70,7 +70,7 @@ MuseLab/
 ## How to run
 
 - **Web:** `npm run dev` → Designer at `/`, Player at `/play`. Save/load via browser download and file picker (`.mlvn` or legacy `.json`).
-- **Web deploy (PWA):** `npm run build:web-deploy` → `dist-deploy/` with service worker precaching app shell + Cito WASM for offline use at `/app/` after first visit.
+- **Web deploy (PWA):** `npm run build:web-deploy` → `dist-deploy/` with service worker precaching app shell + Cito WASM for offline use at `/designer/` after first visit.
 - **Build:** `npm run build` → `dist/` (web).
 - **Electron:** `npm run electron:dev` → native file dialogs, cito transpilation, `asset://` URLs.
 - **Tests:** `npm run test` (Vitest).

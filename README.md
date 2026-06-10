@@ -6,7 +6,7 @@ Design and play branching visual novels in a node-based editor. Build scenes wit
 
 Version 0.1
 
-[muselab.softweyr.co.uk/app/v1/](https://muselab.softweyr.co.uk/app/v1/)
+[muselab.softweyr.co.uk/designer/](https://muselab.softweyr.co.uk/designer/)
 
 <p align="center">
   <a href="https://discord.gg/YpDgdyn9Je"><img src="https://img.shields.io/discord/invite/YpDgdyn9Je?label=Discord&logo=discord&logoColor=white&color=5865F2" alt="Join our Discord community"></a>
@@ -34,7 +34,7 @@ Version 0.1
 - **Locales** – Support multiple languages. Dialogue and choice labels are stored per locale (`prompts.<locale>.json` inside `.mlvn` archives). Switch locale in the player; edit visible locales in the project panel.
 - **Multiple stories** – A project can contain several branching story graphs. Use the Stories panel to add, rename, and switch between them.
 - **Save and load** – Save your project as a `.mlvn` file (a zip archive with manifest, locale prompts, and media). In the desktop app, use File → Save/Load; in the browser, use the project panel buttons (downloads/uploads the archive). Legacy plain `.json` projects can still be opened for migration. The app will prompt you to save before creating a new project or closing.
-- **Offline (browser PWA)** – The deployed web app at `/app/` can be installed as a Progressive Web App. After one online visit, the app shell and Cito WASM are cached so you can keep editing offline; project data is auto-saved to localStorage and IndexedDB in the browser.
+- **Offline (browser PWA)** – The deployed web app at `/designer/` can be installed as a Progressive Web App. After one online visit, the app shell and Cito WASM are cached so you can keep editing offline; project data is auto-saved to localStorage and IndexedDB in the browser.
 
 ## How to Install
 

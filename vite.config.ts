@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
   };
 
   if (isWebDeploy) {
-    define["import.meta.env.VITE_ROUTER_BASENAME"] = JSON.stringify("/app");
+    define["import.meta.env.VITE_ROUTER_BASENAME"] = JSON.stringify("/designer");
   }
 
   if (isElectron) {
@@ -86,7 +86,7 @@ export default defineConfig(({ mode }) => {
                 ? {
                     registerType: "prompt",
                     injectRegister: false,
-                    scope: "/app/",
+                    scope: "/designer/",
                     workbox: {
                       globPatterns: [
                         "**/*.{js,css,html,ico,png,svg,wasm,json,dat,blat,bin,woff2}",
@@ -100,8 +100,8 @@ export default defineConfig(({ mode }) => {
                       name: "MuseLab",
                       short_name: "MuseLab",
                       description: "Visual novel designer",
-                      start_url: "/app/",
-                      scope: "/app/",
+                      start_url: "/designer/",
+                      scope: "/designer/",
                       display: "standalone",
                       background_color: "#1a1a1a",
                       theme_color: "#1a1a1a",
@@ -147,6 +147,6 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { "@": path.resolve(__dirname, "src") },
     },
-    base: isWebDeploy ? "/app/" : "./",
+    base: isWebDeploy ? "/designer/" : "./",
   };
 });
