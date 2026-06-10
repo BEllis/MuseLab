@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type { Project, Story, StoryGroup, AssetGroup, AssetType } from "@/core/model/types";
 import {
-  createEmptyProject,
   createStarterProject,
   parseProject,
   addNode as addNodeInProject,
@@ -209,7 +208,7 @@ function createFallbackInitialState(): {
   lastSavedSnapshot: string;
   loadWarnings: string[];
 } {
-  const project = createEmptyProject();
+  const project = createStarterProject();
   const bundle = migrateProjectBundle(project);
   const session = emptyStoredSession(getFirstStoryId(bundle.project));
   return {
@@ -1719,25 +1718,30 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 }));
 
 export async function bootstrapProjectStore(): Promise<void> {
-  if (!isElectron()) return;
   const loaded = await loadAutosaveFromPersistence();
-  if (!loaded) return;
-  const prepared = prepareLoadedAutosave(loaded);
-  useProjectStore.setState({
-    project: prepared.bundle.project,
-    promptsByLocale: prepared.bundle.promptsByLocale,
-    activeStoryId: prepared.session.activeStoryId,
-    selectedNodeIds: prepared.session.selectedNodeIds,
-    selectedEdgeIds: prepared.session.selectedEdgeIds,
-    selectedAssetId: prepared.session.selectedAssetId,
-    selectedModuleId: prepared.session.selectedModuleId,
-    highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
-    lastSavedSnapshot: prepared.lastSavedSnapshot,
-    loadWarnings: prepared.loadWarnings,
-    eventLog: prepared.session.eventLog,
-    ...eventLogFlags(prepared.session.eventLog),
-  });
-  scheduleAssetBlobGc(prepared.session.eventLog, prepared.bundle.project);
+  if (loaded) {
+    if (isElectron()) {
+      const prepared = prepareLoadedAutosave(loaded);
+      useProjectStore.setState({
+        project: prepared.bundle.project,
+        promptsByLocale: prepared.bundle.promptsByLocale,
+        activeStoryId: prepared.session.activeStoryId,
+        selectedNodeIds: prepared.session.selectedNodeIds,
+        selectedEdgeIds: prepared.session.selectedEdgeIds,
+        selectedAssetId: prepared.session.selectedAssetId,
+        selectedModuleId: prepared.session.selectedModuleId,
+        highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
+        lastSavedSnapshot: prepared.lastSavedSnapshot,
+        loadWarnings: prepared.loadWarnings,
+        eventLog: prepared.session.eventLog,
+        ...eventLogFlags(prepared.session.eventLog),
+      });
+      scheduleAssetBlobGc(prepared.session.eventLog, prepared.bundle.project);
+    }
+    return;
+  }
+
+  useProjectStore.getState().newProject();
 }
 
 export async function flushAutosave(): Promise<void> {
