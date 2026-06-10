@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const COMMIT_IDLE_MS = 700;
+const DEFAULT_MIN_HEIGHT = 120;
+const DEFAULT_MAX_HEIGHT = 280;
+const REVEAL_OVER_TIME_MS = 2000;
 
 const toolbarButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
@@ -10,6 +13,13 @@ const toolbarButtonStyle: React.CSSProperties = {
   color: "var(--app-text)",
   cursor: "pointer",
   fontSize: "13px",
+};
+
+const toolbarSeparatorStyle: React.CSSProperties = {
+  width: "1px",
+  height: "20px",
+  background: "var(--app-border)",
+  flexShrink: 0,
 };
 
 function insertAroundSelection(
@@ -31,6 +41,10 @@ function insertAtSelection(textarea: HTMLTextAreaElement, text: string): string 
   return value.slice(0, start) + text + value.slice(end);
 }
 
+function ToolbarSeparator() {
+  return <span style={toolbarSeparatorStyle} aria-hidden />;
+}
+
 export function TemplateTextEditor({
   value,
   onChange,
@@ -40,6 +54,10 @@ export function TemplateTextEditor({
   syncKey,
   placeholder = "",
   style,
+  showToolbar = true,
+  minHeight = DEFAULT_MIN_HEIGHT,
+  maxHeight = DEFAULT_MAX_HEIGHT,
+  soundAssets = [],
 }: {
   value: string;
   onChange: (markup: string) => void;
@@ -49,9 +67,14 @@ export function TemplateTextEditor({
   syncKey: string | undefined;
   placeholder?: string;
   style?: React.CSSProperties;
+  showToolbar?: boolean;
+  minHeight?: number;
+  maxHeight?: number;
+  soundAssets?: Array<{ id: string; name: string }>;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(value ?? "");
+  const [selectedSoundId, setSelectedSoundId] = useState("");
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedValueRef = useRef(value ?? "");
 
@@ -97,6 +120,21 @@ export function TemplateTextEditor({
     [commit]
   );
 
+  const applyEdit = useCallback(
+    (next: string) => {
+      setDraft(next);
+      onDraftChange?.(next);
+      commit(next);
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const cursor = el.selectionStart;
+        el.setSelectionRange(cursor, cursor);
+      }
+    },
+    [commit, onDraftChange]
+  );
+
   const handleDraftChange = useCallback(
     (next: string) => {
       setDraft(next);
@@ -116,14 +154,9 @@ export function TemplateTextEditor({
       const el = textareaRef.current;
       if (!el) return;
       const next = insertAroundSelection(el, open, close);
-      setDraft(next);
-      onDraftChange?.(next);
-      commit(next);
-      el.focus();
-      const cursor = el.selectionStart;
-      el.setSelectionRange(cursor, cursor);
+      applyEdit(next);
     },
-    [commit, onDraftChange]
+    [applyEdit]
   );
 
   const applyColor = useCallback(
@@ -135,60 +168,199 @@ export function TemplateTextEditor({
       const next = hasSelection
         ? insertAroundSelection(el, open, "{{ Format.ColorEnd() }}")
         : insertAtSelection(el, open);
-      setDraft(next);
-      onDraftChange?.(next);
-      commit(next);
-      el.focus();
+      applyEdit(next);
     },
-    [commit, onDraftChange]
+    [applyEdit]
   );
+
+  const insertSnippet = useCallback(
+    (text: string) => {
+      const el = textareaRef.current;
+      if (!el) return;
+      const next = insertAtSelection(el, text);
+      applyEdit(next);
+    },
+    [applyEdit]
+  );
+
+  const soundInsertDisabled = !selectedSoundId || soundAssets.length === 0;
 
   return (
     <div style={{ border: "1px solid var(--app-border)", borderRadius: "6px", overflow: "hidden", ...style }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "6px 8px",
-          background: "var(--app-surface-hover)",
-          borderBottom: "1px solid var(--app-border)",
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => applyWrap("{{ Format.BoldStart() }}", "{{ Format.BoldEnd() }}")}
-          title="Bold"
-          style={{ ...toolbarButtonStyle, fontWeight: "bold" }}
-        >
-          B
-        </button>
-        <button
-          type="button"
-          onClick={() => applyWrap("{{ Format.ItalicStart() }}", "{{ Format.ItalicEnd() }}")}
-          title="Italic"
-          style={{ ...toolbarButtonStyle, fontStyle: "italic" }}
-        >
-          I
-        </button>
-        <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Color:</span>
-        <input
-          type="color"
-          defaultValue="#000000"
-          title="Text color"
-          onChange={(e) => applyColor(e.target.value)}
+      {showToolbar && (
+        <div
           style={{
-            width: "28px",
-            height: "28px",
-            padding: 0,
-            border: "1px solid var(--app-border)",
-            borderRadius: "4px",
-            cursor: "pointer",
-            background: "var(--app-input-bg)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "6px 8px",
+            background: "var(--app-surface-hover)",
+            borderBottom: "1px solid var(--app-border)",
+            flexWrap: "wrap",
           }}
-        />
-      </div>
+        >
+          <button
+            type="button"
+            onClick={() => applyWrap("{{ Format.BoldStart() }}", "{{ Format.BoldEnd() }}")}
+            title="Bold"
+            style={{ ...toolbarButtonStyle, fontWeight: "bold" }}
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onClick={() => applyWrap("{{ Format.ItalicStart() }}", "{{ Format.ItalicEnd() }}")}
+            title="Italic"
+            style={{ ...toolbarButtonStyle, fontStyle: "italic" }}
+          >
+            I
+          </button>
+          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Color:</span>
+          <input
+            type="color"
+            defaultValue="#000000"
+            title="Text color"
+            onChange={(e) => applyColor(e.target.value)}
+            style={{
+              width: "28px",
+              height: "28px",
+              padding: 0,
+              border: "1px solid var(--app-border)",
+              borderRadius: "4px",
+              cursor: "pointer",
+              background: "var(--app-input-bg)",
+            }}
+          />
+
+          <ToolbarSeparator />
+
+          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Shake:</span>
+          <button
+            type="button"
+            onClick={() =>
+              applyWrap("{{ Format.ShakeCharsStart() }}", "{{ Format.ShakeCharsEnd() }}")
+            }
+            title="Per-character shake"
+            style={toolbarButtonStyle}
+          >
+            Chars
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyWrap("{{ Format.ShakePhraseStart() }}", "{{ Format.ShakePhraseEnd() }}")
+            }
+            title="Phrase shake"
+            style={toolbarButtonStyle}
+          >
+            Phrase
+          </button>
+
+          <ToolbarSeparator />
+
+          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Reveal:</span>
+          <button
+            type="button"
+            onClick={() =>
+              applyWrap("{{ prompter.RevealCharsBegin(-1) }}", "{{ prompter.RevealEnd() }}")
+            }
+            title="Reveal by character"
+            style={toolbarButtonStyle}
+          >
+            Chars
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyWrap("{{ prompter.RevealWordsBegin(-1) }}", "{{ prompter.RevealEnd() }}")
+            }
+            title="Reveal by word"
+            style={toolbarButtonStyle}
+          >
+            Words
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyWrap(
+                `{{ prompter.RevealCharsOverTimeBegin(${REVEAL_OVER_TIME_MS}) }}`,
+                "{{ prompter.RevealEnd() }}"
+              )
+            }
+            title={`Reveal by character over ${REVEAL_OVER_TIME_MS}ms`}
+            style={toolbarButtonStyle}
+          >
+            Chars/time
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              applyWrap(
+                `{{ prompter.RevealWordsOverTimeBegin(${REVEAL_OVER_TIME_MS}) }}`,
+                "{{ prompter.RevealEnd() }}"
+              )
+            }
+            title={`Reveal by word over ${REVEAL_OVER_TIME_MS}ms`}
+            style={toolbarButtonStyle}
+          >
+            Words/time
+          </button>
+
+          <ToolbarSeparator />
+
+          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Sound:</span>
+          <select
+            value={selectedSoundId}
+            onChange={(e) => setSelectedSoundId(e.target.value)}
+            disabled={soundAssets.length === 0}
+            title="Select sound asset"
+            style={{
+              fontSize: "12px",
+              padding: "4px 6px",
+              border: "1px solid var(--app-border)",
+              borderRadius: "4px",
+              background: "var(--app-surface)",
+              color: "var(--app-text)",
+              maxWidth: "140px",
+            }}
+          >
+            <option value="">— Select —</option>
+            {soundAssets.map((asset) => (
+              <option key={asset.id} value={asset.id}>
+                {asset.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => insertSnippet(`{{ rt.PlaySound("${selectedSoundId}") }}`)}
+            title="Play sound immediately"
+            disabled={soundInsertDisabled}
+            style={{
+              ...toolbarButtonStyle,
+              opacity: soundInsertDisabled ? 0.5 : 1,
+              cursor: soundInsertDisabled ? "not-allowed" : "pointer",
+            }}
+          >
+            Play now
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              insertSnippet(`{{ rt.PlaySoundClip("${selectedSoundId}", 0, -1, -1) }}`)
+            }
+            title="Queue sound clip at this point in the prompt"
+            disabled={soundInsertDisabled}
+            style={{
+              ...toolbarButtonStyle,
+              opacity: soundInsertDisabled ? 0.5 : 1,
+              cursor: soundInsertDisabled ? "not-allowed" : "pointer",
+            }}
+          >
+            Play on reveal
+          </button>
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         value={draft}
@@ -199,8 +371,8 @@ export function TemplateTextEditor({
         style={{
           display: "block",
           width: "100%",
-          minHeight: "120px",
-          maxHeight: "280px",
+          minHeight: `${minHeight}px`,
+          maxHeight: `${maxHeight}px`,
           padding: "8px 10px",
           fontSize: "14px",
           lineHeight: 1.5,

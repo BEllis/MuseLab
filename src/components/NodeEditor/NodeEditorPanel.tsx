@@ -15,8 +15,8 @@ import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
 import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
+import { EditButton } from "../EditButton";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
-import { TemplateTextEditor } from "./TemplateTextEditor";
 import { InspectorPanelId } from "../InspectorPanelMeta";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
@@ -368,12 +368,10 @@ export function NodeEditorPanel() {
   const { story, storyId } = useActiveStory();
   const clearSelection = useProjectStore((s) => s.clearSelection);
   const updateNode = useProjectStore((s) => s.updateNode);
-  const updateNodePrompt = useProjectStore((s) => s.updateNodePrompt);
   const updateNodeSpeaker = useProjectStore((s) => s.updateNodeSpeaker);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
   const showPreview = useSceneEditorPreviewStore((s) => s.showPreview);
-  const updateDraftTemplate = useSceneEditorPreviewStore((s) => s.updateDraftTemplate);
-  const previewLocale = useSceneEditorPreviewStore((s) => s.locale);
+  const showTemplateEditor = useSceneEditorPreviewStore((s) => s.showTemplateEditor);
 
   const node =
     selectedNodeIds.length === 1
@@ -476,24 +474,15 @@ export function NodeEditorPanel() {
     [showPreview]
   );
 
-  const openScenePreviewForPrompt = useCallback(
+  const openTemplateEditor = useCallback(
     (locale: string) => {
       if (!node) return;
-      showPreview({
+      showTemplateEditor(
         locale,
-        draftTemplate: getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id),
-      });
+        getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)
+      );
     },
-    [node, promptsByLocale, showPreview, storyId]
-  );
-
-  const handlePromptDraftChange = useCallback(
-    (locale: string, draft: string) => {
-      if (previewLocale === locale) {
-        updateDraftTemplate(draft);
-      }
-    },
-    [previewLocale, updateDraftTemplate]
+    [node, promptsByLocale, showTemplateEditor, storyId]
   );
 
   if (!node) return null;
@@ -885,23 +874,41 @@ export function NodeEditorPanel() {
                 style={{ width: "100%", boxSizing: "border-box" }}
               />
             </label>
-            <label style={{ display: "block" }}>
-              <div style={{ marginBottom: "4px" }}>Text template ({locale})</div>
-              <TemplateTextEditor
+            <div style={{ display: "block" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "4px",
+                }}
+              >
+                <span>Text template ({locale})</span>
+                <EditButton onClick={() => openTemplateEditor(locale)} />
+              </div>
+              <textarea
+                readOnly
                 value={getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)}
-                onChange={(markup) =>
-                  updateNodePrompt(locale, node.id, markup, {
-                    mergeKey: `node-text:${node.id}:${locale}`,
-                  })
-                }
-                onFocus={() => openScenePreviewForPrompt(locale)}
-                onDraftChange={(draft) => handlePromptDraftChange(locale, draft)}
-                onBlurCommit={() => flushHistoryCoalesce()}
-                syncKey={`${node.id}:${locale}`}
-                placeholder='Hello world… Use the toolbar for Format.* tags, or {{ rt.GetString("key") }} for logic.'
-                style={{ marginTop: "4px", width: "100%" }}
+                rows={4}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "4px",
+                  padding: "8px 10px",
+                  fontSize: "12px",
+                  lineHeight: 1.5,
+                  fontFamily: "monospace",
+                  boxSizing: "border-box",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "6px",
+                  background: "var(--app-input-bg)",
+                  color: "var(--app-text)",
+                  resize: "vertical",
+                  maxHeight: "160px",
+                  cursor: "default",
+                }}
               />
-            </label>
+            </div>
           </div>
         ))}
       </div>
