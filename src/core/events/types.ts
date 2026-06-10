@@ -398,6 +398,12 @@ export type SetSelectedModuleIdEvent = AppEventBase & {
   after: SelectionSnapshot;
 };
 
+export type SetSelectedStoryIdEvent = AppEventBase & {
+  type: "setSelectedStoryId";
+  before: SelectionSnapshot;
+  after: SelectionSnapshot;
+};
+
 export type ClearSelectionEvent = AppEventBase & {
   type: "clearSelection";
   before: SelectionSnapshot;
@@ -463,6 +469,7 @@ export type AppEvent =
   | SetSelectionEvent
   | SetSelectedAssetIdEvent
   | SetSelectedModuleIdEvent
+  | SetSelectedStoryIdEvent
   | ClearSelectionEvent
   | SetHighlightedRootNodeIdsEvent
   | ClearPlayValidationHighlightEvent
@@ -477,6 +484,7 @@ export function eventTouchesProjectData(event: AppEvent): boolean {
     case "setSelection":
     case "setSelectedAssetId":
     case "setSelectedModuleId":
+    case "setSelectedStoryId":
     case "clearSelection":
     case "setHighlightedRootNodeIds":
     case "clearPlayValidationHighlight":

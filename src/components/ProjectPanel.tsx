@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
-import { validatePlayEntry } from "@/core/model/graphHierarchy";
-import { getPlayValidationMessage } from "@/core/model/playValidationMessage";
-import { getNodeDisplayName } from "@/core/model/nodeNames";
-import { getStartNodes, countSceneNodes } from "@/core/model/nodeTypes";
+import { countSceneNodes } from "@/core/model/nodeTypes";
 import { isValidLocaleTag, normalizeLocaleTag } from "@/core/locale/localeTag";
 import { getDefaultLocale } from "@/core/locale/prompts";
 import { CloseButton } from "./CloseButton";
@@ -31,9 +28,8 @@ function StatRow({ label, value }: { label: string; value: number | string }) {
 
 export function ProjectPanel() {
   const project = useProjectStore((s) => s.project);
-  const { story, storyId } = useActiveStory();
+  const { story } = useActiveStory();
   const updateProject = useProjectStore((s) => s.updateProject);
-  const updateStory = useProjectStore((s) => s.updateStory);
   const addLocale = useProjectStore((s) => s.addLocale);
   const removeLocale = useProjectStore((s) => s.removeLocale);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
@@ -55,9 +51,6 @@ export function ProjectPanel() {
     }
     updateProject({ name: trimmed });
   }, [name, project.name, updateProject]);
-
-  const validation = validatePlayEntry(story);
-  const startNodes = getStartNodes(story);
 
   const commitNewLocale = useCallback(() => {
     const normalized = normalizeLocaleTag(newLocale);
@@ -205,52 +198,6 @@ export function ProjectPanel() {
           </p>
         )}
       </div>
-
-      <div style={{ marginBottom: "16px" }}>
-        <label style={{ display: "block", fontSize: "12px", marginBottom: "6px" }}>
-          <strong>Start at</strong>
-          <select
-            value={story.entryNodeId ?? ""}
-            onChange={(e) =>
-              updateStory(storyId, { entryNodeId: e.target.value || undefined })
-            }
-            disabled={startNodes.length === 0}
-            style={{
-              display: "block",
-              width: "100%",
-              marginTop: "4px",
-              padding: "6px",
-              fontSize: "12px",
-              border: "1px solid var(--app-border)",
-              borderRadius: "4px",
-              background: "var(--app-input-bg)",
-              color: "var(--app-text)",
-            }}
-          >
-            <option value="">— Select Start —</option>
-            {startNodes.map((node) => (
-              <option key={node.id} value={node.id}>
-                {getNodeDisplayName(node)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!validation.ok && (
-          <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--app-node-invalid-border)" }}>
-            {getPlayValidationMessage(validation)}
-          </p>
-        )}
-      </div>
-
-      <AttributesEditor
-        title={`Story attributes (${story.name})`}
-        attributes={story.attributes}
-        onChange={(next, mergeKey) =>
-          updateStory(storyId, { attributes: next ?? null }, { mergeKey })
-        }
-        mergeKeyPrefix={`attribute:story:${storyId}`}
-        flushHistoryCoalesce={flushHistoryCoalesce}
-      />
 
       <StoryTreeView />
     </div>

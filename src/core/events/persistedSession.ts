@@ -18,6 +18,7 @@ export type StoredProjectSession = {
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
   selectedModuleId: string | null;
+  selectedStoryId: string | null;
   highlightedRootNodeIds: string[];
   eventLog: EventLogState;
 };
@@ -113,6 +114,7 @@ export function serializeSessionForStorage(session: StoredProjectSession): Persi
     selectedEdgeIds: [...session.selectedEdgeIds],
     selectedAssetId: session.selectedAssetId,
     selectedModuleId: session.selectedModuleId,
+    selectedStoryId: session.selectedStoryId,
     highlightedRootNodeIds: [...session.highlightedRootNodeIds],
     eventLog: serializeEventLogForStorage(session.eventLog),
   };
@@ -141,6 +143,7 @@ export function parseSessionFromStorage(data: unknown): StoredProjectSession | n
         : typeof record.selectedServiceId === "string"
           ? record.selectedServiceId
           : null,
+    selectedStoryId: typeof record.selectedStoryId === "string" ? record.selectedStoryId : null,
     highlightedRootNodeIds: Array.isArray(record.highlightedRootNodeIds)
       ? record.highlightedRootNodeIds.filter((id): id is string => typeof id === "string")
       : [],
@@ -155,6 +158,7 @@ export function sessionFromStoreState(state: StoreSessionState): StoredProjectSe
     selectedEdgeIds: [...state.selectedEdgeIds],
     selectedAssetId: state.selectedAssetId,
     selectedModuleId: state.selectedModuleId,
+    selectedStoryId: state.selectedStoryId,
     highlightedRootNodeIds: [...state.highlightedRootNodeIds],
     eventLog: state.eventLog,
   };
@@ -171,6 +175,7 @@ export function applyStoredSessionToAppState(
     selectedEdgeIds: [...session.selectedEdgeIds],
     selectedAssetId: session.selectedAssetId,
     selectedModuleId: session.selectedModuleId,
+    selectedStoryId: session.selectedStoryId,
     highlightedRootNodeIds: [...session.highlightedRootNodeIds],
   };
 }
@@ -182,6 +187,7 @@ export function emptyStoredSession(activeStoryId: string): StoredProjectSession 
     selectedEdgeIds: [],
     selectedAssetId: null,
     selectedModuleId: null,
+    selectedStoryId: null,
     highlightedRootNodeIds: [],
     eventLog: createEventLogState(),
   };

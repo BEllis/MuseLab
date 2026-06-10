@@ -28,6 +28,7 @@ function starterAppState(): AppState {
     selectedEdgeIds: [],
     selectedAssetId: null,
     selectedModuleId: null,
+    selectedStoryId: null,
     highlightedRootNodeIds: [],
   };
 }

@@ -91,6 +91,7 @@ import {
   buildSelectionAfterGraphSelection,
   buildSelectionAfterSelectAsset,
   buildSelectionAfterSelectModule,
+  buildSelectionAfterSelectStory,
   createEventMeta,
   getNavigationSnapshot,
   getSelectionSnapshot,
@@ -271,6 +272,7 @@ function getStoredSessionFromState(state: ProjectState): StoredProjectSession {
     selectedEdgeIds: state.selectedEdgeIds,
     selectedAssetId: state.selectedAssetId,
     selectedModuleId: state.selectedModuleId,
+    selectedStoryId: state.selectedStoryId,
     highlightedRootNodeIds: state.highlightedRootNodeIds,
     eventLog: state.eventLog,
   };
@@ -298,6 +300,10 @@ function sanitizeLoadedSession(
     selectedModuleId:
       session.selectedModuleId && moduleIds.has(session.selectedModuleId)
         ? session.selectedModuleId
+        : null,
+    selectedStoryId:
+      session.selectedStoryId && project.stories.some((story) => story.id === session.selectedStoryId)
+        ? session.selectedStoryId
         : null,
     highlightedRootNodeIds: session.highlightedRootNodeIds.filter((id) => nodeIds.has(id)),
     eventLog: session.eventLog,
@@ -362,6 +368,7 @@ function getAppState(state: Pick<
   | "selectedEdgeIds"
   | "selectedAssetId"
   | "selectedModuleId"
+  | "selectedStoryId"
   | "highlightedRootNodeIds"
 >): AppState {
   return {
@@ -372,6 +379,7 @@ function getAppState(state: Pick<
     selectedEdgeIds: state.selectedEdgeIds,
     selectedAssetId: state.selectedAssetId,
     selectedModuleId: state.selectedModuleId,
+    selectedStoryId: state.selectedStoryId,
     highlightedRootNodeIds: state.highlightedRootNodeIds,
   };
 }
@@ -389,6 +397,7 @@ function applyAppStateToStore(
     selectedEdgeIds: after.selectedEdgeIds,
     selectedAssetId: after.selectedAssetId,
     selectedModuleId: after.selectedModuleId,
+    selectedStoryId: after.selectedStoryId,
     highlightedRootNodeIds: after.highlightedRootNodeIds,
     eventLog,
     ...eventLogFlags(eventLog),
@@ -407,6 +416,7 @@ interface ProjectState {
   selectedEdgeIds: string[];
   selectedAssetId: string | null;
   selectedModuleId: string | null;
+  selectedStoryId: string | null;
   highlightedRootNodeIds: string[];
   loadWarnings: string[];
   /** Bumped on undo/redo so the graph canvas can force a full resync. */
@@ -417,6 +427,8 @@ interface ProjectState {
   setProject: (project: Project) => void;
   updateProject: (patch: ProjectPatch, options?: MutationOptions) => void;
   setActiveStoryId: (storyId: string) => void;
+  selectStory: (storyId: string) => void;
+  setSelectedStoryId: (storyId: string | null) => void;
   addStory: (name?: string, groupId?: string) => Story;
   removeStory: (storyId: string) => void;
   updateStory: (storyId: string, patch: StoryPatch, options?: MutationOptions) => void;
@@ -661,7 +673,19 @@ function sameSelectionSnapshot(
     sameStringArray(left.selectedNodeIds, right.selectedNodeIds) &&
     sameStringArray(left.selectedEdgeIds, right.selectedEdgeIds) &&
     left.selectedAssetId === right.selectedAssetId &&
-    left.selectedModuleId === right.selectedModuleId
+    left.selectedModuleId === right.selectedModuleId &&
+    left.selectedStoryId === right.selectedStoryId
+  );
+}
+
+function sameNavigationSnapshot(
+  left: ReturnType<typeof getNavigationSnapshot>,
+  right: ReturnType<typeof getNavigationSnapshot>
+): boolean {
+  return (
+    left.activeStoryId === right.activeStoryId &&
+    sameSelectionSnapshot(left, right) &&
+    sameStringArray(left.highlightedRootNodeIds, right.highlightedRootNodeIds)
   );
 }
 
@@ -676,6 +700,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedEdgeIds: initialState.session.selectedEdgeIds,
   selectedAssetId: initialState.session.selectedAssetId,
   selectedModuleId: initialState.session.selectedModuleId,
+  selectedStoryId: initialState.session.selectedStoryId,
   highlightedRootNodeIds: initialState.session.highlightedRootNodeIds,
   loadWarnings: initialState.loadWarnings,
   graphRevision: 0,
@@ -716,14 +741,33 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   setActiveStoryId: (storyId) => {
+    get().selectStory(storyId);
+  },
+
+  selectStory: (storyId) => {
     const state = get();
     if (!state.project.stories.some((story) => story.id === storyId)) return;
-    if (state.activeStoryId === storyId) return;
+    const before = getNavigationSnapshot(getAppState(state));
+    const after = buildNavigationAfterSwitchStory(getAppState(state), storyId);
+    if (sameNavigationSnapshot(before, after)) return;
     dispatchEvent(get, set, {
       ...createEventMeta(),
       type: "setActiveStoryId",
-      before: getNavigationSnapshot(getAppState(state)),
-      after: buildNavigationAfterSwitchStory(getAppState(state), storyId),
+      before,
+      after,
+    });
+  },
+
+  setSelectedStoryId: (storyId) => {
+    const state = get();
+    const before = getSelectionSnapshot(getAppState(state));
+    const after = buildSelectionAfterSelectStory(storyId);
+    if (sameSelectionSnapshot(before, after)) return;
+    dispatchEvent(get, set, {
+      ...createEventMeta(),
+      type: "setSelectedStoryId",
+      before,
+      after,
     });
   },
 
@@ -766,6 +810,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         selectedEdgeIds: [],
         selectedAssetId: null,
         selectedModuleId: state.selectedModuleId,
+        selectedStoryId:
+          state.selectedStoryId === storyId
+            ? nextActiveStoryId
+            : state.selectedStoryId,
         highlightedRootNodeIds: [],
       },
     });
@@ -1048,6 +1096,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: prepared.session.selectedEdgeIds,
       selectedAssetId: prepared.session.selectedAssetId,
       selectedModuleId: prepared.session.selectedModuleId,
+      selectedStoryId: prepared.session.selectedStoryId,
       highlightedRootNodeIds: prepared.session.highlightedRootNodeIds,
       lastSavedSnapshot: prepared.lastSavedSnapshot,
       loadWarnings: prepared.loadWarnings,
@@ -1082,6 +1131,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: [],
       selectedAssetId: null,
       selectedModuleId: null,
+      selectedStoryId: null,
       highlightedRootNodeIds: [],
       loadWarnings: [],
       eventLog,
@@ -1124,6 +1174,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: [],
       selectedAssetId: null,
       selectedModuleId: null,
+      selectedStoryId: null,
       highlightedRootNodeIds: [],
       loadWarnings,
       eventLog,
@@ -1161,6 +1212,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       selectedEdgeIds: [],
       selectedAssetId: null,
       selectedModuleId: null,
+      selectedStoryId: null,
       highlightedRootNodeIds: [],
       loadWarnings,
       eventLog,

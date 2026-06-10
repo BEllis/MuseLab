@@ -387,6 +387,7 @@ export function buildNavigationAfterSwitchStory(
     selectedEdgeIds: [],
     selectedAssetId: null,
     selectedModuleId: null,
+    selectedStoryId: storyId,
     highlightedRootNodeIds: [],
   };
 }
@@ -401,6 +402,7 @@ export function buildSelectionAfterSelectAsset(assetId: string | null) {
     selectedEdgeIds: [] as string[],
     selectedAssetId: assetId,
     selectedModuleId: null as string | null,
+    selectedStoryId: null as string | null,
   };
 }
 
@@ -410,6 +412,17 @@ export function buildSelectionAfterSelectModule(moduleId: string | null) {
     selectedEdgeIds: [] as string[],
     selectedAssetId: null as string | null,
     selectedModuleId: moduleId,
+    selectedStoryId: null as string | null,
+  };
+}
+
+export function buildSelectionAfterSelectStory(storyId: string | null) {
+  return {
+    selectedNodeIds: [] as string[],
+    selectedEdgeIds: [] as string[],
+    selectedAssetId: null as string | null,
+    selectedModuleId: null as string | null,
+    selectedStoryId: storyId,
   };
 }
 
@@ -419,6 +432,7 @@ export function buildSelectionAfterGraphSelection(nodeIds: string[], edgeIds: st
     selectedEdgeIds: edgeIds,
     selectedAssetId: null as string | null,
     selectedModuleId: null as string | null,
+    selectedStoryId: null as string | null,
   };
 }
 

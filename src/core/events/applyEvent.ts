@@ -508,6 +508,7 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
     case "setSelection":
     case "setSelectedAssetId":
     case "setSelectedModuleId":
+    case "setSelectedStoryId":
     case "clearSelection":
       applySelectionSnapshot(state, useAfter ? event.after : event.before);
       break;

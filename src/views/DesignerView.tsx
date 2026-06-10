@@ -4,6 +4,7 @@ import { AssetEditorPanel } from "@/components/AssetEditor/AssetEditorPanel";
 import { NodeEditorPanel } from "@/components/NodeEditor/NodeEditorPanel";
 import { EdgeEditorPanel } from "@/components/EdgeEditor/EdgeEditorPanel";
 import { ModuleEditorPanel } from "@/components/ModuleEditor/ModuleEditorPanel";
+import { StoryEditorPanel } from "@/components/StoryEditor/StoryEditorPanel";
 import { InspectorPanelShell } from "@/components/InspectorPanelShell";
 import { LeftPanel } from "@/components/LeftPanel";
 import { useProjectStore } from "@/store/projectStore";
@@ -12,11 +13,13 @@ import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 function useSingleSelectionInspector():
   | { kind: "asset" }
   | { kind: "module" }
+  | { kind: "story" }
   | { kind: "node" }
   | { kind: "edge" }
   | null {
   const selectedAssetId = useProjectStore((s) => s.selectedAssetId);
   const selectedModuleId = useProjectStore((s) => s.selectedModuleId);
+  const selectedStoryId = useProjectStore((s) => s.selectedStoryId);
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const selectedEdgeIds = useProjectStore((s) => s.selectedEdgeIds);
 
@@ -25,6 +28,9 @@ function useSingleSelectionInspector():
   }
   if (selectedAssetId) {
     return { kind: "asset" };
+  }
+  if (selectedStoryId) {
+    return { kind: "story" };
   }
   if (selectedNodeIds.length === 1 && selectedEdgeIds.length === 0) {
     return { kind: "node" };
@@ -55,6 +61,7 @@ export default function DesignerView() {
         <InspectorPanelShell>
           {inspector.kind === "module" && <ModuleEditorPanel />}
           {inspector.kind === "asset" && <AssetEditorPanel />}
+          {inspector.kind === "story" && <StoryEditorPanel />}
           {inspector.kind === "node" && <NodeEditorPanel />}
           {inspector.kind === "edge" && <EdgeEditorPanel />}
         </InspectorPanelShell>

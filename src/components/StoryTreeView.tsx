@@ -55,8 +55,8 @@ function placementKey(placement: InsertionTarget): string {
 
 export function StoryTreeView() {
   const project = useProjectStore((s) => s.project);
-  const activeStoryId = useProjectStore((s) => s.activeStoryId);
-  const setActiveStoryId = useProjectStore((s) => s.setActiveStoryId);
+  const selectedStoryId = useProjectStore((s) => s.selectedStoryId);
+  const selectStory = useProjectStore((s) => s.selectStory);
   const addStory = useProjectStore((s) => s.addStory);
   const removeStory = useProjectStore((s) => s.removeStory);
   const updateStory = useProjectStore((s) => s.updateStory);
@@ -127,12 +127,12 @@ export function StoryTreeView() {
   const startEdit = useCallback(
     (kind: "story" | "group", id: string, name: string) => {
       if (kind === "story") {
-        setActiveStoryId(id);
+        selectStory(id);
       }
       setEditing({ kind, id });
       setEditName(name);
     },
-    [setActiveStoryId]
+    [selectStory]
   );
 
   const commitEdit = useCallback(() => {
@@ -314,7 +314,7 @@ export function StoryTreeView() {
   };
 
   const renderStoryRow = (node: Extract<StoryTreeNode, { kind: "story" }>, depth: number) => {
-    const selected = node.id === activeStoryId;
+    const selected = node.id === selectedStoryId;
     const isEditing = editing?.kind === "story" && editing.id === node.id;
 
     return (
@@ -322,11 +322,11 @@ export function StoryTreeView() {
         <div
           className={`story-tree-row${selected ? " is-selected" : ""}`}
           style={{ paddingLeft: `${treeRowPaddingLeft(depth)}px` }}
-          onClick={() => setActiveStoryId(node.id)}
+          onClick={() => selectStory(node.id)}
         >
           <TreeToggleSpacer />
           {renderDragHandle({ kind: "story", id: node.id }, isEditing, () =>
-            setActiveStoryId(node.id)
+            selectStory(node.id)
           )}
           <span className="story-tree-icon">
             <StoryIcon />

@@ -7,6 +7,7 @@ import {
 } from "@/core/model/attributes";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
+import { ChevronIcon } from "../tree/treeViewUi";
 
 const ATTRIBUTE_TYPES: AttributeValueType[] = ["string", "integer", "number", "object", "list"];
 
@@ -345,34 +346,30 @@ export function AttributesEditor({
     setExpanded(true);
   };
 
+  const showHeader = depth === 0;
+  const showBody = expanded || depth > 0;
+
   return (
-    <div style={{ marginBottom: compact ? "0" : "16px", paddingLeft: depth > 0 ? "8px" : 0 }}>
-      {depth === 0 && (
-        <button
-          type="button"
-          onClick={() => setExpanded((open) => !open)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            width: "100%",
-            marginBottom: expanded ? "8px" : 0,
-            padding: 0,
-            border: "none",
-            background: "transparent",
-            color: "var(--app-text)",
-            fontSize: "12px",
-            fontWeight: 600,
-            cursor: "pointer",
-            textAlign: "left",
-          }}
-        >
-          <span style={{ fontSize: "10px" }}>{expanded ? "▼" : "▶"}</span>
-          {title}
-        </button>
+    <div
+      className={`attributes-section${compact ? " attributes-section--nested" : ""}${
+        showHeader && !expanded ? " attributes-section--collapsed" : ""
+      }`}
+      style={depth > 0 ? { marginLeft: "8px" } : undefined}
+    >
+      {showHeader && (
+        <div className="attributes-section-header">
+          <button
+            type="button"
+            className="attributes-section-title"
+            onClick={() => setExpanded((open) => !open)}
+          >
+            <ChevronIcon expanded={expanded} />
+            {title}
+          </button>
+        </div>
       )}
-      {(expanded || depth > 0) && (
-        <>
+      {showBody && (
+        <div className="attributes-section-body">
           {entries.map(([key, value]) => (
             <AttributeRow
               key={key}
@@ -389,7 +386,7 @@ export function AttributesEditor({
             />
           ))}
           <AddButton onClick={handleAdd} title="Add attribute" />
-        </>
+        </div>
       )}
     </div>
   );
