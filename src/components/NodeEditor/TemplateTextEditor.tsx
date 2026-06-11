@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getDefaultFontId } from "@/core/assets/defaultFont";
+import { DEFAULT_FONT_ID } from "@/core/assets/defaultFont";
 import type { Locale, Project } from "@/core/model/types";
 import {
   SINGLE_LINE_HEIGHT,
@@ -232,14 +232,17 @@ export function TemplateTextEditor({
   const [draft, setDraft] = useState(value ?? "");
   const [colorPickerValue, setColorPickerValue] = useState("#000000");
   const [selectedSoundId, setSelectedSoundId] = useState("");
-  const [selectedFontId, setSelectedFontId] = useState(() => getDefaultFontId(project));
-  const fontAssets = useMemo(
-    () =>
-      project.assets
-        .filter((asset) => asset.type === "font")
-        .map((asset) => ({ id: asset.id, name: asset.name })),
-    [project.assets]
-  );
+  const fontAssets = useMemo(() => {
+    const fonts = project.assets
+      .filter((asset) => asset.type === "font")
+      .map((asset) => ({ id: asset.id, name: asset.name }));
+    fonts.sort((a, b) => {
+      if (a.id === DEFAULT_FONT_ID) return -1;
+      if (b.id === DEFAULT_FONT_ID) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    return fonts;
+  }, [project.assets]);
   const committedValueRef = useRef(value ?? "");
   const lastExternalSyncKeyRef = useRef(syncKey);
 
@@ -369,14 +372,23 @@ export function TemplateTextEditor({
   }, []);
 
   const soundInsertDisabled = !selectedSoundId || soundAssets.length === 0;
-  const fontInsertDisabled = !selectedFontId || fontAssets.length === 0;
   const showPromptMeta = locales != null && onLocaleChange != null;
 
   return (
     <div style={{ border: "1px solid var(--app-border)", borderRadius: "6px", overflow: "hidden", ...style }}>
       {showToolbar && (
         <div
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => {
+            const target = event.target;
+            if (
+              target instanceof HTMLSelectElement ||
+              target instanceof HTMLInputElement ||
+              target instanceof HTMLTextAreaElement
+            ) {
+              return;
+            }
+            event.preventDefault();
+          }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -429,50 +441,30 @@ export function TemplateTextEditor({
 
           <TemplateToolbarDropdown label="Font">
             {(close) => (
-              <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                <select
-                  value={selectedFontId}
-                  onChange={(e) => setSelectedFontId(e.target.value)}
-                  disabled={fontAssets.length === 0}
-                  title="Select font asset"
-                  style={{
-                    fontSize: "12px",
-                    padding: "4px 6px",
-                    border: "1px solid var(--app-border)",
-                    borderRadius: "4px",
-                    background: "var(--app-surface)",
-                    color: "var(--app-text)",
-                    width: "100%",
-                  }}
-                >
-                  <option value="">— Select —</option>
-                  {fontAssets.map((asset) => (
-                    <option key={asset.id} value={asset.id}>
-                      {asset.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="app-context-menu-item"
-                  onClick={() => {
-                    applyWrap(
-                      `@Format.FontStyleBegin("${selectedFontId}")`,
-                      "@Format.FontStyleEnd()"
-                    );
-                    close();
-                  }}
-                  title="Wrap selection with font style"
-                  disabled={fontInsertDisabled}
-                  style={{
-                    borderRadius: "4px",
-                    opacity: fontInsertDisabled ? 0.5 : 1,
-                    cursor: fontInsertDisabled ? "not-allowed" : "pointer",
-                  }}
-                >
-                  Apply font wrap
-                </button>
-              </div>
+              <>
+                {fontAssets.length === 0 ? (
+                  <TemplateToolbarMenuItem
+                    label="No fonts available"
+                    disabled
+                    onClick={() => {}}
+                  />
+                ) : (
+                  fontAssets.map((asset) => (
+                    <TemplateToolbarMenuItem
+                      key={asset.id}
+                      label={asset.name}
+                      title={`Wrap selection with ${asset.name}`}
+                      onClick={() => {
+                        applyWrap(
+                          `@Format.FontStyleBegin("${asset.id}")`,
+                          "@Format.FontStyleEnd()"
+                        );
+                        close();
+                      }}
+                    />
+                  ))
+                )}
+              </>
             )}
           </TemplateToolbarDropdown>
 
