@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeLocales } from "../locale/localeTag";
 import type { Asset, Project } from "../model/types";
 import {
   createExpression,
@@ -75,7 +76,7 @@ describe("getDefaultExpressionId", () => {
           expressions: [createExpression("happy"), createExpression("default")],
         }),
       ],
-      locales: ["en"],
+      locales: normalizeLocales(["en"]),
       modules: [],
       stories: [],
     };
@@ -112,7 +113,7 @@ describe("getExpressionUsage", () => {
     const project: Project = {
       name: "Test",
       assets: [],
-      locales: ["en"],
+      locales: normalizeLocales(["en"]),
       modules: [],
       stories: [
         {

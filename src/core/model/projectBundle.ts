@@ -9,7 +9,7 @@ import {
   serializeLocalePrompts,
   type PromptsByLocale,
 } from "../locale/prompts";
-import { migrateProjectDefaultLocale, normalizeLocales } from "../locale/localeTag";
+import { migrateProjectDefaultLocale, normalizeLocaleTags } from "../locale/localeTag";
 import {
   createEmptyProject,
   finalizeProjectNodes,
@@ -59,7 +59,7 @@ export function migrateProjectBundle(project: Project, promptsByLocale?: Prompts
   const migratedPrompts = migrateLegacyInlinePrompts(project, basePrompts);
   finalizeProjectNodes(project);
   if (defaultStoryId) {
-    for (const locale of normalizeLocales(project.locales)) {
+    for (const locale of normalizeLocaleTags(project.locales)) {
       const raw = migratedPrompts[locale];
       if (raw && (!raw.stories || Object.keys(raw.stories).length === 0)) {
         migratedPrompts[locale] = parseLocalePrompts(
@@ -142,7 +142,7 @@ export function serializeMlvnMetadata(): string {
 
 export function serializeProjectBundleSnapshot(bundle: ProjectBundle): string {
   const manifest = serializeProject(bundle.project);
-  const promptEntries = normalizeLocales(bundle.project.locales)
+  const promptEntries = normalizeLocaleTags(bundle.project.locales)
     .map((locale) => {
       const prompts = bundle.promptsByLocale[locale] ?? { stories: {} };
       return [locale, serializeLocalePrompts(prompts)] as const;

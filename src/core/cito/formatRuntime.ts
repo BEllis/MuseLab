@@ -5,17 +5,7 @@ export type FormatRuntimeOptions = {
   disableShake?: boolean;
 };
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function plainTextToHtml(text: string): string {
-  return escapeHtml(text).replace(/\n/g, "<br>");
-}
+import { escapeHtml, literalTextToHtml } from "@/core/template/literalTextToHtml";
 
 function shakeCharsHtml(text: string): string {
   let html = "";
@@ -35,7 +25,7 @@ function shakeCharsHtml(text: string): string {
 }
 
 function shakePhraseHtml(text: string): string {
-  return `<span class="muselab-shake-phrase">${escapeHtml(text).replace(/\n/g, "<br>")}</span>`;
+  return `<span class="muselab-shake-phrase">${literalTextToHtml(text)}</span>`;
 }
 
 /** JS Format implementation merged into transpiled Cito output at runtime. */
@@ -75,10 +65,10 @@ export function createFormatRuntime(options: FormatRuntimeOptions = {}) {
       return disableShake ? "" : "</span>";
     },
     shakeCharsText(text: string): string {
-      return disableShake ? plainTextToHtml(text) : shakeCharsHtml(text);
+      return disableShake ? literalTextToHtml(text) : shakeCharsHtml(text);
     },
     shakePhraseText(text: string): string {
-      return disableShake ? plainTextToHtml(text) : shakePhraseHtml(text);
+      return disableShake ? literalTextToHtml(text) : shakePhraseHtml(text);
     },
   };
 }

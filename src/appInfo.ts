@@ -1,7 +1,7 @@
 export const APP_NAME = "MuseLab";
 export const APP_TAGLINE = "Visual Novel Designer";
 /** Fixed deploy path; not tied to package semver (v2 would be a separate product URL). */
-export const APP_URL = "https://muselab.softweyr.co.uk/designer/";
+export const APP_URL = "https://muselab.vn/designer/";
 export const DISCORD_INVITE_URL = "https://discord.gg/YpDgdyn9Je";
 
 export const APP_DESCRIPTION =

@@ -23,6 +23,7 @@ import {
   updateAssetGroup as updateAssetGroupInProject,
   addLocaleToProject,
   removeLocaleFromProject,
+  updateLocaleInProject,
 } from "@/core/model/project";
 import { clearEndNodeLayout } from "@/core/model/endNodeLayout";
 import {
@@ -31,6 +32,7 @@ import {
   ensureStoryPrompts,
   removeEdgeFromAllLocales,
   removeLocaleFromPrompts,
+  renameLocaleInPrompts,
   removeNodeFromAllLocales,
   removeStoryFromAllLocales,
   setEdgeOptionText,
@@ -94,23 +96,50 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
       break;
 
     case "addLocale": {
+      const localeEntry = event.after.localeEntry;
       if (useAfter) {
-        addLocaleToProject(state.project, event.locale);
-        state.promptsByLocale[event.after.locale] = cloneNode(event.after.localePrompts);
+        addLocaleToProject(state.project, localeEntry.locale, {
+          displayName: localeEntry.displayName,
+          id: localeEntry.id,
+        });
+        state.promptsByLocale[localeEntry.locale] = cloneNode(event.after.localePrompts);
       } else {
-        removeLocaleFromProject(state.project, event.locale);
-        state.promptsByLocale = removeLocaleFromPrompts(state.promptsByLocale, event.locale);
+        removeLocaleFromProject(state.project, localeEntry.locale);
+        state.promptsByLocale = removeLocaleFromPrompts(
+          state.promptsByLocale,
+          localeEntry.locale
+        );
       }
       break;
     }
 
     case "removeLocale": {
+      const localeEntry = event.before.localeEntry;
       if (useAfter) {
-        removeLocaleFromProject(state.project, event.before.locale);
-        state.promptsByLocale = removeLocaleFromPrompts(state.promptsByLocale, event.before.locale);
+        removeLocaleFromProject(state.project, localeEntry.locale);
+        state.promptsByLocale = removeLocaleFromPrompts(
+          state.promptsByLocale,
+          localeEntry.locale
+        );
       } else {
-        addLocaleToProject(state.project, event.before.locale);
-        state.promptsByLocale[event.before.locale] = cloneNode(event.before.localePrompts);
+        addLocaleToProject(state.project, localeEntry.locale, {
+          displayName: localeEntry.displayName,
+          id: localeEntry.id,
+        });
+        state.promptsByLocale[localeEntry.locale] = cloneNode(event.before.localePrompts);
+      }
+      break;
+    }
+
+    case "updateLocale": {
+      const patch = useAfter ? event.after : event.before;
+      const { previousTag, nextTag } = updateLocaleInProject(state.project, event.localeId, patch);
+      if (previousTag !== nextTag) {
+        state.promptsByLocale = renameLocaleInPrompts(
+          state.promptsByLocale,
+          previousTag,
+          nextTag
+        );
       }
       break;
     }
@@ -118,7 +147,7 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
     case "addStory": {
       if (useAfter) {
         state.project.stories.push(cloneNode(event.after.story));
-        for (const locale of state.project.locales) {
+        for (const locale of state.project.locales.map((entry) => entry.locale)) {
           ensureStoryPrompts(
             ensureLocalePrompts(state.promptsByLocale, locale),
             event.after.story.id

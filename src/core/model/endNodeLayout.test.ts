@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeLocales } from "@/core/locale/localeTag";
 import { parseProject, serializeProject } from "@/core/model/project";
 import {
   defaultEndNodePosition,
@@ -100,7 +101,7 @@ describe("endNodeLayout", () => {
     const raw = serializeProject({
       name: "Test",
       assets: [],
-      locales: ["en"],
+      locales: normalizeLocales(["en"]),
       modules: [],
       stories: [
         {

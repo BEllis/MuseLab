@@ -1,5 +1,7 @@
+import type { Locale } from "@/core/model/types";
+
 interface LocaleVisibilityToggleProps {
-  locales: string[];
+  locales: Locale[];
   visibleLocales: string[];
   onChange: (visibleLocales: string[]) => void;
 }
@@ -25,12 +27,12 @@ export function LocaleVisibilityToggle({
         Visible locales
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        {locales.map((locale) => {
-          const checked = visibleLocales.includes(locale);
+        {locales.map((entry) => {
+          const checked = visibleLocales.includes(entry.locale);
           const isLastVisible = checked && visibleLocales.length === 1;
           return (
             <label
-              key={locale}
+              key={entry.id}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -44,9 +46,9 @@ export function LocaleVisibilityToggle({
                 type="checkbox"
                 checked={checked}
                 disabled={isLastVisible}
-                onChange={(event) => toggleLocale(locale, event.target.checked)}
+                onChange={(event) => toggleLocale(entry.locale, event.target.checked)}
               />
-              {locale}
+              {entry.displayName}
             </label>
           );
         })}

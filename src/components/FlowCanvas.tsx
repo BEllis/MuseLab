@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Graph, Keyboard, MiniMap, Selection } from "@antv/x6";
+import { getDefaultLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
+import { isSceneNode } from "@/core/model/nodeTypes";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
-import { AddNodeMenu } from "./AddNodeMenu";
+import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
+import { ADD_NODE_MENU_OPTIONS, AddNodeMenu } from "./AddNodeMenu";
 import type { StoryNodeType } from "@/core/model/types";
 import { PlayButton } from "./PlayButton";
 import { PlayValidationDialog } from "./PlayValidationDialog";
@@ -38,6 +41,12 @@ type ContextMenu =
 
 type ConnectionDropMenuState = ConnectionDropOnBlank;
 
+type BlankAddMenuState = {
+  clientX: number;
+  clientY: number;
+  graphPoint: { x: number; y: number };
+};
+
 function applyGraphTheme(graph: Graph): void {
   graph.drawBackground({
     color: getThemeCssVar("--app-canvas-bg") || "#f8f8f8",
@@ -70,8 +79,10 @@ export function FlowCanvas() {
   const [connectionDropMenu, setConnectionDropMenu] = useState<ConnectionDropMenuState | null>(
     null
   );
+  const [blankAddMenu, setBlankAddMenu] = useState<BlankAddMenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const connectionDropMenuRef = useRef<HTMLDivElement>(null);
+  const blankAddMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     ensureShapesRegistered();
@@ -111,6 +122,7 @@ export function FlowCanvas() {
     bindGraphEvents(graph, isSyncingRef, {
       onConnectionDropOnBlank: (payload) => {
         setContextMenu(null);
+        setBlankAddMenu(null);
         setConnectionDropMenu(payload);
       },
     });
@@ -184,10 +196,31 @@ export function FlowCanvas() {
     graph.on("blank:click", () => {
       setContextMenu(null);
       setConnectionDropMenu(null);
+      setBlankAddMenu(null);
+    });
+
+    graph.on("blank:contextmenu", ({ e, x, y }) => {
+      e.preventDefault();
+      setContextMenu(null);
+      setConnectionDropMenu(null);
+      const graphPoint =
+        typeof x === "number" && typeof y === "number"
+          ? { x, y }
+          : graph.clientToLocal(e.clientX, e.clientY);
+      setBlankAddMenu({
+        clientX: e.clientX,
+        clientY: e.clientY,
+        graphPoint,
+      });
     });
 
     graph.on("node:contextmenu", ({ e, node }) => {
       e.preventDefault();
+      setBlankAddMenu(null);
+      const store = useProjectStore.getState();
+      store.setSelection([node.id], []);
+      graph.cleanSelection();
+      graph.select(node);
       setContextMenu({
         type: "node",
         id: node.id,
@@ -198,6 +231,7 @@ export function FlowCanvas() {
 
     graph.on("edge:contextmenu", ({ e, edge }) => {
       e.preventDefault();
+      setBlankAddMenu(null);
       setContextMenu({
         type: "edge",
         id: edge.id,
@@ -273,50 +307,67 @@ export function FlowCanvas() {
     }
   }, [clearPlayValidationHighlight, navigate, setHighlightedRootNodeIds]);
 
-  const onAddNode = useCallback((type: StoryNodeType) => {
-    const store = useProjectStore.getState();
-    const story = selectActiveStory(store.project, store.activeStoryId);
-    const graph = graphRef.current;
-    const container = containerRef.current;
-    const initialPosition =
-      graph && container
-        ? proposedNodePositionAtViewportCenter(
-            graph,
-            container,
-            story.nodes as NodeWithPosition[]
-          )
-        : { x: 100, y: 100 };
+  const addNodeAtPosition = useCallback(
+    (type: StoryNodeType, graphPoint?: { x: number; y: number } | null) => {
+      const store = useProjectStore.getState();
+      const story = selectActiveStory(store.project, store.activeStoryId);
+      const graph = graphRef.current;
+      const container = containerRef.current;
+      const initialPosition = graphPoint
+        ? proposedNodePositionAtPoint(graphPoint, story.nodes as NodeWithPosition[])
+        : graph && container
+          ? proposedNodePositionAtViewportCenter(
+              graph,
+              container,
+              story.nodes as NodeWithPosition[]
+            )
+          : { x: 100, y: 100 };
 
-    store.beginHistoryTransaction();
-    try {
-      const newNode = store.addNode(initialPosition, { type });
-      const nextStory = selectActiveStory(store.project, store.activeStoryId);
-      const resolved = findNonOverlappingPosition(
-        newNode.id,
-        newNode.position,
-        nextStory.nodes as NodeWithPosition[]
-      );
-      if (
-        resolved.x !== newNode.position.x ||
-        resolved.y !== newNode.position.y
-      ) {
-        useProjectStore.getState().updateNodePosition(newNode.id, resolved);
-      }
-      if (type === "start") {
-        const nextStory = selectActiveStory(
-          useProjectStore.getState().project,
-          useProjectStore.getState().activeStoryId
+      store.beginHistoryTransaction();
+      try {
+        const newNode = store.addNode(initialPosition, { type });
+        const nextStory = selectActiveStory(store.project, store.activeStoryId);
+        const resolved = findNonOverlappingPosition(
+          newNode.id,
+          newNode.position,
+          nextStory.nodes as NodeWithPosition[]
         );
-        if (!nextStory.entryNodeId) {
-          useProjectStore.getState().updateStory(store.activeStoryId, {
-            entryNodeId: newNode.id,
-          });
+        if (resolved.x !== newNode.position.x || resolved.y !== newNode.position.y) {
+          useProjectStore.getState().updateNodePosition(newNode.id, resolved);
         }
+        if (type === "start") {
+          const storyAfterAdd = selectActiveStory(
+            useProjectStore.getState().project,
+            useProjectStore.getState().activeStoryId
+          );
+          if (!storyAfterAdd.entryNodeId) {
+            useProjectStore.getState().updateStory(store.activeStoryId, {
+              entryNodeId: newNode.id,
+            });
+          }
+        }
+      } finally {
+        useProjectStore.getState().commitHistoryTransaction();
       }
-    } finally {
-      useProjectStore.getState().commitHistoryTransaction();
-    }
-  }, []);
+    },
+    []
+  );
+
+  const onAddNode = useCallback(
+    (type: StoryNodeType) => {
+      addNodeAtPosition(type);
+    },
+    [addNodeAtPosition]
+  );
+
+  const onBlankAddNode = useCallback(
+    (type: StoryNodeType) => {
+      if (!blankAddMenu) return;
+      addNodeAtPosition(type, blankAddMenu.graphPoint);
+      setBlankAddMenu(null);
+    },
+    [addNodeAtPosition, blankAddMenu]
+  );
 
   const placeClonedNode = useCallback(
     (sourceNodeId: string, linkToSource: boolean) => {
@@ -372,6 +423,40 @@ export function FlowCanvas() {
         useProjectStore.getState().selectedNodeIds[0] ?? ""
       );
       if (cell) graphRef.current?.select(cell);
+
+      setContextMenu(null);
+    },
+    [contextMenu]
+  );
+
+  const openSceneNodePromptFromContextMenu = useCallback(
+    (mode: "view" | "edit") => {
+      if (!contextMenu || contextMenu.type !== "node") return;
+
+      const store = useProjectStore.getState();
+      const story = selectActiveStory(store.project, store.activeStoryId);
+      const node = story.nodes.find((entry) => entry.id === contextMenu.id);
+      if (!node || !isSceneNode(node)) return;
+
+      const locale = getDefaultLocale(store.project);
+      const draftTemplate = getNodeTextTemplateForLocale(
+        store.promptsByLocale,
+        locale,
+        store.activeStoryId,
+        node.id
+      );
+
+      store.setSelection([node.id], []);
+      graphRef.current?.cleanSelection();
+      const cell = graphRef.current?.getCellById(node.id);
+      if (cell) graphRef.current?.select(cell);
+
+      const previewStore = useSceneEditorPreviewStore.getState();
+      if (mode === "view") {
+        previewStore.showPreview({ locale, draftTemplate, editingTemplate: false });
+      } else {
+        previewStore.showTemplateEditor(locale, draftTemplate);
+      }
 
       setContextMenu(null);
     },
@@ -476,14 +561,16 @@ export function FlowCanvas() {
   }, [contextMenu, removeNode, removeEdge, clearSelection]);
 
   useEffect(() => {
-    if (!contextMenu && !connectionDropMenu) return;
+    if (!contextMenu && !connectionDropMenu && !blankAddMenu) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
       if (menuRef.current?.contains(target)) return;
       if (connectionDropMenuRef.current?.contains(target)) return;
+      if (blankAddMenuRef.current?.contains(target)) return;
       setContextMenu(null);
       setConnectionDropMenu(null);
+      setBlankAddMenu(null);
     };
     // Defer so the mouseup that finishes a connector drag does not immediately dismiss the menu.
     const listenerTimer = window.setTimeout(() => {
@@ -493,7 +580,7 @@ export function FlowCanvas() {
       window.clearTimeout(listenerTimer);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [contextMenu, connectionDropMenu]);
+  }, [contextMenu, connectionDropMenu, blankAddMenu]);
 
   const runZoom = useCallback((factor: number) => {
     graphRef.current?.zoom(factor);
@@ -508,6 +595,13 @@ export function FlowCanvas() {
         (node) => node.id === connectionDropMenu.sourceId
       )
     : undefined;
+
+  const contextMenuNode =
+    contextMenu?.type === "node"
+      ? selectActiveStory(project, activeStoryId).nodes.find((node) => node.id === contextMenu.id)
+      : undefined;
+  const contextMenuSceneNode =
+    contextMenuNode != null && isSceneNode(contextMenuNode) ? contextMenuNode : undefined;
 
   return (
     <div
@@ -579,6 +673,30 @@ export function FlowCanvas() {
           onClose={() => setPlayValidationMessage(null)}
         />
       )}
+      {blankAddMenu && (
+        <div
+          ref={blankAddMenuRef}
+          className="app-context-menu"
+          style={{
+            position: "fixed",
+            left: blankAddMenu.clientX,
+            top: blankAddMenu.clientY,
+            zIndex: 1000,
+            minWidth: "180px",
+          }}
+        >
+          {ADD_NODE_MENU_OPTIONS.map((option) => (
+            <button
+              key={option.type}
+              type="button"
+              className="app-context-menu-item"
+              onClick={() => onBlankAddNode(option.type)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
       {connectionDropMenu && (
         <div
           ref={connectionDropMenuRef}
@@ -615,6 +733,24 @@ export function FlowCanvas() {
         >
           {contextMenu.type === "node" && (
             <>
+              {contextMenuSceneNode && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openSceneNodePromptFromContextMenu("view")}
+                    className="app-context-menu-item"
+                  >
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openSceneNodePromptFromContextMenu("edit")}
+                    className="app-context-menu-item"
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={onCloneFromContextMenu}

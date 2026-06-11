@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Project } from "@/core/model/types";
+import type { Locale, Project } from "@/core/model/types";
 import {
+  SINGLE_LINE_HEIGHT,
   TemplateCodeEditor,
   type TemplateCodeEditorHandle,
 } from "./templateEditor/TemplateCodeEditor";
@@ -14,9 +15,9 @@ const DEFAULT_WAIT_MS = 500;
 
 const toolbarButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
-  border: "1px solid var(--app-border)",
+  border: "1px solid var(--app-button-border)",
   borderRadius: "4px",
-  background: "var(--app-surface)",
+  background: "var(--app-button-bg)",
   color: "var(--app-text)",
   cursor: "pointer",
   fontSize: "13px",
@@ -47,6 +48,11 @@ export function TemplateTextEditor({
   maxHeight = DEFAULT_MAX_HEIGHT,
   soundAssets = [],
   project,
+  speaker,
+  onSpeakerChange,
+  locale,
+  locales,
+  onLocaleChange,
 }: {
   value: string;
   onChange: (markup: string) => void;
@@ -61,11 +67,17 @@ export function TemplateTextEditor({
   maxHeight?: number;
   soundAssets?: Array<{ id: string; name: string }>;
   project: Project;
+  speaker?: string;
+  onSpeakerChange?: (speaker: string) => void;
+  locale?: string;
+  locales?: Locale[];
+  onLocaleChange?: (locale: string) => void;
 }) {
   const editorRef = useRef<TemplateCodeEditorHandle | null>(null);
+  const speakerEditorRef = useRef<TemplateCodeEditorHandle | null>(null);
+  const activeEditorRef = useRef<"template" | "speaker">("template");
   const [draft, setDraft] = useState(value ?? "");
   const [colorPickerValue, setColorPickerValue] = useState("#000000");
-  const colorAtPickerOpenRef = useRef(colorPickerValue);
   const [selectedSoundId, setSelectedSoundId] = useState("");
   const committedValueRef = useRef(value ?? "");
   const lastExternalSyncKeyRef = useRef(syncKey);
@@ -90,14 +102,38 @@ export function TemplateTextEditor({
     [onChange]
   );
 
+  const getActiveView = useCallback(() => {
+    const ref = activeEditorRef.current === "speaker" ? speakerEditorRef : editorRef;
+    return ref.current?.getView() ?? null;
+  }, []);
+
   const applyEdit = useCallback(
     (next: string) => {
       setDraft(next);
       onDraftChange?.(next);
       commit(next);
-      editorRef.current?.getView()?.focus();
+      getActiveView()?.focus();
     },
-    [commit, onDraftChange]
+    [commit, getActiveView, onDraftChange]
+  );
+
+  const applySpeakerEdit = useCallback(
+    (next: string) => {
+      onSpeakerChange?.(next);
+      getActiveView()?.focus();
+    },
+    [getActiveView, onSpeakerChange]
+  );
+
+  const applyActiveEdit = useCallback(
+    (next: string) => {
+      if (activeEditorRef.current === "speaker") {
+        applySpeakerEdit(next);
+        return;
+      }
+      applyEdit(next);
+    },
+    [applyEdit, applySpeakerEdit]
   );
 
   const handleDraftChange = useCallback(
@@ -116,49 +152,55 @@ export function TemplateTextEditor({
 
   const applyWrap = useCallback(
     (open: string, close: string) => {
-      const view = editorRef.current?.getView();
+      const view = getActiveView();
       if (!view) return;
       const next = insertAroundSelection(view, open, close);
-      applyEdit(next);
+      applyActiveEdit(next);
     },
-    [applyEdit]
+    [applyActiveEdit, getActiveView]
   );
 
   const applyColor = useCallback(
     (color: string) => {
-      const view = editorRef.current?.getView();
+      const view = getActiveView();
       if (!view) return;
       const next = applyColorAtCursor(view, color);
-      applyEdit(next);
+      applyActiveEdit(next);
     },
-    [applyEdit]
+    [applyActiveEdit, getActiveView]
   );
 
-  const handleColorPickerFocus = useCallback(() => {
-    colorAtPickerOpenRef.current = colorPickerValue;
-  }, [colorPickerValue]);
-
-  const handleColorPickerBlur = useCallback(() => {
-    if (colorPickerValue === colorAtPickerOpenRef.current) return;
+  const handleApplyColor = useCallback(() => {
     applyColor(colorPickerValue);
   }, [applyColor, colorPickerValue]);
 
   const insertSnippet = useCallback(
     (text: string) => {
-      const view = editorRef.current?.getView();
+      const view = getActiveView();
       if (!view) return;
       const next = insertAtCursor(view, text);
-      applyEdit(next);
+      applyActiveEdit(next);
     },
-    [applyEdit]
+    [applyActiveEdit, getActiveView]
   );
 
+  const handleTemplateFocus = useCallback(() => {
+    activeEditorRef.current = "template";
+    onFocus?.();
+  }, [onFocus]);
+
+  const handleSpeakerFocus = useCallback(() => {
+    activeEditorRef.current = "speaker";
+  }, []);
+
   const soundInsertDisabled = !selectedSoundId || soundAssets.length === 0;
+  const showPromptMeta = locales != null && onLocaleChange != null;
 
   return (
     <div style={{ border: "1px solid var(--app-border)", borderRadius: "6px", overflow: "hidden", ...style }}>
       {showToolbar && (
         <div
+          onMouseDown={(event) => event.preventDefault()}
           style={{
             display: "flex",
             alignItems: "center",
@@ -185,14 +227,11 @@ export function TemplateTextEditor({
           >
             I
           </button>
-          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Color:</span>
           <input
             type="color"
             value={colorPickerValue}
-            title="Text color"
+            title="Pick text color"
             onChange={(e) => setColorPickerValue(e.target.value)}
-            onFocus={handleColorPickerFocus}
-            onBlur={handleColorPickerBlur}
             style={{
               width: "28px",
               height: "28px",
@@ -203,6 +242,14 @@ export function TemplateTextEditor({
               background: "var(--app-input-bg)",
             }}
           />
+          <button
+            type="button"
+            onClick={handleApplyColor}
+            title="Apply color to selection, or insert @Format.ColorStart at cursor"
+            style={toolbarButtonStyle}
+          >
+            Apply color
+          </button>
 
           <ToolbarSeparator />
 
@@ -331,6 +378,75 @@ export function TemplateTextEditor({
           </button>
         </div>
       )}
+      {showPromptMeta && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            padding: "6px 8px",
+            background: "var(--app-surface)",
+            borderBottom: "1px solid var(--app-border)",
+            flexShrink: 0,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flex: 1,
+              minWidth: 0,
+              fontSize: "13px",
+            }}
+          >
+            <span style={{ color: "var(--app-text-muted)", flexShrink: 0 }}>Speaker</span>
+            {onSpeakerChange && (
+              <TemplateCodeEditor
+                mode="singleLine"
+                value={speaker ?? ""}
+                onChange={onSpeakerChange}
+                onFocus={handleSpeakerFocus}
+                syncKey={syncKey}
+                project={project}
+                placeholder="Optional — supports Cito"
+                minHeight={SINGLE_LINE_HEIGHT}
+                maxHeight={SINGLE_LINE_HEIGHT}
+                editorRef={speakerEditorRef}
+              />
+            )}
+          </label>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "13px",
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: "var(--app-text-muted)" }}>Locale</span>
+            <select
+              value={locale ?? locales[0]?.locale ?? ""}
+              onChange={(e) => onLocaleChange(e.target.value)}
+              style={{
+                padding: "6px 8px",
+                fontSize: "13px",
+                border: "1px solid var(--app-border)",
+                borderRadius: "4px",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
+              }}
+            >
+              {locales.map((entry) => (
+                <option key={entry.id} value={entry.locale}>
+                  {entry.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
       <TemplateCodeEditor
         value={draft}
         placeholder={placeholder}
@@ -338,7 +454,7 @@ export function TemplateTextEditor({
         minHeight={minHeight}
         maxHeight={maxHeight}
         onChange={handleDraftChange}
-        onFocus={onFocus}
+        onFocus={handleTemplateFocus}
         onBlur={handleBlur}
         syncKey={syncKey}
         editorRef={editorRef}

@@ -130,6 +130,11 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
     case "updateProject":
       if (existing.type !== "updateProject") return null;
       return { ...existing, after: { ...existing.after, ...incoming.after } };
+    case "updateLocale":
+      if (existing.type !== "updateLocale" || existing.localeId !== incoming.localeId) {
+        return null;
+      }
+      return { ...existing, after: incoming.after };
     case "updateStory":
       if (existing.type !== "updateStory" || existing.storyId !== incoming.storyId) return null;
       return { ...existing, after: incoming.after };

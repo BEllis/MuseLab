@@ -4,6 +4,7 @@ import type {
   AssetGroup,
   Attributes,
   EndNodeLayout,
+  Locale,
   Project,
   ModuleInterface,
   Story,
@@ -71,7 +72,7 @@ export type AssetPatch = Partial<
 };
 
 export type ModulePatch = Partial<
-  Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+  Pick<ModuleInterface, "name" | "bindingName" | "description" | "methods" | "typescriptSource">
 >;
 
 export type ExpressionPatch = Partial<Pick<ActorExpression, "name" | "sortOrder">> & {
@@ -100,8 +101,17 @@ export type RemoveStoryPayload = {
 };
 
 export type RemoveLocalePayload = {
-  locale: string;
+  localeEntry: Locale;
   localePrompts: LocalePrompts;
+};
+
+export type LocalePatch = Pick<Locale, "locale" | "displayName">;
+
+export type UpdateLocaleEvent = AppEventBase & {
+  type: "updateLocale";
+  localeId: string;
+  before: LocalePatch;
+  after: LocalePatch;
 };
 
 export type UpdateProjectEvent = AppEventBase & {
@@ -112,9 +122,8 @@ export type UpdateProjectEvent = AppEventBase & {
 
 export type AddLocaleEvent = AppEventBase & {
   type: "addLocale";
-  locale: string;
   before: null;
-  after: { locale: string; localePrompts: LocalePrompts };
+  after: { localeEntry: Locale; localePrompts: LocalePrompts };
 };
 
 export type RemoveLocaleEvent = AppEventBase & {
@@ -431,6 +440,7 @@ export type AppEvent =
   | UpdateProjectEvent
   | AddLocaleEvent
   | RemoveLocaleEvent
+  | UpdateLocaleEvent
   | AddStoryEvent
   | RemoveStoryEvent
   | UpdateStoryEvent

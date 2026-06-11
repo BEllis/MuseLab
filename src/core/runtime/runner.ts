@@ -6,6 +6,7 @@ import {
   getNodeTextTemplateForLocale,
 } from "../locale/prompts";
 import { isJumpNode, isSceneNode, isStartNode } from "../model/nodeTypes";
+import { resolveJumpTargetStoryId } from "../model/nodeNames";
 import { getStory } from "../model/project";
 import { runTemplate, evaluateCondition, type RunTemplateResult } from "../template/engine";
 import type { TemplateContext } from "../cito/runtimeBridge";
@@ -49,16 +50,20 @@ function resolveJumpTarget(
   if (!isJumpNode(node)) {
     throw new Error("resolveJumpTarget called on non-jump node");
   }
-  if (!node.jumpTargetStoryId || !node.jumpTargetStartNodeId) {
-    throw new Error("Jump node is missing a target story or Start node");
+  if (!node.jumpTargetStartNodeId) {
+    throw new Error("Jump node is missing a target Start node");
   }
-  const targetStory = getStory(project, node.jumpTargetStoryId);
+  const storyId = resolveJumpTargetStoryId(project, node);
+  if (!storyId) {
+    throw new Error("Jump node is missing a target story");
+  }
+  const targetStory = getStory(project, storyId);
   const targetStart = targetStory.nodes.find((entry) => entry.id === node.jumpTargetStartNodeId);
   if (!targetStart || !isStartNode(targetStart)) {
     throw new Error("Jump target is not a valid Start node");
   }
   return {
-    storyId: node.jumpTargetStoryId,
+    storyId,
     startNodeId: node.jumpTargetStartNodeId,
   };
 }

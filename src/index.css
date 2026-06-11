@@ -43,6 +43,10 @@
   --menubar-label-color: #1a1a1a;
   --menubar-label-hover-bg: rgba(0, 0, 0, 0.05);
   --menubar-label-active-bg: rgba(0, 0, 0, 0.08);
+  --app-button-bg: #e0e0e0;
+  --app-button-border: #ababab;
+  --app-button-bg-hover: #d4d4d4;
+  --app-button-bg-active: #c8c8c8;
 }
 
 [data-theme="dark"] {
@@ -85,6 +89,10 @@
   --menubar-label-color: #e8e8e8;
   --menubar-label-hover-bg: rgba(255, 255, 255, 0.08);
   --menubar-label-active-bg: rgba(255, 255, 255, 0.12);
+  --app-button-bg: #3a3a3a;
+  --app-button-border: #606060;
+  --app-button-bg-hover: #464646;
+  --app-button-bg-active: #505050;
 }
 
 body {
@@ -114,11 +122,25 @@ select,
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--app-border-strong);
+  border: 1px solid var(--app-button-border);
   border-radius: 4px;
-  background: var(--app-surface-hover);
+  background: var(--app-button-bg);
   color: var(--app-text);
   cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.app-icon-button:hover:not(:disabled) {
+  background: var(--app-button-bg-hover);
+}
+
+.app-icon-button:active:not(:disabled) {
+  background: var(--app-button-bg-active);
+}
+
+.app-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .app-canvas-overlay-button {
@@ -128,9 +150,9 @@ select,
   width: 40px;
   height: 40px;
   padding: 0;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-button-border);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+  background: color-mix(in srgb, var(--app-button-bg) 92%, transparent);
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 12px var(--app-shadow);
   color: var(--app-text);
@@ -142,7 +164,7 @@ select,
 }
 
 .app-canvas-overlay-button:hover {
-  background: var(--app-surface-raised);
+  background: var(--app-button-bg-hover);
   box-shadow: 0 4px 16px var(--app-shadow);
 }
 
@@ -157,9 +179,9 @@ select,
   width: 40px;
   height: 40px;
   padding: 0;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-button-border);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+  background: color-mix(in srgb, var(--app-button-bg) 92%, transparent);
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 12px var(--app-shadow);
   color: var(--app-text);
@@ -171,7 +193,7 @@ select,
 }
 
 .app-player-overlay-button:hover {
-  background: var(--app-surface-raised);
+  background: var(--app-button-bg-hover);
   box-shadow: 0 4px 16px var(--app-shadow);
 }
 
@@ -249,8 +271,8 @@ select,
 .app-player-restart-button {
   padding: 8px 16px;
   border-radius: 4px;
-  border: 1px solid var(--app-border);
-  background: var(--app-surface-raised);
+  border: 1px solid var(--app-button-border);
+  background: var(--app-button-bg);
   color: var(--app-text);
   cursor: pointer;
   font-family: inherit;
@@ -258,7 +280,7 @@ select,
 }
 
 .app-player-restart-button:hover {
-  background: var(--app-surface-hover);
+  background: var(--app-button-bg-hover);
 }
 
 .app-player-end-screen {
@@ -293,12 +315,22 @@ select,
 
 .app-toolbar-button {
   padding: 4px 10px;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-button-border);
   border-radius: 4px;
-  background: var(--app-surface);
+  background: var(--app-button-bg);
   color: var(--app-text);
   cursor: pointer;
   font-size: 14px;
+  font-family: inherit;
+  transition: background 0.12s ease;
+}
+
+.app-toolbar-button:hover:not(:disabled) {
+  background: var(--app-button-bg-hover);
+}
+
+.app-toolbar-button:active:not(:disabled) {
+  background: var(--app-button-bg-active);
 }
 
 .app-context-menu {
@@ -474,17 +506,19 @@ select,
 .app-side-panel-button {
   width: 100%;
   padding: 6px 10px;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-button-border);
   border-radius: 4px;
-  background: var(--app-surface);
+  background: var(--app-button-bg);
   color: var(--app-text);
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease;
 }
 
 .app-side-panel-button:hover {
-  background: var(--app-surface-hover);
+  background: var(--app-button-bg-hover);
 }
 
 .story-tree-toolbar {
@@ -602,6 +636,42 @@ select,
   cursor: text;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locale-list-code {
+  flex: 0 0 auto;
+  width: 5ch;
+  font-family: monospace;
+  color: var(--app-text-muted);
+}
+
+.locale-code-input {
+  flex: 0 0 auto;
+  width: 5ch;
+  min-width: 5ch;
+  max-width: 5ch;
+  padding-left: 2px;
+  padding-right: 2px;
+  font-family: monospace;
+  box-sizing: content-box;
+}
+
+.locale-list-display-name {
+  flex: 0 1 auto;
+}
+
+.locale-list-display-name-input {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 6ch;
+  max-width: 100%;
+}
+
+.locale-default-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--app-text-muted);
   white-space: nowrap;
 }
 
@@ -789,6 +859,22 @@ select,
 .app-assets-panel.is-drop-active {
   background: var(--app-accent-soft);
   border-radius: 4px;
+}
+
+/* Dialogue caption hints (Continue / ...) */
+@keyframes muselab-dialogue-hint-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.muselab-dialogue-hint {
+  pointer-events: none;
+  animation: muselab-dialogue-hint-fade-in 0.35s ease-out both;
 }
 
 /* Text template shake effects (player + canvas previews) */

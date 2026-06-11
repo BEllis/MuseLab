@@ -18,12 +18,13 @@ import {
   setNodeTextTemplate,
   createEmptyLocalePrompts,
 } from "../locale/prompts";
+import { getLocaleTags, normalizeLocales } from "../locale/localeTag";
 import { packProjectArchive, unpackProjectArchive } from "../project/projectArchive";
 
 describe("projectArchive localization", () => {
   it("round-trips prompts files in mlvn archives", async () => {
     const project = createStarterProject("Localized");
-    project.locales = ["en", "de"];
+    project.locales = normalizeLocales(["en", "de"]);
     project.defaultLocale = "en";
     const storyId = getFirstStoryId(project);
     const nodeId = getStory(project, storyId).nodes[0]!.id;
@@ -48,7 +49,7 @@ describe("projectArchive localization", () => {
     );
     const restoredStoryId = getFirstStoryId(bundle.project);
 
-    expect(bundle.project.locales).toEqual(["de", "en"]);
+    expect(getLocaleTags(bundle.project.locales)).toEqual(["de", "en"]);
     expect(bundle.project.defaultLocale).toBe("en");
     expect(
       getNodeTextTemplateForLocale(bundle.promptsByLocale, "en", restoredStoryId, nodeId)
@@ -60,7 +61,7 @@ describe("projectArchive localization", () => {
 
   it("preserves edge option text per locale", async () => {
     const project = createStarterProject("Choices");
-    project.locales = ["en", "de"];
+    project.locales = normalizeLocales(["en", "de"]);
     project.defaultLocale = "en";
     const storyId = getFirstStoryId(project);
     const story = getStory(project, storyId);

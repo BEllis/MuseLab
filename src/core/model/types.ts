@@ -161,6 +161,14 @@ export interface StoryGroup {
   sortOrder?: number;
 }
 
+/** Supported language entry in a project manifest. */
+export interface Locale {
+  id: string;
+  /** BCP 47-style locale tag (lowercase letters and hyphens). */
+  locale: string;
+  displayName: string;
+}
+
 /** Localized text content stored in prompts.<locale>.json */
 export interface StoryPrompts {
   nodes: Record<string, { textTemplate?: string; speaker?: string }>;
@@ -216,8 +224,8 @@ export interface Project {
   storyGroups?: StoryGroup[];
   /** Optional hierarchy folders for the Assets panel tree. */
   assetGroups?: AssetGroup[];
-  /** Supported locale tags in alphabetical order. */
-  locales: string[];
+  /** Supported locales in alphabetical order by locale tag. */
+  locales: Locale[];
   /** Default locale tag; must appear in locales. */
   defaultLocale?: string;
   /** Custom module interfaces available in Cito code */

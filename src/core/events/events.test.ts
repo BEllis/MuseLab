@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeLocales } from "@/core/locale/localeTag";
 import { createStarterProject } from "@/core/model/project";
 import { migrateProjectBundle } from "@/core/model/projectBundle";
 import { applyEvent } from "@/core/events/applyEvent";
@@ -52,7 +53,7 @@ describe("applyEvent round trips", () => {
 
   it("restores default locale on undo", () => {
     const state = starterAppState();
-    state.project.locales = ["de", "en"];
+    state.project.locales = normalizeLocales(["de", "en"]);
     state.project.defaultLocale = "en";
     const event = {
       ...createEventMeta(),

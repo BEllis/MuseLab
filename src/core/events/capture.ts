@@ -302,7 +302,7 @@ export function captureRemoveNodePayload(
     throw new Error(`Node "${nodeId}" not found`);
   }
   const nodePromptsByLocale: Record<string, NodePromptValue> = {};
-  for (const locale of state.project.locales) {
+  for (const locale of state.project.locales.map((entry) => entry.locale)) {
     const textTemplate = getNodeTextTemplate(state.promptsByLocale[locale], storyId, nodeId);
     const speaker = getNodeSpeaker(state.promptsByLocale[locale], storyId, nodeId);
     if (textTemplate || speaker) {
@@ -330,7 +330,7 @@ export function captureRemoveEdgePayload(
     throw new Error(`Edge "${edgeId}" not found`);
   }
   const edgePromptsByLocale: Record<string, EdgePromptValue> = {};
-  for (const locale of state.project.locales) {
+  for (const locale of state.project.locales.map((entry) => entry.locale)) {
     const optionText = state.promptsByLocale[locale]?.stories[storyId]?.edges[edgeId]?.optionText;
     if (optionText) {
       edgePromptsByLocale[locale] = { optionText };
@@ -348,7 +348,7 @@ export function captureRemoveStoryPayload(
 ): RemoveStoryPayload {
   const story = getStory(state.project, storyId);
   const storyPromptsByLocale: RemoveStoryPayload["storyPromptsByLocale"] = {};
-  for (const locale of state.project.locales) {
+  for (const locale of state.project.locales.map((entry) => entry.locale)) {
     const storyPrompts = state.promptsByLocale[locale]?.stories[storyId];
     if (storyPrompts) {
       storyPromptsByLocale[locale] = clone(storyPrompts);

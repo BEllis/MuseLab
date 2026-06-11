@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeLocales } from "../locale/localeTag";
 import type { Project, Story } from "./types";
 import {
   deriveUniqueNodeLabel,
@@ -62,7 +63,7 @@ describe("nodeNames", () => {
     const project: Project = {
       name: "Test",
       assets: [],
-      locales: ["en"],
+      locales: normalizeLocales(["en"]),
       modules: [],
       stories: [
         {
@@ -86,6 +87,42 @@ describe("nodeNames", () => {
     expect(getJumpNodeDisplayName(jump, project)).toBe("Jump To Intro");
     expect(getNodeDisplayName(jump, project)).toBe("Jump To Intro");
     expect(getNodeDisplayName(jump)).toBe("Jump To");
+  });
+
+  it("resolves jump target story from the start node id across stories", () => {
+    const project: Project = {
+      name: "Test",
+      assets: [],
+      locales: normalizeLocales(["en"]),
+      modules: [],
+      stories: [
+        {
+          id: "story-a",
+          name: "A",
+          nodes: [
+            { id: "start-a", type: "start", position: { x: 0, y: 0 } },
+            {
+              id: "jump-1",
+              type: "jump",
+              position: { x: 0, y: 0 },
+              jumpTargetStoryId: "story-a",
+              jumpTargetStartNodeId: "start-b",
+            },
+          ],
+          edges: [],
+          globalState: {},
+        },
+        {
+          id: "story-b",
+          name: "B",
+          nodes: [{ id: "start-b", type: "start", position: { x: 0, y: 0 }, label: "Chapter 2" }],
+          edges: [],
+          globalState: {},
+        },
+      ],
+    };
+    const jump = project.stories[0].nodes[1];
+    expect(getJumpNodeDisplayName(jump, project)).toBe("Jump To Chapter 2");
   });
 
   it("ignores jump nodes in duplicate name checks", () => {

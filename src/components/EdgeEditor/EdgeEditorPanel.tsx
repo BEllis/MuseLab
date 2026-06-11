@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { getEdgeOptionTextForLocale } from "@/core/locale/prompts";
+import { getLocaleTags } from "@/core/locale/localeTag";
 import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
 import {
   InspectorPanelDetails,
@@ -20,11 +21,12 @@ export function EdgeEditorPanel() {
   const updateEdge = useProjectStore((s) => s.updateEdge);
   const updateEdgePrompt = useProjectStore((s) => s.updateEdgePrompt);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
-  const [visibleLocales, setVisibleLocales] = useState<string[]>(project.locales);
+  const localeTags = getLocaleTags(project.locales);
+  const [visibleLocales, setVisibleLocales] = useState<string[]>(localeTags);
 
   useEffect(() => {
-    setVisibleLocales(project.locales);
-  }, [project.locales]);
+    setVisibleLocales(localeTags);
+  }, [localeTags]);
 
   const edge =
     selectedEdgeIds.length === 1

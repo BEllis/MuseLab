@@ -7,7 +7,7 @@ type AddNodeMenuProps = {
   variant?: "toolbar" | "overlay";
 };
 
-const MENU_OPTIONS: { type: StoryNodeType; label: string }[] = [
+export const ADD_NODE_MENU_OPTIONS: { type: StoryNodeType; label: string }[] = [
   { type: "start", label: "Create Start Point" },
   { type: "scene", label: "Create New Scene" },
   { type: "jump", label: "Create Jump To" },
@@ -60,7 +60,7 @@ export function AddNodeMenu({ onAdd, variant = "toolbar" }: AddNodeMenuProps) {
             minWidth: "180px",
           }}
         >
-          {MENU_OPTIONS.map((option) => (
+          {ADD_NODE_MENU_OPTIONS.map((option) => (
             <button
               key={option.type}
               type="button"

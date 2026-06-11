@@ -160,6 +160,34 @@ function MethodsTable({
                   </button>
                 )}
               </div>
+              {(method.description || !readOnly) && (
+                <label
+                  style={{
+                    fontSize: "11px",
+                    display: "block",
+                    marginBottom: "6px",
+                    color: "var(--app-text-muted)",
+                  }}
+                >
+                  Description
+                  <textarea
+                    value={method.description ?? ""}
+                    readOnly={readOnly}
+                    onChange={(event) =>
+                      updateMethod(methodIndex, { description: event.target.value })
+                    }
+                    rows={readOnly ? 2 : 2}
+                    style={{
+                      ...INPUT_STYLE,
+                      minHeight: "48px",
+                      resize: readOnly ? "none" : "vertical",
+                      fontFamily: "inherit",
+                      fontSize: "11px",
+                    }}
+                    placeholder="What does this method do?"
+                  />
+                </label>
+              )}
               <div style={{ fontSize: "11px", color: "var(--app-text-muted)", marginBottom: "4px" }}>
                 Parameters
               </div>
@@ -256,6 +284,7 @@ export function ModuleEditorPanel() {
 
   const isBuiltIn = builtIn != null;
   const moduleName = builtIn?.name ?? customModule!.name;
+  const moduleDescription = builtIn?.description ?? customModule!.description ?? "";
   const bindingName = builtIn?.bindingName ?? customModule!.bindingName;
   const methods = builtIn?.methods ?? customModule!.methods;
 
@@ -311,6 +340,30 @@ export function ModuleEditorPanel() {
           placeholder="gameSave"
         />
       </label>
+
+      {(moduleDescription || !isBuiltIn) && (
+        <label style={{ fontSize: "12px", display: "block", marginBottom: "12px" }}>
+          Description
+          <textarea
+            value={moduleDescription}
+            readOnly={isBuiltIn}
+            onChange={(event) => {
+              if (!customModule) return;
+              updateModule(customModule.id, { description: event.target.value });
+            }}
+            onBlur={flushHistoryCoalesce}
+            rows={isBuiltIn ? 2 : 3}
+            style={{
+              ...TEXTAREA_STYLE,
+              minHeight: "56px",
+              fontFamily: "inherit",
+              fontSize: "12px",
+              resize: isBuiltIn ? "none" : "vertical",
+            }}
+            placeholder="What is this module for?"
+          />
+        </label>
+      )}
 
       <MethodsTable
         methods={methods}

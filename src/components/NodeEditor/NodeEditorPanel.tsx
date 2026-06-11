@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
@@ -7,7 +7,16 @@ import type { NodePatch } from "@/core/events/types";
 import type { Attributes, Project, SoundConfig, StoryNode, ActorSceneConfig } from "@/core/model/types";
 import { getNodeDisplayName, isNodeLabelUnique } from "@/core/model/nodeNames";
 import { getStartNodes, isJumpNode, isSceneNode, isStartNode } from "@/core/model/nodeTypes";
-import { getNodeSpeakerForLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
+import {
+  getDefaultLocale,
+  getNodeSpeakerForLocale,
+  getNodeTextTemplateForLocale,
+} from "@/core/locale/prompts";
+import {
+  countTemplateLiteralChars,
+  getTemplateLiteralText,
+  templateHasPlaySound,
+} from "@/core/cito/templateStats";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
@@ -16,65 +25,123 @@ import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
 import { EditButton } from "../EditButton";
-import { LocaleVisibilityToggle } from "../LocaleVisibilityToggle";
+import { ViewButton } from "../ViewButton";
 import { InspectorPanelHeader, InspectorPanelId } from "../InspectorPanelMeta";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 
 const ACTOR_THUMB_SIZE = 36;
 const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
 
-const promptDisplayStyle: React.CSSProperties = {
-  padding: "8px 10px",
-  lineHeight: 1.5,
-  border: "1px solid var(--app-border)",
-  borderRadius: "6px",
-  background: "var(--app-surface)",
-  color: "var(--app-text)",
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
-  maxHeight: "160px",
-  overflowY: "auto",
-};
-
-function PromptReadOnlyField({
-  label,
-  value,
-  emptyText,
-  monospace = false,
-  action,
-}: {
-  label: ReactNode;
-  value: string;
-  emptyText: string;
-  monospace?: boolean;
-  action?: ReactNode;
-}) {
+function PromptSoundIcon() {
   return (
-    <div>
-      <div
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M3.5 5.25h2.25L8.75 3.5v7L5.75 8.75H3.5V5.25Z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 5.5a2.25 2.25 0 0 1 0 3"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PromptLocaleRow({
+  locale,
+  displayName,
+  template,
+  speaker,
+  onView,
+  onEdit,
+}: {
+  locale: string;
+  displayName: string;
+  template: string;
+  speaker: string;
+  onView: () => void;
+  onEdit: () => void;
+}) {
+  const charCount = countTemplateLiteralChars(template);
+  const hasSound = templateHasPlaySound(template);
+  const speakerLabel = getTemplateLiteralText(speaker).trim();
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "6px 8px",
+        border: "1px solid var(--app-border-subtle)",
+        borderRadius: "6px",
+        background: "var(--app-surface)",
+      }}
+    >
+      <span
         style={{
-          display: "flex",
+          flexShrink: 0,
+          fontSize: "13px",
+        }}
+        title={locale}
+      >
+        {displayName}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }} aria-hidden />
+      {speakerLabel.length > 0 && (
+        <span
+          style={{
+            fontSize: "11px",
+            padding: "2px 8px",
+            borderRadius: "999px",
+            background: "var(--app-surface-hover)",
+            border: "1px solid var(--app-border-subtle)",
+            color: "var(--app-text-muted)",
+            maxWidth: "120px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flexShrink: 1,
+            minWidth: 0,
+          }}
+          title={speakerLabel}
+        >
+          {speakerLabel}
+        </span>
+      )}
+      <span
+        style={{
+          width: "16px",
+          display: "inline-flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "4px",
+          justifyContent: "center",
+          color: "var(--app-text-muted)",
+          flexShrink: 0,
         }}
+        title={hasSound ? "Contains PlaySound or PlaySoundClip" : undefined}
+        aria-hidden={!hasSound}
       >
-        <span>{label}</span>
-        {action}
-      </div>
-      <div
+        {hasSound ? <PromptSoundIcon /> : null}
+      </span>
+      <span
         style={{
-          ...promptDisplayStyle,
-          fontSize: monospace ? "12px" : "13px",
-          fontFamily: monospace ? "monospace" : "inherit",
+          fontSize: "12px",
+          color: "var(--app-text-muted)",
+          minWidth: "2.5ch",
+          textAlign: "right",
+          flexShrink: 0,
+          fontVariantNumeric: "tabular-nums",
         }}
+        title="Literal characters (excluding Razor)"
       >
-        {value ? (
-          value
-        ) : (
-          <span style={{ color: "var(--app-text-muted)", fontStyle: "italic" }}>{emptyText}</span>
-        )}
-      </div>
+        {charCount}
+      </span>
+      <ViewButton onClick={onView} title={`View ${locale} prompt`} />
+      <EditButton onClick={onEdit} title={`Edit ${locale} prompt`} />
     </div>
   );
 }
@@ -449,12 +516,6 @@ export function NodeEditorPanel() {
   const [backdropDropActive, setBackdropDropActive] = useState(false);
   const [actorsDropActive, setActorsDropActive] = useState(false);
   const [actorReorderDropIndex, setActorReorderDropIndex] = useState<number | null>(null);
-  const [visibleLocales, setVisibleLocales] = useState<string[]>(project.locales);
-
-  useEffect(() => {
-    setVisibleLocales(project.locales);
-  }, [project.locales]);
-
   const onBackdropDragOver = useCallback((e: React.DragEvent) => {
     if (isAssetDrag(e.dataTransfer)) {
       e.preventDefault();
@@ -519,8 +580,20 @@ export function NodeEditorPanel() {
   );
 
   const openScenePreview = useCallback(() => {
-    showPreview();
-  }, [showPreview]);
+    showPreview({ locale: getDefaultLocale(project) });
+  }, [project, showPreview]);
+
+  const openPromptView = useCallback(
+    (locale: string) => {
+      if (!node) return;
+      showPreview({
+        locale,
+        draftTemplate: getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id),
+        editingTemplate: false,
+      });
+    },
+    [node, promptsByLocale, showPreview, storyId]
+  );
 
   const openTemplateEditor = useCallback(
     (locale: string) => {
@@ -770,14 +843,8 @@ export function NodeEditorPanel() {
                   type="button"
                   onClick={() => update({ backdropId: DEFAULT_BACKDROP_ID })}
                   title="Use default backdrop"
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: "11px",
-                    border: "1px solid var(--app-border)",
-                    borderRadius: "4px",
-                    background: "var(--app-surface)",
-                    cursor: "pointer",
-                  }}
+                  className="app-toolbar-button"
+                  style={{ padding: "2px 8px", fontSize: "11px" }}
                 >
                   Reset
                 </button>
@@ -870,29 +937,25 @@ export function NodeEditorPanel() {
       </div>
 
       <div style={{ marginBottom: "8px" }}>
-        <LocaleVisibilityToggle
-          locales={project.locales}
-          visibleLocales={visibleLocales}
-          onChange={setVisibleLocales}
-        />
-        {visibleLocales.map((locale) => (
-          <div key={locale} style={{ marginBottom: "12px" }}>
-            <div style={{ marginBottom: "8px" }}>
-              <PromptReadOnlyField
-                label={`Speaker (${locale})`}
-                value={getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)}
-                emptyText="No speaker"
-              />
-            </div>
-            <PromptReadOnlyField
-              label={`Text template (${locale})`}
-              value={getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)}
-              emptyText="No template"
-              monospace
-              action={<EditButton onClick={() => openTemplateEditor(locale)} />}
+        <div style={{ marginBottom: "4px" }}>Prompt</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {project.locales.map((entry) => (
+            <PromptLocaleRow
+              key={entry.id}
+              locale={entry.locale}
+              displayName={entry.displayName}
+              template={getNodeTextTemplateForLocale(
+                promptsByLocale,
+                entry.locale,
+                storyId,
+                node.id
+              )}
+              speaker={getNodeSpeakerForLocale(promptsByLocale, entry.locale, storyId, node.id)}
+              onView={() => openPromptView(entry.locale)}
+              onEdit={() => openTemplateEditor(entry.locale)}
             />
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       <NodeAttributesSection

@@ -18,16 +18,13 @@ function findJumpTargetStart(
   return targetStart != null && isStartNode(targetStart) ? targetStart : null;
 }
 
-/** Resolve the story id for a jump's target start (explicit field or project lookup). */
+/** Resolve the story id for a jump's target start (lookup by start id, then explicit field). */
 export function resolveJumpTargetStoryId(
   project: Project,
   node: StoryNode
 ): string | undefined {
-  if (node.jumpTargetStoryId) {
-    return node.jumpTargetStoryId;
-  }
   if (!node.jumpTargetStartNodeId) {
-    return undefined;
+    return node.jumpTargetStoryId;
   }
   for (const story of project.stories) {
     const start = story.nodes.find(
@@ -37,7 +34,7 @@ export function resolveJumpTargetStoryId(
       return story.id;
     }
   }
-  return undefined;
+  return node.jumpTargetStoryId;
 }
 
 export function getJumpNodeDisplayName(node: StoryNode, project?: Project): string {

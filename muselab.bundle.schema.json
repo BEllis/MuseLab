@@ -22,7 +22,7 @@
     },
     "promptsByLocale": {
       "type": "object",
-      "description": "Localized prompts keyed by locale tag. Keys should match project.locales.",
+      "description": "Localized prompts keyed by locale tag. Keys should match each project locale entry's locale field.",
       "minProperties": 1,
       "propertyNames": {
         "pattern": "^[a-z]+(?:-[a-z]+)*$"
@@ -100,7 +100,13 @@
             "globalState": {}
           }
         ],
-        "locales": ["en"]
+        "locales": [
+          {
+            "id": "a1000000-0000-4000-8000-000000000020",
+            "locale": "en",
+            "displayName": "English"
+          }
+        ]
       },
       "promptsByLocale": {
         "en": {

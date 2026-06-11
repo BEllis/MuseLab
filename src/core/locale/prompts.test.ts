@@ -9,6 +9,7 @@ import {
   getEdgeOptionTextForLocale,
   parseLocalePrompts,
   serializeLocalePrompts,
+  renameLocaleInPrompts,
   setNodeSpeaker,
   setNodeTextTemplate,
 } from "./prompts";
@@ -45,7 +46,7 @@ describe("legacy prompt migration", () => {
     const sceneId = bundle.project.stories[0]!.nodes[0]!.id;
     const edgeId = bundle.project.stories[0]!.edges[0]!.id;
 
-    expect(bundle.project.locales).toEqual(["en"]);
+    expect(bundle.project.locales[0]).toMatchObject({ locale: "en", displayName: "en" });
     expect(
       getNodeTextTemplateForLocale(bundle.promptsByLocale, "en", storyId, sceneId)
     ).toBe("<p>Hello</p>");
@@ -60,7 +61,26 @@ describe("legacy prompt migration", () => {
 describe("project locales", () => {
   it("defaults locales to en for new projects", () => {
     const project = createEmptyProject();
-    expect(project.locales).toEqual(["en"]);
+    expect(project.locales[0]).toMatchObject({ locale: "en", displayName: "en" });
+  });
+});
+
+describe("renameLocaleInPrompts", () => {
+  it("moves prompt data when a locale code changes", () => {
+    const promptsByLocale = {
+      en: {
+        stories: {
+          story1: {
+            nodes: { n1: { textTemplate: "<p>Hi</p>" } },
+            edges: {},
+          },
+        },
+      },
+    };
+
+    const renamed = renameLocaleInPrompts(promptsByLocale, "en", "en-gb");
+    expect(renamed.en).toBeUndefined();
+    expect(renamed["en-gb"]?.stories.story1?.nodes.n1?.textTemplate).toBe("<p>Hi</p>");
   });
 });
 

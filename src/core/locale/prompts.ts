@@ -1,5 +1,6 @@
 import type { LocalePrompts, Project, StoryEdge, StoryNode, StoryPrompts } from "../model/types";
-import { normalizeLocales, getDefaultLocaleTag } from "./localeTag";
+import { getDefaultLocaleTag, normalizeLocaleTags } from "./localeTag";
+import type { Locale } from "../model/types";
 import { MUSELAB_FORMAT_VERSION, PROMPTS_SCHEMA_ID } from "../model/formatVersion";
 
 export type PromptsByLocale = Record<string, LocalePrompts>;
@@ -17,9 +18,9 @@ export function createEmptyLocalePrompts(): LocalePrompts {
   return { stories: {} };
 }
 
-export function createEmptyPromptsByLocale(locales: string[]): PromptsByLocale {
+export function createEmptyPromptsByLocale(locales: Locale[] | string[]): PromptsByLocale {
   const promptsByLocale: PromptsByLocale = {};
-  for (const locale of normalizeLocales(locales)) {
+  for (const locale of normalizeLocaleTags(locales)) {
     promptsByLocale[locale] = createEmptyLocalePrompts();
   }
   return promptsByLocale;
@@ -47,7 +48,7 @@ export function ensurePromptsForProjectLocales(
   promptsByLocale: PromptsByLocale
 ): PromptsByLocale {
   const next = { ...promptsByLocale };
-  for (const locale of normalizeLocales(project.locales)) {
+  for (const locale of normalizeLocaleTags(project.locales)) {
     const localePrompts = ensureLocalePrompts(next, locale);
     for (const story of project.stories) {
       ensureStoryPrompts(localePrompts, story.id);
@@ -61,7 +62,7 @@ export function ensureStoryPromptsForAllLocales(
   project: Project,
   storyId: string
 ): void {
-  for (const locale of normalizeLocales(project.locales)) {
+  for (const locale of normalizeLocaleTags(project.locales)) {
     ensureStoryPrompts(ensureLocalePrompts(promptsByLocale, locale), storyId);
   }
 }
@@ -266,6 +267,25 @@ export function removeLocaleFromPrompts(
 ): PromptsByLocale {
   const next = { ...promptsByLocale };
   delete next[locale];
+  return next;
+}
+
+export function renameLocaleInPrompts(
+  promptsByLocale: PromptsByLocale,
+  fromTag: string,
+  toTag: string
+): PromptsByLocale {
+  if (fromTag === toTag) {
+    return promptsByLocale;
+  }
+  if (promptsByLocale[toTag]) {
+    throw new Error(`Prompts for locale "${toTag}" already exist`);
+  }
+  const next = { ...promptsByLocale };
+  if (next[fromTag]) {
+    next[toTag] = next[fromTag];
+    delete next[fromTag];
+  }
   return next;
 }
 

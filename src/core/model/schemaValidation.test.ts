@@ -12,6 +12,11 @@ const SCENE_ID = "a1000000-0000-4000-8000-000000000002";
 const EDGE_ID = "a1000000-0000-4000-8000-000000000003";
 const SERVICE_ID = "a1000000-0000-4000-8000-000000000004";
 const BACKDROP_ID = "a1000000-0000-4000-8000-000000000005";
+const LOCALE_EN = {
+  id: "a1000000-0000-4000-8000-000000000006",
+  locale: "en",
+  displayName: "English",
+};
 
 describe("MuseLab JSON schemas", () => {
   it("validates a versioned story manifest", () => {
@@ -46,7 +51,7 @@ describe("MuseLab JSON schemas", () => {
           globalState: {},
         },
       ],
-      locales: ["en"],
+      locales: [LOCALE_EN],
       modules: [],
     });
 
@@ -74,7 +79,7 @@ describe("MuseLab JSON schemas", () => {
           globalState: {},
         },
       ],
-      locales: ["en"],
+      locales: [LOCALE_EN],
       modules: [
         {
           id: SERVICE_ID,
@@ -114,7 +119,7 @@ describe("MuseLab JSON schemas", () => {
           globalState: {},
         },
       ],
-      locales: ["en"],
+      locales: [LOCALE_EN],
     });
 
     expect(result.valid).toBe(true);
@@ -158,7 +163,7 @@ describe("MuseLab JSON schemas", () => {
             globalState: {},
           },
         ],
-        locales: ["en"],
+        locales: [LOCALE_EN],
       },
       promptsByLocale: {
         en: {
@@ -187,7 +192,7 @@ describe("MuseLab JSON schemas", () => {
     const result = validateStoryManifest({
       name: "Legacy",
       assets: [],
-      locales: ["en"],
+      locales: [LOCALE_EN],
       stories: [
         {
           id: STORY_ID,
@@ -267,7 +272,7 @@ describe("MuseLab JSON schemas", () => {
           globalState: {},
         },
       ],
-      locales: ["en"],
+      locales: [LOCALE_EN],
     });
 
     expect(result.valid).toBe(false);
@@ -343,7 +348,7 @@ describe("MuseLab JSON schemas", () => {
           globalState: {},
         },
       ],
-      locales: ["en"],
+      locales: [LOCALE_EN],
       modules: [],
     });
 
@@ -366,7 +371,7 @@ describe("MuseLab JSON schemas", () => {
           globalState: {},
         },
       ],
-      locales: ["en"],
+      locales: [LOCALE_EN],
     });
 
     expect(result.valid).toBe(false);

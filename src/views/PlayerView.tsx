@@ -197,7 +197,7 @@ function PlayerViewInner({
     );
   }
 
-  if (!runtime.currentNodeId) {
+  if (!runner.currentNodeId) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <p>No entry node.</p>
@@ -206,8 +206,28 @@ function PlayerViewInner({
     );
   }
 
+  const runtimeSynced =
+    runtime.activeStoryId === runner.activeStoryId &&
+    runtime.currentNodeId === runner.currentNodeId;
+
+  if (!runtimeSynced) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Loading story…</p>
+      </div>
+    );
+  }
+
   const activeStory = runner.story;
-  const node = activeStory.nodes.find((n) => n.id === runtime.currentNodeId)!;
+  const node = activeStory.nodes.find((n) => n.id === runner.currentNodeId);
+  if (!node) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Current node not found in active story.</p>
+        <BackToDesignerButton variant="overlay" />
+      </div>
+    );
+  }
   const hasOptions = runtime.choices.some((c) => c.optionText);
   const singleChoice = runtime.choices.length === 1 && !hasOptions;
 
@@ -277,9 +297,9 @@ function PlayerViewInner({
               value={activeLocale}
               onChange={(e) => handleLocaleChange(e.target.value)}
             >
-              {project.locales.map((locale) => (
-                <option key={locale} value={locale}>
-                  {locale}
+              {project.locales.map((entry) => (
+                <option key={entry.id} value={entry.locale}>
+                  {entry.displayName}
                 </option>
               ))}
             </select>

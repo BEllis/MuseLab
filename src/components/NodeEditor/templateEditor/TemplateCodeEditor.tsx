@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { EditorState } from "@codemirror/state";
+import { useCallback, useEffect, useRef } from "react";
+import { EditorState, type Transaction } from "@codemirror/state";
 import { EditorView, keymap, placeholder as cmPlaceholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { autocompletion } from "@codemirror/autocomplete";
@@ -18,20 +18,58 @@ export type TemplateCodeEditorHandle = {
   getView: () => EditorView | null;
 };
 
-const templateEditorExtensions = [
-  history(),
-  keymap.of([...defaultKeymap, ...historyKeymap]),
-  templateEditorTheme,
-  ...templateSyntaxHighlighting(),
-  templateFolding(),
-  ...templateWhitespace(),
-  EditorView.lineWrapping,
-];
+export type TemplateCodeEditorMode = "template" | "singleLine";
+
+const SINGLE_LINE_HEIGHT = 36;
+
+const singleLineTransactionFilter = EditorState.transactionFilter.of((tr: Transaction) => {
+  if (!tr.docChanged) return tr;
+  const next = tr.newDoc.toString();
+  if (!/[\r\n]/.test(next)) return tr;
+  const stripped = next.replace(/[\r\n]+/g, " ");
+  return [
+    {
+      changes: { from: 0, to: tr.startState.doc.length, insert: stripped },
+      selection: tr.selection,
+    },
+  ];
+});
+
+const singleLineEditorTheme = EditorView.theme({
+  ".cm-content": {
+    padding: "6px 8px",
+  },
+  ".cm-scroller": {
+    overflow: "hidden",
+  },
+});
+
+function buildEditorExtensions(mode: TemplateCodeEditorMode) {
+  const extensions = [
+    history(),
+    keymap.of([
+      ...defaultKeymap,
+      ...historyKeymap,
+      ...(mode === "singleLine" ? [{ key: "Enter", run: () => true }] : []),
+    ]),
+    templateEditorTheme,
+    ...templateSyntaxHighlighting(),
+  ];
+
+  if (mode === "template") {
+    extensions.push(templateFolding(), ...templateWhitespace(), EditorView.lineWrapping);
+  } else {
+    extensions.push(singleLineTransactionFilter, singleLineEditorTheme, EditorView.lineWrapping);
+  }
+
+  return extensions;
+}
 
 export function TemplateCodeEditor({
   value,
   placeholder = "",
   project,
+  mode = "template",
   minHeight,
   maxHeight,
   onChange,
@@ -43,6 +81,7 @@ export function TemplateCodeEditor({
   value: string;
   placeholder?: string;
   project: Project;
+  mode?: TemplateCodeEditorMode;
   minHeight: number;
   maxHeight: number;
   onChange: (next: string) => void;
@@ -72,7 +111,7 @@ export function TemplateCodeEditor({
     const state = EditorState.create({
       doc: value ?? "",
       extensions: [
-        ...templateEditorExtensions,
+        ...buildEditorExtensions(mode),
         autocompletion({
           activateOnTyping: true,
           override: [
@@ -97,12 +136,14 @@ export function TemplateCodeEditor({
     viewRef.current = view;
     editorRef.current = { getView: () => viewRef.current };
 
-    requestAnimationFrame(() => {
-      if (!appliedDefaultFoldsRef.current && viewRef.current) {
-        applyDefaultTemplateFolds(viewRef.current);
-        appliedDefaultFoldsRef.current = true;
-      }
-    });
+    if (mode === "template") {
+      requestAnimationFrame(() => {
+        if (!appliedDefaultFoldsRef.current && viewRef.current) {
+          applyDefaultTemplateFolds(viewRef.current);
+          appliedDefaultFoldsRef.current = true;
+        }
+      });
+    }
 
     return () => {
       view.destroy();
@@ -110,7 +151,7 @@ export function TemplateCodeEditor({
       editorRef.current = { getView: () => null };
       appliedDefaultFoldsRef.current = false;
     };
-  }, [editorRef]);
+  }, [editorRef, mode]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -130,7 +171,7 @@ export function TemplateCodeEditor({
       changes: { from: 0, to: current.length, insert: next },
       selection: { anchor: Math.min(view.state.selection.main.anchor, next.length) },
     });
-    if (syncKeyChanged) {
+    if (syncKeyChanged && mode === "template") {
       appliedDefaultFoldsRef.current = false;
       requestAnimationFrame(() => {
         if (viewRef.current) {
@@ -139,18 +180,79 @@ export function TemplateCodeEditor({
         }
       });
     }
-  }, [syncKey, value]);
+  }, [mode, syncKey, value]);
+
+  const focusEditorEnd = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const end = view.state.doc.length;
+    view.dispatch({
+      selection: { anchor: end, head: end },
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, []);
+
+  const handleBelowEditorMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      focusEditorEnd();
+    },
+    [focusEditorEnd]
+  );
+
+  if (mode === "singleLine") {
+    return (
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: `${minHeight}px`,
+          maxHeight: `${maxHeight}px`,
+          overflow: "hidden",
+          border: "1px solid var(--app-border)",
+          borderRadius: "4px",
+        }}
+      >
+        <div ref={containerRef} />
+      </div>
+    );
+  }
 
   return (
     <div
-      ref={containerRef}
       style={{
         flex: 1,
+        display: "flex",
+        flexDirection: "column",
         minHeight: `${minHeight}px`,
         maxHeight: `${maxHeight}px`,
-        overflow: "auto",
-        resize: "vertical",
+        minWidth: 0,
+        overflow: "hidden",
       }}
-    />
+    >
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          overflow: "auto",
+        }}
+      >
+        <div ref={containerRef} />
+        <div
+          role="presentation"
+          onMouseDown={handleBelowEditorMouseDown}
+          style={{
+            flex: 1,
+            minHeight: "24px",
+            cursor: "text",
+          }}
+        />
+      </div>
+    </div>
   );
 }
+
+export { SINGLE_LINE_HEIGHT };

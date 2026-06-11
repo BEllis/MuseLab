@@ -6,7 +6,7 @@ Design and play branching visual novels in a node-based editor. Build scenes wit
 
 Version 0.1
 
-[muselab.softweyr.co.uk/designer/](https://muselab.softweyr.co.uk/designer/)
+[muselab.vn/designer/](https://muselab.vn/designer/)
 
 <p align="center">
   <a href="https://discord.gg/YpDgdyn9Je"><img src="https://img.shields.io/discord/invite/YpDgdyn9Je?label=Discord&logo=discord&logoColor=white&color=5865F2" alt="Join our Discord community"></a>

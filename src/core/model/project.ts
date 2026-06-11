@@ -33,7 +33,16 @@ import {
   migrateActorSceneReferences,
   normalizeExpressionName,
 } from "../assets/actorExpressions";
-import { assertValidLocaleTag, DEFAULT_LOCALES, getDefaultLocaleTag, migrateProjectDefaultLocale, normalizeLocales } from "../locale/localeTag";
+import {
+  assertValidLocaleTag,
+  createLocale,
+  DEFAULT_LOCALES,
+  getDefaultLocaleTag,
+  getLocaleTags,
+  hasLocaleTag,
+  migrateProjectDefaultLocale,
+  normalizeLocales,
+} from "../locale/localeTag";
 import { MUSELAB_FORMAT_VERSION, STORY_SCHEMA_ID } from "./formatVersion";
 import {
   deriveUniqueNodeLabel,
@@ -109,7 +118,7 @@ export function createEmptyProject(name: string = "Untitled"): Project {
         globalState: {},
       },
     ],
-    locales: [...normalizeLocales(undefined)],
+    locales: normalizeLocales(undefined),
     defaultLocale: DEFAULT_LOCALES[0],
     modules: [],
   };
@@ -195,7 +204,9 @@ export function removeModule(project: Project, moduleId: string): void {
 export function updateModule(
   project: Project,
   moduleId: string,
-  patch: Partial<Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">>
+  patch: Partial<
+    Pick<ModuleInterface, "name" | "bindingName" | "description" | "methods" | "typescriptSource">
+  >
 ): void {
   const module = project.modules.find((entry) => entry.id === moduleId);
   if (!module) {
@@ -207,6 +218,9 @@ export function updateModule(
   if (patch.bindingName !== undefined) {
     validateBindingName(project, patch.bindingName, moduleId);
     module.bindingName = patch.bindingName.trim();
+  }
+  if (patch.description !== undefined) {
+    module.description = patch.description.trim() || undefined;
   }
   if (patch.methods !== undefined) {
     module.methods = patch.methods;
@@ -1038,7 +1052,7 @@ export function updateProject(
   }
   if (patch.defaultLocale !== undefined) {
     const tag = assertValidLocaleTag(patch.defaultLocale);
-    if (!normalizeLocales(project.locales).includes(tag)) {
+    if (!hasLocaleTag(normalizeLocales(project.locales), tag)) {
       throw new Error(`Locale "${tag}" is not in the project`);
     }
     project.defaultLocale = tag;
@@ -1184,7 +1198,7 @@ function toManifestProject(project: Project): Project {
     assets: project.assets,
     stories: project.stories.map(toManifestStory),
     locales,
-    defaultLocale: getDefaultLocaleTag(locales, project.defaultLocale),
+    defaultLocale: getDefaultLocaleTag(getLocaleTags(locales), project.defaultLocale),
     modules: project.modules ?? [],
     thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
@@ -1241,7 +1255,7 @@ function migrateLegacyProjectData(data: LegacyProjectJson): Project {
     name: data.name,
     assets: data.assets ?? [],
     stories: [story],
-    locales: data.locales ?? [...normalizeLocales(undefined)],
+    locales: normalizeLocales(data.locales),
     modules: data.modules ?? data.services ?? [],
     thumbnailAspectRatio: data.thumbnailAspectRatio,
     playerResolution: data.playerResolution,
@@ -1287,13 +1301,57 @@ export function finalizeProjectNodes(project: Project): void {
   }
 }
 
-export function addLocaleToProject(project: Project, locale: string): void {
+export function addLocaleToProject(
+  project: Project,
+  locale: string,
+  options?: { displayName?: string; id?: string }
+): void {
   const tag = assertValidLocaleTag(locale);
   const locales = normalizeLocales(project.locales);
-  if (locales.includes(tag)) {
+  if (hasLocaleTag(locales, tag)) {
     throw new Error(`Locale "${tag}" already exists`);
   }
-  project.locales = normalizeLocales([...locales, tag]);
+  project.locales = normalizeLocales([
+    ...locales,
+    createLocale(tag, options?.displayName, options?.id),
+  ]);
+}
+
+export function updateLocaleInProject(
+  project: Project,
+  localeId: string,
+  patch: { locale?: string; displayName?: string }
+): { previousTag: string; nextTag: string } {
+  const locales = normalizeLocales(project.locales);
+  const index = locales.findIndex((entry) => entry.id === localeId);
+  if (index < 0) {
+    throw new Error(`Locale "${localeId}" not found`);
+  }
+
+  const current = locales[index]!;
+  const nextTag =
+    patch.locale !== undefined ? assertValidLocaleTag(patch.locale) : current.locale;
+  const nextDisplayName =
+    patch.displayName !== undefined
+      ? patch.displayName.trim() || nextTag
+      : current.displayName;
+
+  if (nextTag !== current.locale && hasLocaleTag(locales, nextTag)) {
+    throw new Error(`Locale "${nextTag}" already exists`);
+  }
+
+  locales[index] = {
+    ...current,
+    locale: nextTag,
+    displayName: nextDisplayName,
+  };
+  project.locales = normalizeLocales(locales);
+
+  if (project.defaultLocale === current.locale && nextTag !== current.locale) {
+    project.defaultLocale = nextTag;
+  }
+
+  return { previousTag: current.locale, nextTag };
 }
 
 export function removeLocaleFromProject(project: Project, locale: string): void {
@@ -1302,11 +1360,11 @@ export function removeLocaleFromProject(project: Project, locale: string): void 
   if (locales.length <= 1) {
     throw new Error("Cannot remove the last locale");
   }
-  if (!locales.includes(tag)) {
+  if (!hasLocaleTag(locales, tag)) {
     throw new Error(`Locale "${tag}" is not in the project`);
   }
-  project.locales = locales.filter((entry) => entry !== tag);
+  project.locales = locales.filter((entry) => entry.locale !== tag);
   if (project.defaultLocale === tag) {
-    project.defaultLocale = project.locales[0];
+    project.defaultLocale = project.locales[0]?.locale;
   }
 }

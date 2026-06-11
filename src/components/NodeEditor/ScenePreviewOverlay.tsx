@@ -14,7 +14,7 @@ import {
   getNodeTextTemplateForLocale,
 } from "@/core/locale/prompts";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
-import { renderNodePreviewHtml, renderNodePreviewResult } from "@/core/view/sceneStage";
+import { renderNodePreviewResult } from "@/core/view/sceneStage";
 import {
   fitAspectRatioInBox,
   getProjectThumbnailAspectRatio,
@@ -68,7 +68,6 @@ export function ScenePreviewOverlay() {
   const editorPreviewImmediateRef = useRef(true);
   const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
 
-  const [dialogueHtml, setDialogueHtml] = useState<string | undefined>(undefined);
   const [editorPreviewRender, setEditorPreviewRender] = useState<EditorPreviewRender | null>(null);
   const [playbackKey, setPlaybackKey] = useState(0);
   const {
@@ -89,35 +88,21 @@ export function ScenePreviewOverlay() {
     : "";
 
   useEffect(() => {
-    if (!editingTemplate && draftTemplate === undefined) {
-      setDialogueHtml(undefined);
-      return;
-    }
-    if (editingTemplate) return;
-
-    let cancelled = false;
-    void renderNodePreviewHtml(previewTemplate, story.globalState, { project }).then((html) => {
-      if (!cancelled) setDialogueHtml(html);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [previewTemplate, draftTemplate, editingTemplate, story.globalState, project]);
-
-  useEffect(() => {
     editorPreviewImmediateRef.current = true;
   }, [locale]);
 
   useEffect(() => {
-    if (!editingTemplate) {
-      editorPreviewImmediateRef.current = true;
+    if (!open || !node) {
       setEditorPreviewRender(null);
       return;
     }
 
     let cancelled = false;
-    const delay = editorPreviewImmediateRef.current ? 0 : EDITOR_PREVIEW_DEBOUNCE_MS;
-    editorPreviewImmediateRef.current = false;
+    const delay =
+      editingTemplate && !editorPreviewImmediateRef.current ? EDITOR_PREVIEW_DEBOUNCE_MS : 0;
+    if (editingTemplate) {
+      editorPreviewImmediateRef.current = false;
+    }
     const timer = window.setTimeout(() => {
       void (async () => {
         const templateResult = await renderNodePreviewResult(
@@ -141,7 +126,7 @@ export function ScenePreviewOverlay() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [previewTemplate, speaker, editingTemplate, story.globalState, project, locale]);
+  }, [open, node, previewTemplate, speaker, editingTemplate, story.globalState, project, locale]);
 
   useEffect(() => {
     if (!open) {
@@ -149,7 +134,7 @@ export function ScenePreviewOverlay() {
       return;
     }
 
-    const el = editingTemplate ? previewAreaRef.current : containerRef.current;
+    const el = previewAreaRef.current;
     if (!el) return;
 
     const updateSize = () => {
@@ -171,10 +156,10 @@ export function ScenePreviewOverlay() {
     const observer = new ResizeObserver(updateSize);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [open, thumbnailAspectWidth, thumbnailAspectHeight, editingTemplate]);
+  }, [open, thumbnailAspectWidth, thumbnailAspectHeight]);
 
   useEffect(() => {
-    if (!open || !editingTemplate) return;
+    if (!open) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -183,7 +168,7 @@ export function ScenePreviewOverlay() {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, editingTemplate, hidePreview]);
+  }, [open, hidePreview]);
 
   const handleTemplateChange = useCallback(
     (markup: string) => {
@@ -245,89 +230,90 @@ export function ScenePreviewOverlay() {
 
   if (!open || !node) return null;
 
-  if (editingTemplate) {
-    return (
+  return (
+    <div
+      ref={containerRef}
+      role="presentation"
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 10,
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--app-overlay)",
+        cursor: editingTemplate ? undefined : "pointer",
+      }}
+      onClick={editingTemplate ? undefined : hidePreview}
+    >
       <div
-        ref={containerRef}
-        role="presentation"
+        ref={previewAreaRef}
         style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 10,
+          flex: 1,
+          minHeight: 0,
           display: "flex",
-          flexDirection: "column",
-          background: "var(--app-overlay)",
+          alignItems: "center",
+          justifyContent: "center",
         }}
-        onClick={hidePreview}
       >
-        <div
-          ref={previewAreaRef}
-          onClick={stopEditorClick}
-          onMouseDown={stopEditorClick}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {previewSize && previewSize.width > 0 && previewSize.height > 0 && editorPreviewRender && (
-            <div
+        {previewSize && previewSize.width > 0 && previewSize.height > 0 && editorPreviewRender && (
+          <div
+            onClick={stopEditorClick}
+            onMouseDown={stopEditorClick}
+            style={{
+              position: "relative",
+              width: previewSize.width,
+              height: previewSize.height,
+              borderRadius: "8px",
+              overflow: "hidden",
+              boxShadow: "0 8px 32px var(--app-shadow)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={handleRestartPreview}
+              title="Replay scene playback"
               style={{
-                position: "relative",
-                width: previewSize.width,
-                height: previewSize.height,
-                borderRadius: "8px",
-                overflow: "hidden",
-                boxShadow: "0 8px 32px var(--app-shadow)",
+                position: "absolute",
+                top: 10,
+                right: 10,
+                zIndex: 3,
+                padding: "6px 12px",
+                border: "1px solid var(--app-border)",
+                borderRadius: "6px",
+                background: "rgba(0, 0, 0, 0.72)",
+                color: "#fff",
+                cursor: "pointer",
+                fontSize: "13px",
               }}
             >
-              <button
-                type="button"
-                onClick={handleRestartPreview}
-                title="Restart prompt playback"
-                style={{
-                  position: "absolute",
-                  top: 10,
-                  right: 10,
-                  zIndex: 3,
-                  padding: "6px 12px",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "6px",
-                  background: "rgba(0, 0, 0, 0.72)",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                }}
-              >
-                Restart
-              </button>
-              <SceneStagePreview
-                key={`${node.id}:${locale}:${playbackKey}`}
-                project={project}
-                story={story}
-                storyId={storyId}
-                promptsByLocale={promptsByLocale}
-                node={node}
-                locale={locale}
-                variant="full"
-                dialogueHtml={editorPreviewRender.dialogueHtml}
-                dialogueSpeaker={editorPreviewRender.dialogueSpeaker}
-                promptInstructions={editorPreviewRender.promptInstructions}
-                onPlaySound={playSound}
-                style={{ width: "100%", height: "100%" }}
-              />
-              <EditorPreviewSoundPlayer
-                project={project}
-                assetIds={onDemandAssetIds}
-                onReady={handleAudioReady}
-                onUnmount={handleAudioUnmount}
-              />
-            </div>
-          )}
-        </div>
+              Replay Scene
+            </button>
+            <SceneStagePreview
+              key={`${node.id}:${locale}:${playbackKey}`}
+              project={project}
+              story={story}
+              storyId={storyId}
+              promptsByLocale={promptsByLocale}
+              node={node}
+              locale={locale}
+              variant="full"
+              dialogueHtml={editorPreviewRender.dialogueHtml}
+              dialogueSpeaker={editorPreviewRender.dialogueSpeaker}
+              promptInstructions={editorPreviewRender.promptInstructions}
+              onPlaySound={playSound}
+              style={{ width: "100%", height: "100%" }}
+            />
+            <EditorPreviewSoundPlayer
+              project={project}
+              assetIds={onDemandAssetIds}
+              onReady={handleAudioReady}
+              onUnmount={handleAudioUnmount}
+            />
+          </div>
+        )}
+      </div>
 
+      {editingTemplate && (
         <div
           onClick={stopEditorClick}
           onMouseDown={stopEditorClick}
@@ -343,75 +329,6 @@ export function ScenePreviewOverlay() {
             boxShadow: "0 -4px 24px var(--app-shadow)",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "16px",
-              marginBottom: "8px",
-              flexShrink: 0,
-            }}
-          >
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                flex: 1,
-                minWidth: 0,
-                fontSize: "13px",
-              }}
-            >
-              <span style={{ color: "var(--app-text-muted)", flexShrink: 0 }}>Speaker</span>
-              <input
-                type="text"
-                value={speaker}
-                onChange={(e) => handleSpeakerChange(e.target.value)}
-                placeholder="Optional — supports Cito"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  padding: "6px 8px",
-                  fontSize: "13px",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "4px",
-                  background: "var(--app-input-bg)",
-                  color: "var(--app-text)",
-                  boxSizing: "border-box",
-                }}
-              />
-            </label>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "13px",
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ color: "var(--app-text-muted)" }}>Locale</span>
-              <select
-                value={locale}
-                onChange={(e) => handleLocaleChange(e.target.value)}
-                style={{
-                  padding: "6px 8px",
-                  fontSize: "13px",
-                  border: "1px solid var(--app-border)",
-                  borderRadius: "4px",
-                  background: "var(--app-input-bg)",
-                  color: "var(--app-text)",
-                }}
-              >
-                {project.locales.map((entry) => (
-                  <option key={entry} value={entry}>
-                    {entry}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
           <TemplateTextEditor
             value={storeTemplate}
             onChange={handleTemplateChange}
@@ -420,6 +337,11 @@ export function ScenePreviewOverlay() {
             syncKey={`${node.id}:${locale}:${eventLogCursor}`}
             project={project}
             soundAssets={sounds}
+            speaker={speaker}
+            onSpeakerChange={handleSpeakerChange}
+            locale={locale}
+            locales={project.locales}
+            onLocaleChange={handleLocaleChange}
             minHeight={EDITOR_TEXT_MIN_HEIGHT}
             maxHeight={EDITOR_TEXT_MAX_HEIGHT}
             placeholder='Hello world… Use the toolbar for Format.* tags, or @rt.GetString("key") for logic.'
@@ -429,62 +351,12 @@ export function ScenePreviewOverlay() {
             <button
               type="button"
               onClick={hidePreview}
-              style={{
-                padding: "6px 16px",
-                border: "1px solid var(--app-border)",
-                borderRadius: "6px",
-                background: "var(--app-surface-hover)",
-                color: "var(--app-text)",
-                cursor: "pointer",
-                fontSize: "13px",
-              }}
+              className="app-toolbar-button"
+              style={{ padding: "6px 16px", borderRadius: "6px", fontSize: "13px" }}
             >
               Done
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      role="presentation"
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 10,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--app-overlay)",
-        cursor: "pointer",
-      }}
-      onClick={hidePreview}
-    >
-      {previewSize && previewSize.width > 0 && previewSize.height > 0 && (
-        <div
-          style={{
-            width: previewSize.width,
-            height: previewSize.height,
-            borderRadius: "8px",
-            overflow: "hidden",
-            boxShadow: "0 8px 32px var(--app-shadow)",
-          }}
-        >
-          <SceneStagePreview
-            project={project}
-            story={story}
-            storyId={storyId}
-            promptsByLocale={promptsByLocale}
-            node={node}
-            locale={locale}
-            variant="full"
-            dialogueHtml={dialogueHtml}
-            disableShake
-            style={{ width: "100%", height: "100%" }}
-          />
         </div>
       )}
     </div>

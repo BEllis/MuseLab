@@ -1,8 +1,14 @@
 import type { Completion, CompletionContext } from "@codemirror/autocomplete";
 import type { Project } from "@/core/model/types";
 import type { ModuleMethod } from "@/core/model/types";
+import {
+  collectRazorCodeRanges,
+  isInsideTemplateExpression,
+} from "@/core/cito/parseRazorTemplate";
 import { BUILT_IN_MODULES } from "@/core/modules/builtInModules";
 import { citoTypeToString } from "@/core/modules/builtInModules";
+
+const COMPLETION_TRIGGER = /[@.\w]/;
 
 export type TemplateCompletionModule = {
   bindingName: string;
@@ -64,13 +70,55 @@ function bindingCompletions(modules: TemplateCompletionModule[]): Completion[] {
   return items;
 }
 
+function isInAtBlock(doc: string, pos: number): boolean {
+  if (pos <= 0) return false;
+  if (doc[pos - 1] === "@" && (pos < 2 || doc[pos - 2] !== "@")) {
+    return true;
+  }
+  const ranges = collectRazorCodeRanges(doc);
+  return (
+    isInsideTemplateExpression(pos, ranges) || isInsideTemplateExpression(pos - 1, ranges)
+  );
+}
+
+function shouldActivateCompletion(context: CompletionContext): boolean {
+  const { pos, explicit } = context;
+  const doc = context.state.doc.toString();
+  if (!isInAtBlock(doc, pos)) return false;
+  if (explicit) return true;
+  const charBefore = doc[pos - 1] ?? "";
+  return COMPLETION_TRIGGER.test(charBefore);
+}
+
+function resolveCompletionToken(
+  context: CompletionContext
+): { text: string; from: number } | null {
+  const doc = context.state.doc.toString();
+  let end = context.pos;
+  while (end > 0 && /\s/.test(doc[end - 1]!)) end--;
+  const matched = doc.slice(0, end).match(/[@\w.]*$/);
+  if (!matched) return null;
+  const text = matched[0];
+  if (!text && !context.explicit) return null;
+  return { text, from: end - text.length };
+}
+
 export function templateCompletionSource(modules: TemplateCompletionModule[]) {
   return (context: CompletionContext): { from: number; options: Completion[] } | null => {
-    const before = context.matchBefore(/[\w.]*$/);
-    if (!before && !context.explicit) return null;
+    if (!shouldActivateCompletion(context)) return null;
 
-    const token = before?.text ?? "";
-    const from = before ? before.from : context.pos;
+    const before = resolveCompletionToken(context);
+    if (!before) {
+      if (!context.explicit) return null;
+      return { from: context.pos, options: bindingCompletions(modules) };
+    }
+
+    let token = before.text;
+    let from = before.from;
+    if (token.startsWith("@")) {
+      from = before.from + 1;
+      token = token.slice(1);
+    }
 
     const dotIndex = token.lastIndexOf(".");
     if (dotIndex >= 0) {

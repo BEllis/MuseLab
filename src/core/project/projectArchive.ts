@@ -12,7 +12,8 @@ import type { ProjectBundle } from "../model/projectBundle";
 import { serializeMlvnMetadata } from "../model/projectBundle";
 import { MLVN_METADATA_FILE } from "../model/formatVersion";
 import { parseLocalePrompts, serializeLocalePrompts } from "../locale/prompts";
-import { parseLocaleFromPromptsFileName, normalizeLocales } from "../locale/localeTag";
+import { parseLocaleFromPromptsFileName, normalizeLocaleTags } from "../locale/localeTag";
+import type { Locale } from "../model/types";
 import { base64ToBlob, expressionImageDataUrl } from "../assets/actorImageSerialization";
 import {
   expressionArchivePath,
@@ -233,7 +234,7 @@ export async function packProjectArchive(bundle: ProjectBundle): Promise<Uint8Ar
   zipEntries[PROJECT_MANIFEST] = strToU8(serializeProject(cloned));
   zipEntries[MLVN_METADATA_FILE] = strToU8(serializeMlvnMetadata());
 
-  for (const locale of normalizeLocales(cloned.locales)) {
+  for (const locale of normalizeLocaleTags(cloned.locales)) {
     const prompts = bundle.promptsByLocale[locale] ?? { stories: {} };
     zipEntries[promptsFileName(locale)] = strToU8(serializeLocalePrompts(prompts));
   }
@@ -296,10 +297,10 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
 }
 
 export function assertArchivePromptLocales(
-  projectLocales: string[],
+  projectLocales: Locale[] | string[],
   prompts: Map<string, LocalePrompts>
 ): void {
-  const allowed = new Set(normalizeLocales(projectLocales));
+  const allowed = new Set(normalizeLocaleTags(projectLocales));
   for (const locale of prompts.keys()) {
     if (!allowed.has(locale)) {
       throw new Error(

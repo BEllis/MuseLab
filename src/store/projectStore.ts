@@ -144,7 +144,12 @@ import {
   getNodeTextTemplate,
   type PromptsByLocale,
 } from "@/core/locale/prompts";
-import { assertValidLocaleTag } from "@/core/locale/localeTag";
+import {
+  assertValidLocaleTag,
+  createLocale,
+  findLocaleByTag,
+  hasLocaleTag,
+} from "@/core/locale/localeTag";
 import {
   validateStoredProjectJson,
   validateUnpackedArchive,
@@ -455,7 +460,9 @@ interface ProjectState {
   removeModule: (moduleId: string) => void;
   updateModule: (
     moduleId: string,
-    patch: Partial<Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">>,
+    patch: Partial<
+      Pick<ModuleInterface, "name" | "bindingName" | "description" | "methods" | "typescriptSource">
+    >,
     options?: MutationOptions
   ) => void;
   clearSelection: () => void;
@@ -512,7 +519,12 @@ interface ProjectState {
     optionText: string | undefined,
     options?: MutationOptions
   ) => void;
-  addLocale: (locale: string) => void;
+  addLocale: (locale: string, displayName?: string) => void;
+  updateLocale: (
+    localeId: string,
+    patch: { locale?: string; displayName?: string },
+    options?: MutationOptions
+  ) => void;
   removeLocale: (locale: string) => void;
 
   addEdge: (
@@ -1007,10 +1019,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const module = state.project.modules?.find((entry) => entry.id === moduleId);
     if (!module) return;
     const before: Partial<
-      Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+      Pick<ModuleInterface, "name" | "bindingName" | "description" | "methods" | "typescriptSource">
     > = {};
     for (const key of Object.keys(patch) as Array<
-      keyof Pick<ModuleInterface, "name" | "bindingName" | "methods" | "typescriptSource">
+      keyof Pick<
+        ModuleInterface,
+        "name" | "bindingName" | "description" | "methods" | "typescriptSource"
+      >
     >) {
       before[key] = JSON.parse(JSON.stringify(module[key])) as never;
     }
@@ -1263,7 +1278,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         node,
         nodePromptsByLocale: captureNodePromptsByLocale(
           bundle.promptsByLocale,
-          bundle.project.locales,
+          bundle.project.locales.map((entry) => entry.locale),
           storyId,
           node.id
         ),
@@ -1428,9 +1443,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     );
   },
 
-  addLocale: (locale) => {
+  addLocale: (locale, displayName) => {
     const state = get();
     const tag = assertValidLocaleTag(locale);
+    const localeEntry = createLocale(tag, displayName);
     const localePrompts = createEmptyLocalePrompts();
     for (const story of state.project.stories) {
       localePrompts.stories[story.id] = { nodes: {}, edges: {} };
@@ -1438,22 +1454,55 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     dispatchEvent(get, set, {
       ...createEventMeta(),
       type: "addLocale",
-      locale: tag,
       before: null,
-      after: { locale: tag, localePrompts },
+      after: { localeEntry, localePrompts },
     });
+  },
+
+  updateLocale: (localeId, patch, options) => {
+    const state = get();
+    const entry = state.project.locales.find((locale) => locale.id === localeId);
+    if (!entry) return;
+
+    const nextLocale =
+      patch.locale !== undefined ? assertValidLocaleTag(patch.locale) : entry.locale;
+    const nextDisplayName =
+      patch.displayName !== undefined
+        ? patch.displayName.trim() || nextLocale
+        : entry.displayName;
+
+    if (nextLocale === entry.locale && nextDisplayName === entry.displayName) {
+      return;
+    }
+    if (nextLocale !== entry.locale && hasLocaleTag(state.project.locales, nextLocale)) {
+      throw new Error(`Locale "${nextLocale}" already exists`);
+    }
+
+    dispatchEvent(
+      get,
+      set,
+      {
+        ...createEventMeta(),
+        type: "updateLocale",
+        localeId,
+        before: { locale: entry.locale, displayName: entry.displayName },
+        after: { locale: nextLocale, displayName: nextDisplayName },
+      },
+      options
+    );
   },
 
   removeLocale: (locale) => {
     const state = get();
     const tag = assertValidLocaleTag(locale);
+    const localeEntry = findLocaleByTag(state.project.locales, tag);
     const localePrompts = state.promptsByLocale[tag];
-    if (!localePrompts) return;
+    if (!localeEntry || !localePrompts) return;
     dispatchEvent(get, set, {
       ...createEventMeta(),
       type: "removeLocale",
       before: {
-        locale: tag,
+        localeEntry: JSON.parse(JSON.stringify(localeEntry)),
         localePrompts: JSON.parse(JSON.stringify(localePrompts)),
       },
       after: null,
