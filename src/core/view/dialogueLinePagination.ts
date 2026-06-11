@@ -36,42 +36,12 @@ export function countLinesThatFit(
   return Math.max(1, count);
 }
 
-/** Top offset of the visible window in a bottom-anchored dialogue viewport. */
-export function getDialogueAlignTop(
-  lineOffsets: number[],
-  contentHeight: number,
-  startLineIndex: number,
-  viewportHeightPx: number,
-  followTail: boolean,
-): number {
-  if (viewportHeightPx <= 0) return 0;
-
-  if (followTail) {
-    return Math.max(0, contentHeight - viewportHeightPx);
-  }
-
-  return lineOffsets[startLineIndex] ?? 0;
-}
-
-/** Downward translateY for bottom-anchored content when showing earlier pages. */
-export function getDialogueScrollTranslate(
-  alignTop: number,
-  contentHeight: number,
-  viewportHeightPx: number,
-): number {
-  if (viewportHeightPx <= 0) return 0;
-  return Math.max(0, contentHeight - viewportHeightPx - alignTop);
-}
-
 export function getDialoguePageState(
   lineOffsets: number[],
   contentHeight: number,
   startLineIndex: number,
   viewportHeightPx: number,
-  followTail = false,
 ): {
-  alignTop: number;
-  scrollTranslate: number;
   linesOnPage: number;
   hasMoreToPaginate: boolean;
 } {
@@ -81,17 +51,9 @@ export function getDialoguePageState(
     startLineIndex,
     viewportHeightPx,
   );
-  const alignTop = getDialogueAlignTop(
-    lineOffsets,
-    contentHeight,
-    startLineIndex,
-    viewportHeightPx,
-    followTail,
-  );
-  const scrollTranslate = getDialogueScrollTranslate(alignTop, contentHeight, viewportHeightPx);
   const nextStartLine = startLineIndex + linesOnPage;
   const hasMoreToPaginate = nextStartLine < lineOffsets.length;
-  return { alignTop, scrollTranslate, linesOnPage, hasMoreToPaginate };
+  return { linesOnPage, hasMoreToPaginate };
 }
 
 export function clampDialogueStartLine(lineOffsets: number[], startLineIndex: number): number {

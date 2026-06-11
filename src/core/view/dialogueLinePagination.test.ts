@@ -3,9 +3,7 @@ import {
   appendInlineDialogueMoreHint,
   clampDialogueStartLine,
   countLinesThatFit,
-  getDialogueAlignTop,
   getDialoguePageState,
-  getDialogueScrollTranslate,
   getLastPageStartLine,
   shouldPauseRevealPlayback,
   shouldResetDialogueLinePage,
@@ -61,34 +59,6 @@ describe("countLinesThatFit", () => {
   });
 });
 
-describe("getDialogueAlignTop", () => {
-  const lineOffsets = [0, 20, 40, 60, 80, 100];
-  const contentHeight = 120;
-  const viewportHeight = 60;
-
-  it("follows the reveal tail when content overflows", () => {
-    expect(
-      getDialogueAlignTop(lineOffsets, contentHeight, 0, viewportHeight, true),
-    ).toBe(60);
-  });
-
-  it("starts paginated pages from the page top", () => {
-    expect(
-      getDialogueAlignTop(lineOffsets, contentHeight, 3, viewportHeight, false),
-    ).toBe(60);
-    expect(
-      getDialogueAlignTop(lineOffsets, contentHeight, 0, viewportHeight, false),
-    ).toBe(0);
-  });
-});
-
-describe("getDialogueScrollTranslate", () => {
-  it("shifts earlier pages down inside a bottom-anchored viewport", () => {
-    expect(getDialogueScrollTranslate(0, 120, 60)).toBe(60);
-    expect(getDialogueScrollTranslate(60, 120, 60)).toBe(0);
-  });
-});
-
 describe("getDialoguePageState", () => {
   const lineOffsets = [0, 20, 40, 60, 80, 100];
   const contentHeight = 120;
@@ -96,8 +66,6 @@ describe("getDialoguePageState", () => {
 
   it("shows the first page", () => {
     expect(getDialoguePageState(lineOffsets, contentHeight, 0, viewportHeight)).toEqual({
-      alignTop: 0,
-      scrollTranslate: 60,
       linesOnPage: 3,
       hasMoreToPaginate: true,
     });
@@ -105,26 +73,13 @@ describe("getDialoguePageState", () => {
 
   it("shows a later page", () => {
     expect(getDialoguePageState(lineOffsets, contentHeight, 3, viewportHeight)).toEqual({
-      alignTop: 60,
-      scrollTranslate: 0,
       linesOnPage: 3,
       hasMoreToPaginate: false,
     });
   });
 
-  it("keeps the reveal tail pinned to the bottom", () => {
-    expect(getDialoguePageState(lineOffsets, contentHeight, 0, viewportHeight, true)).toEqual({
-      alignTop: 60,
-      scrollTranslate: 0,
-      linesOnPage: 3,
-      hasMoreToPaginate: true,
-    });
-  });
-
   it("handles empty offsets", () => {
     expect(getDialoguePageState([0], 0, 0, 60)).toEqual({
-      alignTop: 0,
-      scrollTranslate: 0,
       linesOnPage: 1,
       hasMoreToPaginate: false,
     });
@@ -158,6 +113,18 @@ describe("getLastPageStartLine", () => {
   it("returns the last page start when content overflows", () => {
     expect(getLastPageStartLine(lineOffsets, contentHeight, viewportHeight, 0)).toBe(3);
     expect(getLastPageStartLine(lineOffsets, contentHeight, viewportHeight, 1)).toBe(4);
+  });
+
+  it("does not mark the tail page as having more to paginate", () => {
+    const tailStart = getLastPageStartLine(lineOffsets, contentHeight, viewportHeight, 0);
+    const { linesOnPage, hasMoreToPaginate } = getDialoguePageState(
+      lineOffsets,
+      contentHeight,
+      tailStart,
+      viewportHeight,
+    );
+    expect(tailStart + linesOnPage).toBe(lineOffsets.length);
+    expect(hasMoreToPaginate).toBe(false);
   });
 });
 

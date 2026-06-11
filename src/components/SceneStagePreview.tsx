@@ -29,6 +29,7 @@ import {
   vnDialogueBoxChromeStyle,
   vnDialogueHintCornerStyle,
   vnDialogueScrollStyle,
+  vnDialogueTextContainerStyle,
   vnSpeakerTabStyle,
 } from "@/core/view/vnStyles";
 import {
@@ -40,6 +41,7 @@ import {
   appendInlineDialogueMoreHint,
   clampDialogueStartLine,
   getDialoguePageState,
+  getLastPageStartLine,
   measureVisualLineOffsets,
   shouldResetDialogueLinePage,
 } from "@/core/view/dialogueLinePagination";
@@ -551,8 +553,15 @@ function DialogueCaptionBox({
   const [lineOffsets, setLineOffsets] = useState<number[]>([0]);
   const [contentHeight, setContentHeight] = useState(0);
   const [contentViewportHeightPx, setContentViewportHeightPx] = useState(0);
+  const prevIsRevealingRef = useRef(false);
   startLineIndexRef.current = startLineIndex;
   const hintReservePx = dialogueHintReservePx(compact, !compact && showContinueHint);
+
+  useEffect(() => {
+    if (!isRevealing) {
+      prevIsRevealingRef.current = false;
+    }
+  }, [isRevealing]);
 
   useEffect(() => {
     if (shouldResetDialogueLinePage(previousHtmlRef.current, dialogueHtml)) {
@@ -561,7 +570,7 @@ function DialogueCaptionBox({
     previousHtmlRef.current = dialogueHtml;
   }, [dialogueHtml]);
 
-  const measureLines = useCallback((lineStart = startLineIndexRef.current) => {
+  const measureLines = useCallback((explicitLineStart?: number) => {
       const measureEl = measureRef.current;
       const viewportEl = viewportRef.current;
       if (!measureEl) return;
@@ -572,7 +581,23 @@ function DialogueCaptionBox({
         compact,
         hintReservePx,
       );
-      const nextStartLine = clampDialogueStartLine(offsets, lineStart);
+      const revealJustStarted = isRevealing && !prevIsRevealingRef.current;
+      let nextStartLine: number;
+      if (explicitLineStart !== undefined) {
+        nextStartLine = clampDialogueStartLine(offsets, explicitLineStart);
+      } else if (revealJustStarted && nextContentViewportHeight > 0) {
+        nextStartLine = getLastPageStartLine(
+          offsets,
+          measureEl.scrollHeight,
+          nextContentViewportHeight,
+          0,
+        );
+      } else {
+        nextStartLine = clampDialogueStartLine(offsets, startLineIndexRef.current);
+      }
+      if (isRevealing) {
+        prevIsRevealingRef.current = true;
+      }
       const { linesOnPage: nextLinesOnPage } = getDialoguePageState(
         offsets,
         measureEl.scrollHeight,
@@ -600,13 +625,11 @@ function DialogueCaptionBox({
     [compact, dialogueHtml, hintReservePx, isRevealing, onPlaybackGateChange],
   );
 
-  const followTail = isRevealing && !isAwaitingContinue;
-  const { scrollTranslate, linesOnPage, hasMoreToPaginate } = getDialoguePageState(
+  const { linesOnPage, hasMoreToPaginate } = getDialoguePageState(
     lineOffsets,
     contentHeight,
     startLineIndex,
     contentViewportHeightPx,
-    followTail,
   );
 
   useLayoutEffect(() => {
@@ -682,9 +705,6 @@ function DialogueCaptionBox({
           style={{
             ...vnDialogueScrollStyle(compact, hintReservePx),
             lineHeight,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "flex-end",
           }}
         >
           <div
@@ -702,14 +722,7 @@ function DialogueCaptionBox({
             }}
             dangerouslySetInnerHTML={{ __html: dialogueHtml }}
           />
-          <div
-            style={{
-              flexShrink: 0,
-              ...(scrollTranslate > 0 && {
-                transform: `translateY(${scrollTranslate}px)`,
-              }),
-            }}
-          >
+          <div style={vnDialogueTextContainerStyle(contentViewportHeightPx)}>
             <div dangerouslySetInnerHTML={{ __html: displayDialogueHtml }} />
           </div>
         </div>

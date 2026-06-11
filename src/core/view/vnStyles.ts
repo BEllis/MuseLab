@@ -104,7 +104,7 @@ export function dialogueContentHeightPx(
   return Math.max(0, viewportClientHeight - verticalPadding - hintReservePx);
 }
 
-/** Viewport for dialogue body text inside the caption box. */
+/** Clipped dialogue viewport; pins the text container to the bottom (outer-container). */
 export function vnDialogueScrollStyle(compact: boolean, hintReservePx = 0): CSSProperties {
   const edgePadding = compact ? 0 : 2;
   return {
@@ -114,6 +114,9 @@ export function vnDialogueScrollStyle(compact: boolean, hintReservePx = 0): CSSP
     overflowWrap: "break-word",
     wordBreak: "break-word",
     position: "relative",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-end",
     ...(compact
       ? {}
       : {
@@ -122,6 +125,20 @@ export function vnDialogueScrollStyle(compact: boolean, hintReservePx = 0): CSSP
           paddingLeft: 6,
           paddingBottom: edgePadding + hintReservePx,
         }),
+  };
+}
+
+/** Grows with content, fills the viewport when short, text flows from the top (text-container). */
+export function vnDialogueTextContainerStyle(contentViewportHeightPx: number): CSSProperties {
+  return {
+    width: "100%",
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-start",
+    alignItems: "stretch",
+    flexShrink: 0,
+    minHeight: contentViewportHeightPx > 0 ? contentViewportHeightPx : "100%",
   };
 }
 
