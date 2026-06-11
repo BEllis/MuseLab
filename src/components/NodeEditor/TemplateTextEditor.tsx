@@ -135,8 +135,8 @@ function ExpandAllIcon() {
         </marker>
       </defs>
       <line
-        x1="2"
-        y1="2"
+        x1="0.75"
+        y1="0.75"
         x2="5.5"
         y2="5.5"
         stroke="currentColor"
@@ -144,8 +144,8 @@ function ExpandAllIcon() {
         markerStart="url(#muselab-template-expand-arrow)"
       />
       <line
-        x1="12"
-        y1="2"
+        x1="13.25"
+        y1="0.75"
         x2="8.5"
         y2="5.5"
         stroke="currentColor"
@@ -153,8 +153,8 @@ function ExpandAllIcon() {
         markerStart="url(#muselab-template-expand-arrow)"
       />
       <line
-        x1="2"
-        y1="12"
+        x1="0.75"
+        y1="13.25"
         x2="5.5"
         y2="8.5"
         stroke="currentColor"
@@ -162,8 +162,8 @@ function ExpandAllIcon() {
         markerStart="url(#muselab-template-expand-arrow)"
       />
       <line
-        x1="12"
-        y1="12"
+        x1="13.25"
+        y1="13.25"
         x2="8.5"
         y2="8.5"
         stroke="currentColor"

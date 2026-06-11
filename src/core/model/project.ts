@@ -103,6 +103,16 @@ export function getFirstStoryId(project: Project): string {
   return story.id;
 }
 
+const DEFAULT_STORY_TEMPLATE_WRAPPERS = {
+  promptStartTemplate: "@{ prompter.RevealWordsBegin(-1); }",
+  promptEndTemplate: "@{ prompter.RevealEnd(); }",
+  speakerStartTemplate: "@Format.BoldStart()",
+  speakerEndTemplate: "@Format.BoldEnd()",
+} as const satisfies Pick<
+  Story,
+  "promptStartTemplate" | "promptEndTemplate" | "speakerStartTemplate" | "speakerEndTemplate"
+>;
+
 /** Create a new empty project with one empty story. */
 export function createEmptyProject(name: string = "Untitled"): Project {
   const storyId = generateId();
@@ -116,6 +126,7 @@ export function createEmptyProject(name: string = "Untitled"): Project {
         nodes: [],
         edges: [],
         globalState: {},
+        ...DEFAULT_STORY_TEMPLATE_WRAPPERS,
       },
     ],
     locales: normalizeLocales(undefined),
@@ -256,6 +267,7 @@ export function createStarterStory(name: string = "Untitled"): Story {
     nodes: [],
     edges: [],
     globalState: {},
+    ...DEFAULT_STORY_TEMPLATE_WRAPPERS,
   };
   const start = addNodeToStory(story, { x: 100, y: 100 }, "start");
   story.entryNodeId = start.id;
