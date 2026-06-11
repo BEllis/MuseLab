@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createHtmlPromptRenderer } from "./htmlPromptRenderer";
+import { createHtmlPromptRenderer, createPromptRendererBridge } from "./htmlPromptRenderer";
 import { createFormatMarkerRuntime } from "./formatMarkerRuntime";
 
 describe("createHtmlPromptRenderer", () => {
@@ -24,5 +24,20 @@ describe("createHtmlPromptRenderer", () => {
     prompter.applyFormat(format.shakePhraseEnd());
 
     expect(prompter.render()).toBe("shaky");
+  });
+});
+
+describe("createPromptRendererBridge", () => {
+  it("exposes cito camelCase WaitInMs as waitInMs", () => {
+    const renderer = createHtmlPromptRenderer();
+    const prompter = createPromptRendererBridge(renderer);
+
+    prompter.waitInMs(250);
+    prompter.addLiteral("done");
+
+    expect(renderer.getInstructions()).toEqual([
+      { kind: "wait", milliseconds: 250 },
+      { kind: "appendHtml", html: "done" },
+    ]);
   });
 });

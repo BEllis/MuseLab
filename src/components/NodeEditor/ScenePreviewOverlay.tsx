@@ -57,6 +57,8 @@ export function ScenePreviewOverlay() {
 
   const locale = previewLocale ?? getDefaultLocale(project);
   const thumbnailAspectRatio = getProjectThumbnailAspectRatio(project);
+  const thumbnailAspectWidth = thumbnailAspectRatio.width;
+  const thumbnailAspectHeight = thumbnailAspectRatio.height;
   const sounds = project.assets
     .filter((a) => a.type === "sound")
     .map((a) => ({ id: a.id, name: a.name }));
@@ -153,14 +155,23 @@ export function ScenePreviewOverlay() {
     const updateSize = () => {
       const availableWidth = el.clientWidth - GRAPH_PREVIEW_INSET * 2;
       const availableHeight = el.clientHeight - GRAPH_PREVIEW_INSET * 2;
-      setPreviewSize(fitAspectRatioInBox(availableWidth, availableHeight, thumbnailAspectRatio));
+      const next = fitAspectRatioInBox(availableWidth, availableHeight, {
+        width: thumbnailAspectWidth,
+        height: thumbnailAspectHeight,
+      });
+      setPreviewSize((prev) => {
+        if (prev && prev.width === next.width && prev.height === next.height) {
+          return prev;
+        }
+        return next;
+      });
     };
 
     updateSize();
     const observer = new ResizeObserver(updateSize);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [open, thumbnailAspectRatio, editingTemplate]);
+  }, [open, thumbnailAspectWidth, thumbnailAspectHeight, editingTemplate]);
 
   useEffect(() => {
     if (!open || !editingTemplate) return;

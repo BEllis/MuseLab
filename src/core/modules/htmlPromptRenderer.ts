@@ -200,6 +200,7 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     appendResult: (value: unknown) => renderer.appendResult(value),
     applyFormat: (marker: FormatMarker | null | undefined) => renderer.applyFormat(marker),
     wait: (milliseconds: number) => renderer.wait(milliseconds),
+    waitInMs: (milliseconds: number) => renderer.wait(milliseconds),
     revealCharsBegin: (charsPerSecond: number) => renderer.revealCharsBegin(charsPerSecond),
     revealWordsBegin: (wordsPerSecond: number) => renderer.revealWordsBegin(wordsPerSecond),
     revealCharsOverTimeBegin: (durationMs: number) => renderer.revealCharsOverTimeBegin(durationMs),
