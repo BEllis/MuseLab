@@ -134,6 +134,10 @@ export function scanCitoExpression(source: string, start: number): number {
         return i;
       }
 
+      if (ch === "," || ch === "?") {
+        return i;
+      }
+
       if (/[a-zA-Z]/.test(ch)) {
         const prev = previousNonWhitespace(source, i - 1);
         if (prev === ")") return i;

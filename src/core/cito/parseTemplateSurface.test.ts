@@ -25,6 +25,58 @@ describe("parseTemplateSurface", () => {
     expect(segments[2]).toEqual({ kind: "literal", value: "!" });
   });
 
+  it("stops inline expressions before trailing comma or question mark", () => {
+    expect(parseTemplateSurface('Hi @rt.GetString("name"), friend')).toEqual([
+      { kind: "literal", value: "Hi " },
+      {
+        kind: "expr",
+        value: 'rt.GetString("name")',
+        isStatement: false,
+        isOutput: true,
+        from: 3,
+        to: 24,
+      },
+      { kind: "literal", value: ", friend" },
+    ]);
+    expect(parseTemplateSurface('@rt.GetBool("x")?')).toEqual([
+      {
+        kind: "expr",
+        value: 'rt.GetBool("x")',
+        isStatement: false,
+        isOutput: true,
+        from: 0,
+        to: 16,
+      },
+      { kind: "literal", value: "?" },
+    ]);
+    expect(parseTemplateSurface('@{ prompter.WaitInMs(500) }, ok')).toEqual([
+      {
+        kind: "expr",
+        value: "prompter.WaitInMs(500)",
+        isStatement: true,
+        isOutput: false,
+        from: 0,
+        to: 27,
+      },
+      { kind: "literal", value: ", ok" },
+    ]);
+  });
+
+  it("still allows commas inside expression argument lists", () => {
+    expect(parseTemplateSurface('Hi @rt.GetString("name"), there')).toEqual([
+      { kind: "literal", value: "Hi " },
+      {
+        kind: "expr",
+        value: 'rt.GetString("name")',
+        isStatement: false,
+        isOutput: true,
+        from: 3,
+        to: 24,
+      },
+      { kind: "literal", value: ", there" },
+    ]);
+  });
+
   it("parses parenthesized output expressions", () => {
     const segments = parseTemplateSurface('Score: @(rt.GetInt("score"))');
     expect(segments[1]).toMatchObject({
