@@ -16,6 +16,7 @@ namespace MuseLab.Playback
         TMP_Text dialogueText;
         TMP_Text speakerText;
         Func<string, string> renderSpeakerTemplate;
+        Action<string> onSpeakerChanged;
 
         string visibleMarkup = "";
         string visibleSpeaker = "";
@@ -31,12 +32,18 @@ namespace MuseLab.Playback
         public string VisibleMarkup => visibleMarkup;
         public string VisibleSpeaker => visibleSpeaker;
 
-        public void Configure(SoundManager sound, TMP_Text dialogue, TMP_Text speaker, Func<string, string> speakerRenderer)
+        public void Configure(
+            SoundManager sound,
+            TMP_Text dialogue,
+            TMP_Text speaker,
+            Func<string, string> speakerRenderer,
+            Action<string> speakerChanged = null)
         {
             soundManager = sound;
             dialogueText = dialogue;
             speakerText = speaker;
             renderSpeakerTemplate = speakerRenderer;
+            onSpeakerChanged = speakerChanged;
         }
 
         public void StopPlayback()
@@ -243,6 +250,7 @@ namespace MuseLab.Playback
         {
             if (dialogueText != null) dialogueText.text = visibleMarkup ?? "";
             if (speakerText != null) speakerText.text = visibleSpeaker ?? "";
+            onSpeakerChanged?.Invoke(visibleSpeaker ?? "");
         }
     }
 }

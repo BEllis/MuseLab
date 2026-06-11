@@ -73,7 +73,23 @@ namespace MuseLab.Export
                 var archivePath = MuseLabProjectData.GetAssetArchivePath(assetId);
                 var diskPath = ResolveArchivePath(root, archivePath);
                 if (!File.Exists(diskPath))
-                    Debug.LogWarning($"MuseLab export asset missing: {diskPath}");
+                {
+                    bool existsInManifest = false;
+                    if (manifest != null && manifest.assets != null)
+                    {
+                        foreach (var asset in manifest.assets)
+                        {
+                            if (asset.id == assetId && !string.IsNullOrEmpty(asset.url) && asset.url.StartsWith("data:image/") && asset.url.Contains("base64,"))
+                            {
+                                existsInManifest = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!existsInManifest)
+                        Debug.LogWarning($"MuseLab export asset missing: {diskPath}");
+                }
             }
 
             Report(progress, "Ready", 1f);

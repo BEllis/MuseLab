@@ -17,12 +17,35 @@ namespace MuseLab.Export
                 name = MatchString(json, "\"name\"\\s*:\\s*\"([^\"]+)\""),
                 defaultLocale = MatchString(json, "\"defaultLocale\"\\s*:\\s*\"([^\"]+)\"") ?? "en",
                 stories = ParseStories(json),
+                assets = ParseAssets(json),
             };
             var width = MatchInt(json, "\"playerResolution\"\\s*:\\s*\\{[^}]*\"width\"\\s*:\\s*(\\d+)");
             var height = MatchInt(json, "\"playerResolution\"\\s*:\\s*\\{[^}]*\"height\"\\s*:\\s*(\\d+)");
             if (width > 0 && height > 0)
                 manifest.playerResolution = new PlayerResolutionData { width = width, height = height };
             return manifest;
+        }
+
+        static AssetItem[] ParseAssets(string json)
+        {
+            var assets = new List<AssetItem>();
+            var assetsIndex = json.IndexOf("\"assets\"", StringComparison.Ordinal);
+            if (assetsIndex < 0) return Array.Empty<AssetItem>();
+            var arrayStart = json.IndexOf('[', assetsIndex);
+            var arrayEnd = FindMatchingBracket(json, arrayStart);
+            if (arrayStart < 0 || arrayEnd < 0) return Array.Empty<AssetItem>();
+            var assetsJson = json.Substring(arrayStart, arrayEnd - arrayStart + 1);
+            
+            // Match individual asset objects
+            foreach (Match assetMatch in Regex.Matches(assetsJson, "\\{[^{}]*\"id\"\\s*:\\s*\"([^\"]+)\"[^{}]*\"url\"\\s*:\\s*\"([^\"]+)\"[^{}]*\\}", RegexOptions.Singleline))
+            {
+                assets.Add(new AssetItem
+                {
+                    id = assetMatch.Groups[1].Value,
+                    url = assetMatch.Groups[2].Value
+                });
+            }
+            return assets.ToArray();
         }
 
         static StoryManifest[] ParseStories(string json)

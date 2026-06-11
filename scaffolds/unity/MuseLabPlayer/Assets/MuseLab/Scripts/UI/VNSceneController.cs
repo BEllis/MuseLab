@@ -25,8 +25,7 @@ namespace MuseLab.UI
         RectTransform actorRow;
         RectTransform choicePanel;
         RectTransform dialoguePanel;
-        TMP_Text dialogueText;
-        TMP_Text speakerText;
+        DialogueCaptionBox dialogueCaption;
         TMP_Text continueHint;
         RectTransform endScreen;
         Button restartButton;
@@ -37,21 +36,18 @@ namespace MuseLab.UI
 
         void Start()
         {
-            Debug.Log("[Diagnostic] VNSceneController.Start() began execution");
             MuseLabUiStyles.EnsureMainCamera(MuseLabUiStyles.StageBackground);
             export = MuseLabSession.Export;
             if (export == null)
             {
-                Debug.LogError("[Diagnostic] export is NULL! VNScene started without export context. Load Splash scene first.");
+                Debug.LogError("VNScene started without export context. Load Splash scene first.");
                 return;
             }
 
-            Debug.Log("[Diagnostic] export is NOT null. Resolution: " + export.Manifest.GetPlayerResolution());
             EnsureEventSystem();
             BuildStageUi();
             InitializeEngine();
             RefreshScene();
-            Debug.Log("[Diagnostic] VNSceneController.Start() completed successfully");
         }
 
         void Update()
@@ -113,30 +109,6 @@ namespace MuseLab.UI
         {
             prompter.BeginRenderPass();
             currentState = engine.GetRuntimeState();
-
-            // Auto-traverse start nodes (kind == 0) until we reach a dialogue scene node (kind == 1)
-            var storyId = currentState.GetActiveStoryId();
-            var nodeId = currentState.GetCurrentNodeId();
-            int kind = MuseLabProjectData.GetNodeKind(storyId, nodeId);
-
-            while (kind == 0)
-            {
-                int edgeCount = MuseLabProjectData.GetOutgoingEdgeCount(storyId, nodeId);
-                if (edgeCount > 0)
-                {
-                    string edgeId = MuseLabProjectData.GetOutgoingEdgeId(storyId, nodeId, 0);
-                    string targetNodeId = MuseLabProjectData.GetEdgeTargetNodeId(storyId, edgeId);
-                    engine.GoToNode(targetNodeId);
-                    currentState = engine.GetRuntimeState();
-                    nodeId = currentState.GetCurrentNodeId();
-                    kind = MuseLabProjectData.GetNodeKind(storyId, nodeId);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
             var instructions = new List<PromptInstruction>(prompter.GetInstructions());
             var node = export.Manifest.FindNode(currentState.GetActiveStoryId(), currentState.GetCurrentNodeId());
 
@@ -244,6 +216,16 @@ namespace MuseLab.UI
         {
             var html = state.GetCurrentHtml() ?? "";
             var speaker = state.GetCurrentSpeaker() ?? "";
+
+            if (MuseLabUiStyles.UseDialoguePlaceholder)
+            {
+                dialoguePanel.gameObject.SetActive(true);
+                dialogueCaption.SetSpeaker(string.IsNullOrWhiteSpace(speaker) ? "Alice" : speaker);
+                dialogueCaption.DialogueText.text = MuseLabUiStyles.DialoguePlaceholderText;
+                promptComplete = true;
+                return;
+            }
+
             var hasDialogue = !string.IsNullOrWhiteSpace(MarkupUtil.StripTags(html)) || !string.IsNullOrWhiteSpace(speaker);
             dialoguePanel.gameObject.SetActive(hasDialogue);
 
@@ -253,7 +235,6 @@ namespace MuseLab.UI
                 return;
             }
 
-            speakerText.text = speaker;
             promptComplete = !PromptInstructionRules.NeedExecutor(instructions);
             instructionPlayer.Play(html, speaker, instructions);
         }
@@ -267,7 +248,6 @@ namespace MuseLab.UI
 
         void HandleTap()
         {
-            Debug.LogError("Tap Tap Tap.");
             if (currentState == null) return;
             if (instructionPlayer.AwaitingContinue)
             {
@@ -352,47 +332,20 @@ namespace MuseLab.UI
             dialoguePanel = CreateRect(stageRoot, "DialoguePanel");
             dialoguePanel.anchorMin = Vector2.zero;
             dialoguePanel.anchorMax = new Vector2(1, 0);
+            dialoguePanel.pivot = new Vector2(0.5f, 0);
             dialoguePanel.offsetMin = Vector2.zero;
             dialoguePanel.offsetMax = new Vector2(0, MuseLabUiStyles.DialoguePanelHeight);
             var dialogueBg = dialoguePanel.gameObject.AddComponent<Image>();
-            dialogueBg.color = MuseLabUiStyles.PanelBlue;
+            dialogueBg.sprite = UiSpriteFactory.CreateVerticalGradient(
+                4,
+                64,
+                MuseLabUiStyles.DialoguePanelGradientBottom,
+                MuseLabUiStyles.DialoguePanelGradientTop,
+                0.7f,
+                MuseLabUiStyles.DialoguePanelGradientMid);
+            dialogueBg.type = Image.Type.Simple;
 
-            var speakerGo = new GameObject("Speaker", typeof(RectTransform), typeof(Image));
-            speakerGo.transform.SetParent(dialoguePanel, false);
-            var speakerBg = speakerGo.GetComponent<Image>();
-            speakerBg.color = MuseLabUiStyles.PanelBlue;
-            var speakerRt = speakerGo.GetComponent<RectTransform>();
-            speakerRt.anchorMin = new Vector2(0, 1);
-            speakerRt.anchorMax = new Vector2(0.5f, 1);
-            speakerRt.pivot = new Vector2(0, 0);
-            speakerRt.anchoredPosition = new Vector2(24, 0);
-            speakerRt.sizeDelta = new Vector2(120, 32);
-
-            var speakerTextGo = new GameObject("SpeakerText", typeof(RectTransform), typeof(TextMeshProUGUI));
-            speakerTextGo.transform.SetParent(speakerGo.transform, false);
-            speakerText = speakerTextGo.GetComponent<TextMeshProUGUI>();
-            speakerText.fontSize = 16;
-            TmpFontHelper.ApplyDefaultFont(speakerText);
-            speakerText.color = MuseLabUiStyles.TextDark;
-            speakerText.alignment = TextAlignmentOptions.Center;
-            var speakerTextRt = speakerTextGo.GetComponent<RectTransform>();
-            Stretch(speakerTextRt);
-
-            var dialogueGo = new GameObject("Dialogue", typeof(RectTransform), typeof(TextMeshProUGUI));
-            dialogueGo.transform.SetParent(dialoguePanel, false);
-            dialogueText = dialogueGo.GetComponent<TextMeshProUGUI>();
-            dialogueText.fontSize = 20;
-            TmpFontHelper.ApplyDefaultFont(dialogueText);
-            dialogueText.color = MuseLabUiStyles.TextDark;
-            dialogueText.alignment = TextAlignmentOptions.BottomLeft;
-            dialogueText.textWrappingMode = TextWrappingModes.Normal;
-            dialogueText.overflowMode = TextOverflowModes.Truncate;
-            dialogueGo.AddComponent<ShakeTextEffect>();
-            var dialogueRt = dialogueGo.GetComponent<RectTransform>();
-            dialogueRt.anchorMin = Vector2.zero;
-            dialogueRt.anchorMax = Vector2.one;
-            dialogueRt.offsetMin = new Vector2(24, 16);
-            dialogueRt.offsetMax = new Vector2(-24, -40);
+            dialogueCaption = DialogueCaptionBox.Create(dialoguePanel);
 
             continueHint = CreateTmp(dialoguePanel, "ContinueHint", 16, TextAlignmentOptions.BottomRight);
             continueHint.color = MuseLabUiStyles.TextDark;
@@ -401,7 +354,12 @@ namespace MuseLab.UI
             continueHint.gameObject.SetActive(false);
 
             instructionPlayer = gameObject.AddComponent<PromptInstructionPlayer>();
-            instructionPlayer.Configure(soundManager, dialogueText, speakerText, template => template ?? "");
+            instructionPlayer.Configure(
+                soundManager,
+                dialogueCaption.DialogueText,
+                dialogueCaption.SpeakerText,
+                template => template ?? "",
+                dialogueCaption.SetSpeaker);
             instructionPlayer.OnPlaybackComplete += OnPlaybackComplete;
 
             endScreen = CreateRect(canvasGo.transform, "EndScreen");
