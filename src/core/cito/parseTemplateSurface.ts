@@ -7,6 +7,7 @@ export {
   parseRazorTemplate,
   parseTemplateSurface,
   RazorTemplateParseError,
+  validateOutputExpression,
   validateRazorTemplate,
   type TemplateExpressionRange,
   type TemplateFoldRange,

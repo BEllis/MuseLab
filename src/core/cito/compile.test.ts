@@ -57,8 +57,30 @@ describe("compileTemplate", () => {
     expect(ciSource).toContain("prompter.ApplyFormat(format.BoldEnd());");
   });
 
+  it("maps lowercase format tags into ApplyFormat calls", () => {
+    const { ciSource } = compileTemplate(
+      "@format.ShakeCharsStart()Hello@format.ShakeCharsEnd()",
+      project,
+    );
+    expect(ciSource).toContain("prompter.ApplyFormat(format.ShakeCharsStart());");
+    expect(ciSource).toContain('prompter.AddLiteral("Hello");');
+    expect(ciSource).toContain("prompter.ApplyFormat(format.ShakeCharsEnd());");
+    expect(ciSource).not.toContain("AppendResult((format.");
+  });
+
   it("rejects side-effect bare @ output at compile time", () => {
     expect(() => compileTemplate("@prompter.WaitInMs(500)", project)).toThrow(RazorTemplateParseError);
+  });
+
+  it("rejects mistaken @ in plain text at compile time", () => {
+    expect(() => compileTemplate("user@host.com", project)).toThrow(RazorTemplateParseError);
+    expect(() => compileTemplate("user@host.com", project)).toThrow(/@@/);
+  });
+
+  it("still parses code blocks immediately after text", () => {
+    const { ciSource } = compileTemplate('Done@{ prompter.RevealEnd(); }', project);
+    expect(ciSource).toContain('prompter.AddLiteral("Done");');
+    expect(ciSource).toContain("prompter.RevealEnd();");
   });
 });
 

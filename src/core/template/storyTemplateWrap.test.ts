@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { wrapStoryPromptTemplate, wrapStorySpeakerTemplate } from "./storyTemplateWrap";
+import {
+  unwrapStoryTemplateErrorRange,
+  wrapStoryPromptTemplate,
+  wrapStorySpeakerTemplate,
+} from "./storyTemplateWrap";
 
 describe("storyTemplateWrap", () => {
   it("returns the template unchanged when no wrappers are set", () => {
@@ -13,7 +17,7 @@ describe("storyTemplateWrap", () => {
       promptEndTemplate: "@{ prompter.RevealEnd(); }",
     };
     expect(wrapStoryPromptTemplate(story, "Hello")).toBe(
-      "@{ prompter.RevealWordsBegin(2); }Hello@{ prompter.RevealEnd(); }"
+      "@{ prompter.RevealWordsBegin(2); }Hello@{ prompter.RevealEnd(); }",
     );
   });
 
@@ -31,5 +35,17 @@ describe("storyTemplateWrap", () => {
       promptEndTemplate: "@{ prompter.RevealEnd(); }",
     };
     expect(wrapStoryPromptTemplate(story, "Hello")).toBe("Hello@{ prompter.RevealEnd(); }");
+  });
+});
+
+describe("unwrapStoryTemplateErrorRange", () => {
+  it("subtracts prompt start template length from error ranges", () => {
+    expect(
+      unwrapStoryTemplateErrorRange({ from: 10, to: 19 }, "<wrap>", "user@host.com".length),
+    ).toEqual({ from: 4, to: 13 });
+  });
+
+  it("returns empty when the error is outside the inner template", () => {
+    expect(unwrapStoryTemplateErrorRange({ from: 1, to: 4 }, "<wrap>", 10)).toEqual({});
   });
 });

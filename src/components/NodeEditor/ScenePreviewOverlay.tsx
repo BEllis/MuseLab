@@ -15,7 +15,9 @@ import {
 } from "@/core/locale/prompts";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import { renderNodePreviewResult } from "@/core/view/sceneStage";
+import { RazorTemplateParseError } from "@/core/cito/parseTemplateSurface";
 import {
+  unwrapStoryTemplateErrorRange,
   wrapStoryPromptTemplate,
   wrapStorySpeakerTemplate,
 } from "@/core/template/storyTemplateWrap";
@@ -75,6 +77,11 @@ export function ScenePreviewOverlay() {
   } | null>(null);
 
   const [editorPreviewRender, setEditorPreviewRender] = useState<EditorPreviewRender | null>(null);
+  const [templatePreviewError, setTemplatePreviewError] = useState<{
+    message: string;
+    from?: number;
+    to?: number;
+  } | null>(null);
   const [playbackKey, setPlaybackKey] = useState(0);
   const {
     playSound,
@@ -111,24 +118,39 @@ export function ScenePreviewOverlay() {
     }
     const timer = window.setTimeout(() => {
       void (async () => {
-        const templateResult = await renderNodePreviewResult(
-          wrapStoryPromptTemplate(story, previewTemplate),
-          story.globalState,
-          { project }
-        );
-        const speakerResult = speaker
-          ? await renderNodePreviewResult(
-              wrapStorySpeakerTemplate(story, speaker),
-              story.globalState,
-              { project }
-            )
-          : { html: "", instructions: [] };
-        if (cancelled) return;
-        setEditorPreviewRender({
-          dialogueHtml: templateResult.html,
-          promptInstructions: templateResult.instructions,
-          dialogueSpeaker: speakerResult.html,
-        });
+        try {
+          const templateResult = await renderNodePreviewResult(
+            wrapStoryPromptTemplate(story, previewTemplate),
+            story.globalState,
+            { project }
+          );
+          const speakerResult = speaker
+            ? await renderNodePreviewResult(
+                wrapStorySpeakerTemplate(story, speaker),
+                story.globalState,
+                { project }
+              )
+            : { html: "", instructions: [] };
+          if (cancelled) return;
+          setTemplatePreviewError(null);
+          setEditorPreviewRender({
+            dialogueHtml: templateResult.html,
+            promptInstructions: templateResult.instructions,
+            dialogueSpeaker: speakerResult.html,
+          });
+        } catch (error) {
+          if (cancelled) return;
+          const message = error instanceof Error ? error.message : String(error);
+          const range =
+            error instanceof RazorTemplateParseError
+              ? unwrapStoryTemplateErrorRange(
+                  error,
+                  story.promptStartTemplate,
+                  previewTemplate.length,
+                )
+              : {};
+          setTemplatePreviewError({ message, ...range });
+        }
       })();
     }, delay);
 
@@ -376,6 +398,23 @@ export function ScenePreviewOverlay() {
             boxShadow: "0 -4px 24px var(--app-shadow)",
           }}
         >
+          {templatePreviewError && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: "8px",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #b45309",
+                background: "rgba(180, 83, 9, 0.12)",
+                color: "var(--app-text)",
+                fontSize: "13px",
+                lineHeight: 1.4,
+              }}
+            >
+              {templatePreviewError.message}
+            </div>
+          )}
           <TemplateTextEditor
             value={storeTemplate}
             onChange={handleTemplateChange}
@@ -389,6 +428,7 @@ export function ScenePreviewOverlay() {
             locale={locale}
             locales={project.locales}
             onLocaleChange={handleLocaleChange}
+            templateError={templatePreviewError}
             minHeight={EDITOR_TEXT_MIN_HEIGHT}
             maxHeight={EDITOR_TEXT_MAX_HEIGHT}
             placeholder='Hello world… Use the toolbar for Format.* tags, or @rt.GetString("key") for logic.'

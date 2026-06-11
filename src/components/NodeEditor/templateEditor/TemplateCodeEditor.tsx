@@ -14,6 +14,11 @@ import {
 } from "./templateCompletions";
 import { applyDefaultTemplateFolds } from "./applyDefaultFolds";
 import { templateWhitespace } from "./templateWhitespace";
+import {
+  setTemplateError,
+  templateErrorHighlight,
+  type TemplateErrorRange,
+} from "./templateErrorHighlight";
 
 export type TemplateCodeEditorHandle = {
   getView: () => EditorView | null;
@@ -59,7 +64,12 @@ function buildEditorExtensions(mode: TemplateCodeEditorMode) {
   ];
 
   if (mode === "template") {
-    extensions.push(templateFolding(), ...templateWhitespace(), EditorView.lineWrapping);
+    extensions.push(
+      templateFolding(),
+      ...templateWhitespace(),
+      templateErrorHighlight(),
+      EditorView.lineWrapping,
+    );
   } else {
     extensions.push(singleLineTransactionFilter, singleLineEditorTheme, EditorView.lineWrapping);
   }
@@ -79,6 +89,7 @@ export function TemplateCodeEditor({
   onBlur,
   syncKey,
   editorRef,
+  errorRange,
 }: {
   value: string;
   placeholder?: string;
@@ -91,6 +102,7 @@ export function TemplateCodeEditor({
   onBlur?: () => void;
   syncKey: string | undefined;
   editorRef: React.MutableRefObject<TemplateCodeEditorHandle | null>;
+  errorRange?: TemplateErrorRange | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -183,6 +195,12 @@ export function TemplateCodeEditor({
       });
     }
   }, [mode, syncKey, value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || mode !== "template") return;
+    setTemplateError(view, errorRange ?? null);
+  }, [errorRange, mode]);
 
   const focusEditorEnd = useCallback(() => {
     const view = viewRef.current;

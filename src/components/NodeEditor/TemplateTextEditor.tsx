@@ -15,6 +15,7 @@ import {
   TemplateToolbarDropdown,
   TemplateToolbarMenuItem,
 } from "./templateEditor/TemplateToolbarDropdown";
+import type { TemplateErrorRange } from "./templateEditor/templateErrorHighlight";
 
 const DEFAULT_MIN_HEIGHT = 120;
 const DEFAULT_MAX_HEIGHT = 280;
@@ -192,6 +193,7 @@ export function TemplateTextEditor({
   locale,
   locales,
   onLocaleChange,
+  templateError,
 }: {
   value: string;
   onChange: (markup: string) => void;
@@ -211,7 +213,18 @@ export function TemplateTextEditor({
   locale?: string;
   locales?: Locale[];
   onLocaleChange?: (locale: string) => void;
+  templateError?: { message: string; from?: number; to?: number } | null;
 }) {
+  const templateErrorRange: TemplateErrorRange | null =
+    templateError?.from !== undefined &&
+    templateError.to !== undefined &&
+    templateError.from < templateError.to
+      ? {
+          from: templateError.from,
+          to: templateError.to,
+          message: templateError.message,
+        }
+      : null;
   const editorRef = useRef<TemplateCodeEditorHandle | null>(null);
   const speakerEditorRef = useRef<TemplateCodeEditorHandle | null>(null);
   const activeEditorRef = useRef<"template" | "speaker">("template");
@@ -674,6 +687,7 @@ export function TemplateTextEditor({
         onBlur={handleBlur}
         syncKey={syncKey}
         editorRef={editorRef}
+        errorRange={templateErrorRange}
       />
     </div>
   );

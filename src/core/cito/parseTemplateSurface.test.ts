@@ -6,36 +6,68 @@ import {
   isStatementExpression,
   parseTemplateSurface,
   RazorTemplateParseError,
+  validateRazorTemplate,
 } from "./parseTemplateSurface";
 
 describe("parseTemplateSurface", () => {
   it("parses literals and output expressions", () => {
-    expect(parseTemplateSurface('Hi @rt.GetString("name")!')).toEqual([
-      { kind: "literal", value: "Hi " },
-      { kind: "expr", value: 'rt.GetString("name")', isStatement: false, isOutput: true },
-      { kind: "literal", value: "!" },
-    ]);
+    const segments = parseTemplateSurface('Hi @rt.GetString("name")!');
+    expect(segments).toHaveLength(3);
+    expect(segments[0]).toEqual({ kind: "literal", value: "Hi " });
+    expect(segments[1]).toMatchObject({
+      kind: "expr",
+      value: 'rt.GetString("name")',
+      isStatement: false,
+      isOutput: true,
+      from: 3,
+      to: 24,
+    });
+    expect(segments[2]).toEqual({ kind: "literal", value: "!" });
   });
 
   it("parses parenthesized output expressions", () => {
-    expect(parseTemplateSurface('Score: @(rt.GetInt("score"))')).toEqual([
-      { kind: "literal", value: "Score: " },
-      { kind: "expr", value: 'rt.GetInt("score")', isStatement: false, isOutput: true },
-    ]);
+    const segments = parseTemplateSurface('Score: @(rt.GetInt("score"))');
+    expect(segments[1]).toMatchObject({
+      kind: "expr",
+      value: 'rt.GetInt("score")',
+      isStatement: false,
+      isOutput: true,
+      from: 7,
+      to: 28,
+    });
   });
 
   it("parses format output via bare @", () => {
-    expect(parseTemplateSurface("@Format.BoldStart()hi@Format.BoldEnd()")).toEqual([
-      { kind: "expr", value: "Format.BoldStart()", isStatement: false, isOutput: true },
-      { kind: "literal", value: "hi" },
-      { kind: "expr", value: "Format.BoldEnd()", isStatement: false, isOutput: true },
-    ]);
+    const segments = parseTemplateSurface("@Format.BoldStart()hi@Format.BoldEnd()");
+    expect(segments[0]).toMatchObject({
+      kind: "expr",
+      value: "Format.BoldStart()",
+      isStatement: false,
+      isOutput: true,
+      from: 0,
+      to: 19,
+    });
+    expect(segments[1]).toEqual({ kind: "literal", value: "hi" });
+    expect(segments[2]).toMatchObject({
+      kind: "expr",
+      value: "Format.BoldEnd()",
+      isStatement: false,
+      isOutput: true,
+      from: 21,
+      to: 38,
+    });
   });
 
   it("parses statement code blocks", () => {
-    expect(parseTemplateSurface("@{ prompter.WaitInMs(500); }")).toEqual([
-      { kind: "expr", value: "prompter.WaitInMs(500)", isStatement: true, isOutput: false },
-    ]);
+    const segments = parseTemplateSurface("@{ prompter.WaitInMs(500); }");
+    expect(segments[0]).toMatchObject({
+      kind: "expr",
+      value: "prompter.WaitInMs(500)",
+      isStatement: true,
+      isOutput: false,
+      from: 0,
+      to: 28,
+    });
     expect(isStatementExpression("rt.PlaySoundClip(\"sfx\", 0, -1, -1)")).toBe(true);
     expect(isStatementExpression("prompter.WaitForContinue()")).toBe(true);
     expect(isStatementExpression('prompter.UpdateSpeaker("Maya")')).toBe(true);
@@ -53,16 +85,25 @@ describe("parseTemplateSurface", () => {
   });
 
   it("preserves newlines verbatim in literals", () => {
-    expect(parseTemplateSurface('Hello\n@rt.GetString("name")\nWorld')).toEqual([
-      { kind: "literal", value: "Hello\n" },
-      { kind: "expr", value: 'rt.GetString("name")', isStatement: false, isOutput: true },
-      { kind: "literal", value: "\nWorld" },
-    ]);
-    expect(parseTemplateSurface('A\n\n@{ prompter.WaitInMs(500); }\n\nB')).toEqual([
-      { kind: "literal", value: "A\n\n" },
-      { kind: "expr", value: "prompter.WaitInMs(500)", isStatement: true, isOutput: false },
-      { kind: "literal", value: "\n\nB" },
-    ]);
+    const segments = parseTemplateSurface('Hello\n@rt.GetString("name")\nWorld');
+    expect(segments[0]).toEqual({ kind: "literal", value: "Hello\n" });
+    expect(segments[1]).toMatchObject({
+      kind: "expr",
+      value: 'rt.GetString("name")',
+      isStatement: false,
+      isOutput: true,
+    });
+    expect(segments[2]).toEqual({ kind: "literal", value: "\nWorld" });
+
+    const blockSegments = parseTemplateSurface('A\n\n@{ prompter.WaitInMs(500); }\n\nB');
+    expect(blockSegments[0]).toEqual({ kind: "literal", value: "A\n\n" });
+    expect(blockSegments[1]).toMatchObject({
+      kind: "expr",
+      value: "prompter.WaitInMs(500)",
+      isStatement: true,
+      isOutput: false,
+    });
+    expect(blockSegments[2]).toEqual({ kind: "literal", value: "\n\nB" });
   });
 
   it("parses escaped at signs", () => {
@@ -74,7 +115,26 @@ describe("parseTemplateSurface", () => {
   });
 
   it("rejects side-effect expressions in bare @ output", () => {
-    expect(() => parseTemplateSurface("@prompter.WaitInMs(500)")).toThrow(RazorTemplateParseError);
+    try {
+      parseTemplateSurface("@prompter.WaitInMs(500)");
+      expect.fail("expected parse error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(RazorTemplateParseError);
+      expect((error as RazorTemplateParseError).from).toBe(0);
+      expect((error as RazorTemplateParseError).to).toBe(23);
+    }
+  });
+
+  it("rejects mistaken @ in plain text when validated", () => {
+    try {
+      validateRazorTemplate("user@host.com");
+      expect.fail("expected validation error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(RazorTemplateParseError);
+      expect((error as RazorTemplateParseError).from).toBe(4);
+      expect((error as RazorTemplateParseError).to).toBe(13);
+      expect((error as RazorTemplateParseError).message).toMatch(/@@/);
+    }
   });
 });
 

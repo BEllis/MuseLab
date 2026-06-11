@@ -20,3 +20,17 @@ export function wrapStorySpeakerTemplate(
 ): string {
   return wrapTemplate(template, story.speakerStartTemplate, story.speakerEndTemplate);
 }
+
+/** Map a validation range from a wrapped template back to the inner editor text. */
+export function unwrapStoryTemplateErrorRange(
+  range: { from?: number; to?: number },
+  startTemplate: string | undefined,
+  innerLength: number
+): { from?: number; to?: number } {
+  if (range.from === undefined || range.to === undefined) return {};
+  const prefixLen = startTemplate?.trim().length ?? 0;
+  const from = range.from - prefixLen;
+  const to = range.to - prefixLen;
+  if (from < 0 || to > innerLength || from >= to) return {};
+  return { from, to };
+}

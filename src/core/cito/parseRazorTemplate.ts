@@ -14,7 +14,14 @@ const STATEMENT_PREFIX =
 
 export type TemplateSurfaceSegment =
   | { kind: "literal"; value: string }
-  | { kind: "expr"; value: string; isStatement: boolean; isOutput: boolean }
+  | {
+      kind: "expr";
+      value: string;
+      isStatement: boolean;
+      isOutput: boolean;
+      from: number;
+      to: number;
+    }
   | { kind: "if"; condition: string; body: TemplateSurfaceSegment[] };
 
 export type TemplateFoldRange = {
@@ -30,14 +37,72 @@ export type TemplateExpressionRange = {
 };
 
 export class RazorTemplateParseError extends Error {
-  constructor(message: string) {
+  readonly from?: number;
+  readonly to?: number;
+
+  constructor(message: string, from?: number, to?: number) {
     super(message);
     this.name = "RazorTemplateParseError";
+    this.from = from;
+    this.to = to;
   }
 }
 
 export function isStatementExpression(expr: string): boolean {
   return STATEMENT_PREFIX.test(expr.trim());
+}
+
+const DEFAULT_OUTPUT_ROOTS = ["rt", "format", "Format"] as const;
+
+export function validateOutputExpression(
+  expr: string,
+  allowedRoots: readonly string[] = DEFAULT_OUTPUT_ROOTS,
+  range?: { from: number; to: number },
+): void {
+  const trimmed = expr.trim();
+  const rootMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\./);
+  const from = range?.from;
+  const to = range?.to;
+  if (!rootMatch) {
+    throw new RazorTemplateParseError(
+      `Invalid @ expression "${trimmed}". Output expressions must call rt., format., Format., or a project module.`,
+      from,
+      to,
+    );
+  }
+  const root = rootMatch[1]!;
+  if (allowedRoots.includes(root)) return;
+
+  if (/^[a-z]/.test(root)) {
+    throw new RazorTemplateParseError(
+      `Invalid @ expression "${trimmed}". Text like user@host.com is parsed as code — use @@ for a literal @ in text.`,
+      from,
+      to,
+    );
+  }
+
+  throw new RazorTemplateParseError(
+    `Invalid @ expression "${trimmed}". Unknown root "${root}".`,
+    from,
+    to,
+  );
+}
+
+function validateTemplateSurfaceSegments(
+  segments: TemplateSurfaceSegment[],
+  allowedRoots: readonly string[],
+): void {
+  for (const segment of segments) {
+    if (segment.kind === "expr" && segment.isOutput) {
+      validateOutputExpression(segment.value, allowedRoots, {
+        from: segment.from,
+        to: segment.to,
+      });
+    }
+    if (segment.kind === "if") {
+      validateTemplateSurfaceSegments(segment.body, allowedRoots);
+    }
+  }
 }
 
 type ShakeMode = "none" | "chars" | "phrase";
@@ -60,13 +125,17 @@ function pushLiteral(segments: TemplateSurfaceSegment[], value: string): void {
 function pushOutputExpr(
   segments: TemplateSurfaceSegment[],
   expr: string,
-  shakeMode: ShakeMode
+  shakeMode: ShakeMode,
+  from: number,
+  to: number,
 ): ShakeMode {
   const trimmed = expr.trim();
   if (!trimmed) return shakeMode;
   if (isStatementExpression(trimmed)) {
     throw new RazorTemplateParseError(
-      `Side-effect expressions must use @{ ... }, not bare @: ${trimmed}`
+      `Side-effect expressions must use @{ ... }, not bare @: ${trimmed}`,
+      from,
+      to,
     );
   }
   const nextMode = updateShakeMode(trimmed, shakeMode);
@@ -75,11 +144,19 @@ function pushOutputExpr(
     value: trimmed,
     isStatement: false,
     isOutput: true,
+    from,
+    to,
   });
   return nextMode;
 }
 
-function pushStatementExpr(segments: TemplateSurfaceSegment[], expr: string, shakeMode: ShakeMode): ShakeMode {
+function pushStatementExpr(
+  segments: TemplateSurfaceSegment[],
+  expr: string,
+  shakeMode: ShakeMode,
+  from: number,
+  to: number,
+): ShakeMode {
   const trimmed = expr.trim();
   if (!trimmed) return shakeMode;
   const nextMode = updateShakeMode(trimmed, shakeMode);
@@ -88,6 +165,8 @@ function pushStatementExpr(segments: TemplateSurfaceSegment[], expr: string, sha
     value: trimmed,
     isStatement: true,
     isOutput: false,
+    from,
+    to,
   });
   return nextMode;
 }
@@ -109,15 +188,21 @@ function walkItem(
       pushLiteral(segments, "@");
       break;
     case "OutputExpr":
-      shakeMode = pushOutputExpr(segments, extractOutputExpr(text), shakeMode);
+      shakeMode = pushOutputExpr(segments, extractOutputExpr(text), shakeMode, node.from, node.to);
       break;
     case "OutputExprParen":
-      shakeMode = pushOutputExpr(segments, extractOutputExprParen(text), shakeMode);
+      shakeMode = pushOutputExpr(
+        segments,
+        extractOutputExprParen(text),
+        shakeMode,
+        node.from,
+        node.to,
+      );
       break;
     case "CodeBlock": {
       const body = extractCodeBlockBody(text);
       for (const statement of splitStatements(body)) {
-        shakeMode = pushStatementExpr(segments, statement, shakeMode);
+        shakeMode = pushStatementExpr(segments, statement, shakeMode, node.from, node.to);
       }
       break;
     }
@@ -254,6 +339,10 @@ export function collectTemplateFoldRanges(template: string): TemplateFoldRange[]
   return ranges;
 }
 
-export function validateRazorTemplate(template: string): void {
-  parseRazorTemplate(template);
+export function validateRazorTemplate(
+  template: string,
+  allowedOutputRoots: readonly string[] = DEFAULT_OUTPUT_ROOTS,
+): void {
+  const segments = parseRazorTemplate(template);
+  validateTemplateSurfaceSegments(segments, allowedOutputRoots);
 }

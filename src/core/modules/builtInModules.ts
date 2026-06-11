@@ -334,7 +334,7 @@ export function normalizeFormatExpression(expr: string): string {
 }
 
 export function isFormatExpression(expr: string): boolean {
-  return /^\s*Format\./.test(expr.trim());
+  return /^\s*format\./.test(normalizeFormatExpression(expr.trim()));
 }
 
 export function toModuleInterfaceShape(service: BuiltInModuleDefinition): ModuleInterface {

@@ -4,6 +4,7 @@ import { buildCiPreamble, buildRenderParameterList } from "../modules/generateMo
 import { isFormatExpression, normalizeFormatExpression } from "../modules/builtInModules";
 import {
   parseTemplateSurface,
+  validateRazorTemplate,
   type TemplateSurfaceSegment,
 } from "./parseTemplateSurface";
 
@@ -59,7 +60,12 @@ function buildRenderMethod(segments: Segment[]): string {
   return lines.join("\n        ");
 }
 
+export function getOutputExpressionRoots(project: Project): string[] {
+  return ["rt", "format", "Format", ...project.modules.map((service) => service.bindingName)];
+}
+
 export function compileTemplate(template: string, project: Project): CompiledTemplate {
+  validateRazorTemplate(template, getOutputExpressionRoots(project));
   const segments = parseTemplateSurface(template);
   const className = hashId(template, "Template");
   const renderBody = buildRenderMethod(segments);

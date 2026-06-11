@@ -17,6 +17,10 @@ export const templateEditorTheme = EditorView.theme({
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
     backgroundColor: "var(--app-surface-hover) !important",
   },
+  ".cm-template-error": {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderBottom: "2px wavy #ef4444",
+  },
   ".cm-foldPlaceholder": {
     backgroundColor: "var(--app-surface-hover)",
     color: "var(--app-text-muted)",
