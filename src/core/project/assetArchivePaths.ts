@@ -10,6 +10,7 @@ const ASSET_TYPE_DIRS: Record<AssetType, string> = {
   backdrop: "backdrops",
   actor: "actors",
   sound: "sounds",
+  font: "fonts",
 };
 
 const MIME_EXTENSIONS: Record<string, string> = {
@@ -25,6 +26,14 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "audio/ogg": ".ogg",
   "audio/mp4": ".m4a",
   "audio/x-m4a": ".m4a",
+  "font/woff2": ".woff2",
+  "font/woff": ".woff",
+  "font/ttf": ".ttf",
+  "font/otf": ".otf",
+  "application/font-woff2": ".woff2",
+  "application/font-woff": ".woff",
+  "application/x-font-ttf": ".ttf",
+  "application/x-font-opentype": ".otf",
 };
 
 const EXTENSION_MIMES: Record<string, string> = {
@@ -37,6 +46,10 @@ const EXTENSION_MIMES: Record<string, string> = {
   ".wav": "audio/wav",
   ".ogg": "audio/ogg",
   ".m4a": "audio/mp4",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
 };
 
 export function assetArchivePath(type: AssetType, assetId: string, ext: string): string {

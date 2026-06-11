@@ -21,6 +21,7 @@ import {
   PLACEHOLDER_EXPRESSION_URL,
 } from "../assets/actorExpressions";
 import { isDefaultBackdrop } from "../assets/defaultBackdrop";
+import { isDefaultFont } from "../assets/defaultFont";
 import { getAssetUrlAsync, getActorExpressionUrlAsync } from "../assets/resolver";
 import { getAssetBlob } from "../assets/webAssetStorage";
 
@@ -33,7 +34,9 @@ function parseDataUrl(url: string): { mimeType: string; imageData: string } | nu
 }
 
 function defaultFallbackExtension(type: AssetType): string {
-  return type === "sound" ? ".mp3" : ".png";
+  if (type === "sound") return ".mp3";
+  if (type === "font") return ".woff2";
+  return ".png";
 }
 
 function assetHasPackableMedia(asset: Asset): boolean {
@@ -41,7 +44,7 @@ function assetHasPackableMedia(asset: Asset): boolean {
     return (asset.expressions ?? []).some((expression) => expressionHasPackableMedia(expression));
   }
 
-  if (isDefaultBackdrop(asset.id)) {
+  if (isDefaultBackdrop(asset.id) || isDefaultFont(asset.id)) {
     return Boolean(asset.path || asset.imageData || asset.blobStored);
   }
   return Boolean(
@@ -208,7 +211,7 @@ export async function packProjectArchive(bundle: ProjectBundle): Promise<Uint8Ar
     }
 
     if (!assetHasPackableMedia(asset)) {
-      if (!isDefaultBackdrop(asset.id)) {
+      if (!isDefaultBackdrop(asset.id) && !isDefaultFont(asset.id)) {
         stripAssetForManifest(asset);
       }
       continue;

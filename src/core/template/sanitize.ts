@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 
 const ALLOWED_TAGS = ["b", "i", "p", "div", "br", "span"];
-const ALLOWED_ATTR = ["class", "style"];
+const ALLOWED_ATTR = ["class", "style", "data-muselab-font"];
 
 /**
  * Sanitize HTML to only allow basic styling tags: b, i, p, div, br, span.

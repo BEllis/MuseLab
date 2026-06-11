@@ -1,4 +1,5 @@
 import { DEFAULT_BACKDROP_ID } from "../assets/defaultBackdrop";
+import { DEFAULT_FONT_ID } from "../assets/defaultFont";
 import { getDefaultExpressionId } from "../assets/actorExpressions";
 import type { ActorExpression, Asset, AssetGroup, AssetType, Project } from "./types";
 
@@ -113,6 +114,9 @@ export function wouldCreateAssetGroupCycle(
 function isTreeAsset(asset: Asset, assetType: AssetType, parentGroupId?: string): boolean {
   if (asset.type !== assetType) return false;
   if (assetType === "backdrop" && asset.id === DEFAULT_BACKDROP_ID && parentGroupId === undefined) {
+    return false;
+  }
+  if (assetType === "font" && asset.id === DEFAULT_FONT_ID && parentGroupId === undefined) {
     return false;
   }
   return isDirectChildOf(parentGroupId, asset.groupId);
@@ -244,7 +248,7 @@ function assignExpressionSortOrders(project: Project, actorId: string, siblings:
 }
 
 export function ensureAssetTreeSortOrders(project: Project): void {
-  for (const assetType of ["backdrop", "actor", "sound"] as const) {
+  for (const assetType of ["backdrop", "actor", "sound", "font"] as const) {
     const groups = getAssetGroupsForType(project, assetType);
     const levels = new Set<string | undefined>([undefined]);
     for (const group of groups) {
@@ -300,6 +304,9 @@ export function placeAssetInTree(
   }
   if (asset.id === DEFAULT_BACKDROP_ID) {
     throw new Error("The default backdrop cannot be moved");
+  }
+  if (asset.id === DEFAULT_FONT_ID) {
+    throw new Error("The default font cannot be moved");
   }
 
   const sourceParentGroupId = asset.groupId;

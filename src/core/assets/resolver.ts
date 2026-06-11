@@ -165,7 +165,7 @@ export async function getAssetUrlAsync(
     filesystemPath &&
     (isAbsoluteFilesystemPath(filesystemPath) || filesystemPath.startsWith("/"))
   ) {
-    if (isElectron() && asset.type === "sound") {
+    if (isElectron() && (asset.type === "sound" || asset.type === "font")) {
       return getElectronAssetBlobUrl(filesystemPath);
     }
     if (typeof window !== "undefined" && window.electronAPI?.resolveAssetUrl) {
@@ -177,7 +177,7 @@ export async function getAssetUrlAsync(
     return filesystemPath;
   }
 
-  if (isElectron() && asset.type === "sound") {
+  if (isElectron() && (asset.type === "sound" || asset.type === "font")) {
     const webUrl = await getWebAssetObjectUrl(assetId);
     if (webUrl) return webUrl;
   }

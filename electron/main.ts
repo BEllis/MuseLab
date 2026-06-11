@@ -243,11 +243,13 @@ app.whenReady().then(async () => {
   currentTheme = await resolveStartupTheme();
   protocol.handle(ASSET_PROTOCOL, (request) => handleAssetProtocolRequest(request));
 
-  ipcMain.handle("open-file-dialog", async (_, options: { type: "backdrop" | "actor" | "sound"; multiple?: boolean }) => {
+  ipcMain.handle("open-file-dialog", async (_, options: { type: "backdrop" | "actor" | "sound" | "font"; multiple?: boolean }) => {
     const filters =
       options.type === "sound"
         ? [{ name: "Audio", extensions: ["mp3", "wav", "ogg", "m4a"] }]
-        : [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }];
+        : options.type === "font"
+          ? [{ name: "Fonts", extensions: ["woff2", "woff", "ttf", "otf"] }]
+          : [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }];
     const result = await dialog.showOpenDialog({
       properties: options.multiple ? ["openFile", "multiSelections"] : ["openFile"],
       filters,

@@ -2,10 +2,14 @@ import { useRef, useState, useEffect, useMemo } from "react";
 import { useProjectStore } from "@/store/projectStore";
 import type { Asset, AssetType, ActorExpression } from "@/core/model/types";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
+import { useLoadedFonts } from "@/hooks/useLoadedFonts";
+import { fontFamilyForAsset } from "@/core/assets/fontFaces";
 import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
 import { getAssetUsage } from "@/core/assets/assetUsage";
 import { getExpressionUsage, isDefaultExpression } from "@/core/assets/actorExpressions";
-import { canRenameAsset, canReplaceAsset, isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
+import { isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
+import { isDefaultFont } from "@/core/assets/defaultFont";
+import { canRenameAsset, canReplaceAsset } from "@/core/assets/reservedAssets";
 import { ReplaceImageButton } from "../ReplaceImageButton";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
@@ -38,6 +42,8 @@ function assetTypeLabel(type: AssetType): string {
       return "Actor";
     case "sound":
       return "Sound";
+    case "font":
+      return "Font";
   }
 }
 
@@ -71,13 +77,26 @@ function UsageSummary({ asset }: { asset: Asset }) {
   );
 }
 
-function AssetDetailsUnderName({ asset, isDefault }: { asset: Asset; isDefault: boolean }) {
+function AssetDetailsUnderName({
+  asset,
+  isDefaultBackdrop,
+  isDefaultFontAsset,
+}: {
+  asset: Asset;
+  isDefaultBackdrop: boolean;
+  isDefaultFontAsset: boolean;
+}) {
   return (
     <InspectorPanelDetails>
       <UsageSummary asset={asset} />
-      {isDefault && (
+      {isDefaultBackdrop && (
         <p style={{ ...inspectorSubtextStyle, fontSize: "11px" }}>
           Built-in default backdrop. You can replace its image; name and removal stay fixed.
+        </p>
+      )}
+      {isDefaultFontAsset && (
+        <p style={{ ...inspectorSubtextStyle, fontSize: "11px" }}>
+          Built-in default font. You can replace its file; name and removal stay fixed.
         </p>
       )}
     </InspectorPanelDetails>
@@ -280,6 +299,11 @@ export function AssetEditorPanel() {
     [project, asset]
   );
   const previewUrl = useAssetUrl(project, asset?.type === "actor" ? null : (asset?.id ?? null));
+  const fontPreviewHtml =
+    asset?.type === "font" && asset.id
+      ? `<span data-muselab-font="${asset.id}">Preview</span>`
+      : "";
+  useLoadedFonts(project, fontPreviewHtml);
 
   useEffect(() => {
     setPendingExpressionId(null);
@@ -290,7 +314,8 @@ export function AssetEditorPanel() {
 
   const renamable = canRenameAsset(asset.id);
   const replaceable = canReplaceAsset(asset.id) && asset.type !== "actor";
-  const isDefault = isDefaultBackdrop(asset.id);
+  const isDefaultBackdropAsset = isDefaultBackdrop(asset.id);
+  const isDefaultFontAsset = isDefaultFont(asset.id);
 
   const triggerReplace = () => {
     if (!replaceable) return;
@@ -311,7 +336,9 @@ export function AssetEditorPanel() {
     input.accept =
       asset.type === "sound"
         ? "audio/mpeg,audio/wav,audio/ogg,audio/mp4"
-        : "image/png,image/jpeg,image/gif,image/webp";
+        : asset.type === "font"
+          ? "font/woff2,font/woff,font/ttf,font/otf,.woff2,.woff,.ttf,.otf"
+          : "image/png,image/jpeg,image/gif,image/webp";
     input.multiple = false;
     input.onchange = () => {
       const file = input.files?.[0];
@@ -409,7 +436,11 @@ export function AssetEditorPanel() {
         />
       </label>
 
-      <AssetDetailsUnderName asset={asset} isDefault={isDefault} />
+      <AssetDetailsUnderName
+        asset={asset}
+        isDefaultBackdrop={isDefaultBackdropAsset}
+        isDefaultFontAsset={isDefaultFontAsset}
+      />
 
       {asset.type === "actor" ? (
         <>
@@ -505,7 +536,13 @@ export function AssetEditorPanel() {
               {replaceable && (
                 <ReplaceImageButton
                   onClick={triggerReplace}
-                  title={asset.type === "sound" ? "Replace audio…" : "Replace image…"}
+                  title={
+                    asset.type === "sound"
+                      ? "Replace audio…"
+                      : asset.type === "font"
+                        ? "Replace font…"
+                        : "Replace image…"
+                  }
                 />
               )}
             </div>
@@ -514,6 +551,25 @@ export function AssetEditorPanel() {
                 <audio key={previewUrl} controls src={previewUrl} style={{ width: "100%" }} />
               ) : (
                 <div style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>No audio loaded.</div>
+              )
+            ) : asset.type === "font" ? (
+              previewUrl ? (
+                <p
+                  style={{
+                    margin: 0,
+                    padding: "12px",
+                    fontSize: "18px",
+                    borderRadius: "6px",
+                    border: "1px solid var(--app-border-subtle)",
+                    background: "var(--app-surface)",
+                  }}
+                >
+                  <span style={{ fontFamily: fontFamilyForAsset(asset.id) }}>
+                    The quick brown fox jumps over the lazy dog.
+                  </span>
+                </p>
+              ) : (
+                <div style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>No font loaded.</div>
               )
             ) : previewUrl ? (
               <img

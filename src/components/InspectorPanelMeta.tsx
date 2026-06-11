@@ -1,11 +1,75 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { CloseButton } from "./CloseButton";
 import { useInspectorPanelLayout } from "./InspectorPanelShell";
 
-export function InspectorPanelId({ id }: { id: string }) {
+function CopyIcon() {
   return (
-    <p style={{ margin: "0 0 12px", fontSize: "11px", color: "var(--app-text-subtle)" }}>
-      ID: <code style={{ fontSize: "11px" }}>{id}</code>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <rect
+        x="3.5"
+        y="1.5"
+        width="6"
+        height="7"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.1"
+      />
+      <path
+        d="M2.5 4.5H2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-.5"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function InspectorPanelId({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard may be unavailable outside secure contexts.
+    }
+  };
+
+  return (
+    <p
+      style={{
+        margin: "0 0 12px",
+        fontSize: "11px",
+        color: "var(--app-text-subtle)",
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+      }}
+    >
+      <span>
+        ID: <code style={{ fontSize: "11px" }}>{id}</code>
+      </span>
+      <button
+        type="button"
+        className="app-icon-button"
+        aria-label={copied ? "Copied" : "Copy ID"}
+        title={copied ? "Copied!" : "Copy ID"}
+        onClick={() => void handleCopy()}
+        style={{
+          width: "20px",
+          height: "20px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+          color: copied ? "var(--app-text)" : "var(--app-text-muted)",
+          flexShrink: 0,
+        }}
+      >
+        <CopyIcon />
+      </button>
     </p>
   );
 }

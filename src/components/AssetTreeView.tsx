@@ -11,12 +11,9 @@ import {
   type AssetTreePlacement,
   type AssetTreeSibling,
 } from "@/core/model/assetTree";
-import {
-  DEFAULT_BACKDROP_ID,
-  canRemoveAsset,
-  canReplaceAsset,
-  isDefaultBackdrop,
-} from "@/core/assets/defaultBackdrop";
+import { DEFAULT_BACKDROP_ID, isDefaultBackdrop } from "@/core/assets/defaultBackdrop";
+import { DEFAULT_FONT_ID, isDefaultFont } from "@/core/assets/defaultFont";
+import { canRemoveAsset, canReplaceAsset } from "@/core/assets/reservedAssets";
 import { getAssetUrlAsync, getActorExpressionUrlAsync } from "@/core/assets/resolver";
 import { getExpressionUsage } from "@/core/assets/actorExpressions";
 import { setAssetDragData } from "@/utils/dragDrop";
@@ -79,6 +76,8 @@ function sectionTitle(assetType: AssetType): string {
       return "Actors/Props";
     case "sound":
       return "Sound Clips";
+    case "font":
+      return "Fonts";
   }
 }
 
@@ -96,6 +95,20 @@ function SoundIcon() {
         stroke="currentColor"
         strokeWidth="1.1"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function FontIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M3.5 11.5V3.5h2.25l2.5 8M6.25 8.5h3.5M9.5 3.5v8"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -136,21 +149,26 @@ function AssetThumb({
     };
   }, [assetId, project]);
 
-  if (assetType === "sound") {
+  if (assetType === "sound" || assetType === "font") {
+    const Icon = assetType === "sound" ? SoundIcon : FontIcon;
     return (
       <span
         className="story-tree-icon"
-        draggable
-        title="Drag to canvas"
-        onDragStart={(event) => {
-          event.stopPropagation();
-          onCanvasDragStart();
-          setAssetDragData(event.dataTransfer, { type: "sound", assetId });
-        }}
-        onDragEnd={onCanvasDragEnd}
+        draggable={assetType === "sound"}
+        title={assetType === "sound" ? "Drag to canvas" : undefined}
+        onDragStart={
+          assetType === "sound"
+            ? (event) => {
+                event.stopPropagation();
+                onCanvasDragStart();
+                setAssetDragData(event.dataTransfer, { type: "sound", assetId });
+              }
+            : undefined
+        }
+        onDragEnd={assetType === "sound" ? onCanvasDragEnd : undefined}
         onClick={(event) => event.stopPropagation()}
       >
-        <SoundIcon />
+        <Icon />
       </span>
     );
   }
@@ -324,6 +342,10 @@ function AssetTreeSection({
     () => project.assets.find((asset) => asset.id === DEFAULT_BACKDROP_ID),
     [project.assets]
   );
+  const defaultFont = useMemo(
+    () => project.assets.find((asset) => asset.id === DEFAULT_FONT_ID),
+    [project.assets]
+  );
 
   useEffect(() => {
     if (!addMenuOpen) return;
@@ -358,7 +380,9 @@ function AssetTreeSection({
         input.accept =
           assetType === "sound"
             ? "audio/mpeg,audio/wav,audio/ogg,audio/mp4"
-            : "image/png,image/jpeg,image/gif,image/webp";
+            : assetType === "font"
+              ? "font/woff2,font/woff,font/ttf,font/otf,.woff2,.woff,.ttf,.otf"
+              : "image/png,image/jpeg,image/gif,image/webp";
         input.multiple = multiple;
         input.onchange = async () => {
           const files = input.files;
@@ -451,7 +475,9 @@ function AssetTreeSection({
       input.accept =
         type === "sound"
           ? "audio/mpeg,audio/wav,audio/ogg,audio/mp4"
-          : "image/png,image/jpeg,image/gif,image/webp";
+          : type === "font"
+            ? "font/woff2,font/woff,font/ttf,font/otf,.woff2,.woff,.ttf,.otf"
+            : "image/png,image/jpeg,image/gif,image/webp";
       input.multiple = false;
       input.onchange = () => {
         const file = input.files?.[0];
@@ -480,7 +506,7 @@ function AssetTreeSection({
 
   const startEdit = useCallback(
     (kind: "asset" | "group" | "expression", id: string, name: string, actorId?: string) => {
-      if (kind === "asset" && isDefaultBackdrop(id)) return;
+      if (kind === "asset" && (isDefaultBackdrop(id) || isDefaultFont(id))) return;
       if (kind === "asset") {
         setSelectedAssetId(id);
       } else if (kind === "expression" && actorId) {
@@ -600,7 +626,9 @@ function AssetTreeSection({
       ) {
         return;
       }
-      if (item.kind === "asset" && item.id === DEFAULT_BACKDROP_ID) return;
+      if (item.kind === "asset" && (item.id === DEFAULT_BACKDROP_ID || item.id === DEFAULT_FONT_ID)) {
+        return;
+      }
       placeAssetTreeItem(item, placement);
     },
     [canNestInGroup, clearDragState, getActiveDragItem, placeAssetTreeItem]
@@ -714,6 +742,41 @@ function AssetTreeSection({
           <TreeDragHandle disabled draggable={false} />
           <span className="story-tree-placeholder-label">{label}</span>
         </button>
+      </li>
+    );
+  };
+
+  const renderDefaultFontRow = () => {
+    if (assetType !== "font" || !defaultFont) return null;
+    const selected = selectedAssetId === DEFAULT_FONT_ID;
+
+    return (
+      <li key={DEFAULT_FONT_ID} className="story-tree-item">
+        <div
+          className={`story-tree-row${selected ? " is-selected" : ""}`}
+          style={{ paddingLeft: `${treeRowPaddingLeft(0)}px` }}
+          onClick={() => selectAsset(DEFAULT_FONT_ID)}
+        >
+          <TreeToggleSpacer />
+          <TreeDragHandle disabled />
+          <AssetThumb
+            project={project}
+            assetId={DEFAULT_FONT_ID}
+            assetType="font"
+            onCanvasDragStart={() => {}}
+            onCanvasDragEnd={() => {}}
+          />
+          <span className="story-tree-name story-tree-name-static">Default (required)</span>
+          <span
+            style={{ display: "inline-flex", gap: "4px", flexShrink: 0 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ReplaceImageButton
+              onClick={() => triggerReplaceAsset(DEFAULT_FONT_ID, "font")}
+              title="Replace font…"
+            />
+          </span>
+        </div>
       </li>
     );
   };
@@ -924,8 +987,19 @@ function AssetTreeSection({
             >
               {canReplaceAsset(node.id) && node.assetType !== "actor" && (
                 <ReplaceImageButton
-                  onClick={() => triggerReplaceAsset(node.id, node.assetType)}
-                  title={node.assetType === "sound" ? "Replace audio…" : "Replace image…"}
+                  onClick={() =>
+                    triggerReplaceAsset(
+                      node.id,
+                      node.assetType as Exclude<AssetType, "actor">
+                    )
+                  }
+                  title={
+                    node.assetType === "sound"
+                      ? "Replace audio…"
+                      : node.assetType === "font"
+                        ? "Replace font…"
+                        : "Replace image…"
+                  }
                 />
               )}
               {canRemoveAsset(node.id) && (
@@ -1092,6 +1166,18 @@ function AssetTreeSection({
                   Add Sound Clip
                 </button>
               )}
+              {assetType === "font" && (
+                <button
+                  type="button"
+                  className="app-context-menu-item"
+                  onClick={() => {
+                    triggerFileInput(false);
+                    setAddMenuOpen(false);
+                  }}
+                >
+                  Add Font
+                </button>
+              )}
               <button
                 type="button"
                 className="app-context-menu-item"
@@ -1109,6 +1195,7 @@ function AssetTreeSection({
       {sectionExpanded && (
         <ul className="story-tree-list story-tree-root">
           {renderDefaultBackdropRow()}
+          {renderDefaultFontRow()}
           {!hasAssetsOfType && tree.length === 0
             ? renderEmptyPlaceholder()
             : renderLevel(undefined, 0, tree)}
@@ -1124,10 +1211,16 @@ export function AssetTreeView() {
 
   return (
     <div className="asset-tree">
-      <input ref={fileInputRef} type="file" style={{ display: "none" }} accept="image/*,audio/*" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: "none" }}
+        accept="image/*,audio/*,font/*,.woff2,.woff,.ttf,.otf"
+      />
       <AssetTreeSection assetType="backdrop" fileInputRef={fileInputRef} />
       <AssetTreeSection assetType="actor" fileInputRef={fileInputRef} />
       <AssetTreeSection assetType="sound" fileInputRef={fileInputRef} />
+      <AssetTreeSection assetType="font" fileInputRef={fileInputRef} />
     </div>
   );
 }

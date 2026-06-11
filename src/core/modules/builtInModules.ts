@@ -186,6 +186,60 @@ const FORMAT_METHODS: ModuleMethod[] = [
     returnType: "string",
     description: "Insert text with phrase-level shake applied inline.",
   },
+  {
+    name: "FontStyleBegin",
+    parameters: [
+      { name: "fontAssetId", type: "string" },
+      { name: "fontSizePx", type: "int" },
+      { name: "fontWeight", type: "int" },
+    ],
+    returnType: "string",
+    description:
+      "Open a font-family span from a font asset id; optional initial size (px) and weight (100–900). Use -1 to omit.",
+  },
+  {
+    name: "FontStyleByPathBegin",
+    parameters: [
+      { name: "groupPath", type: "string" },
+      { name: "assetName", type: "string" },
+      { name: "fontSizePx", type: "int" },
+      { name: "fontWeight", type: "int" },
+    ],
+    returnType: "string",
+    description:
+      "Open a font-family span resolved from an Assets folder path and font name; optional size (px) and weight (100–900). Use -1 to omit.",
+  },
+  {
+    name: "FontStyleEnd",
+    parameters: [],
+    returnType: "string",
+    description:
+      "Close a font-family span opened with FontStyleBegin or FontStyleByPathBegin; also closes any open FontSizeBegin/FontWeightBegin spans in the block.",
+  },
+  {
+    name: "FontSizeBegin",
+    parameters: [{ name: "fontSizePx", type: "int" }],
+    returnType: "string",
+    description: "Open a nested font-size span inside FontStyleBegin (1–200 px).",
+  },
+  {
+    name: "FontSizeEnd",
+    parameters: [],
+    returnType: "string",
+    description: "Close a font-size span opened with FontSizeBegin.",
+  },
+  {
+    name: "FontWeightBegin",
+    parameters: [{ name: "fontWeight", type: "int" }],
+    returnType: "string",
+    description: "Open a nested font-weight span inside FontStyleBegin (100–900, step 100).",
+  },
+  {
+    name: "FontWeightEnd",
+    parameters: [],
+    returnType: "string",
+    description: "Close a font-weight span opened with FontWeightBegin.",
+  },
 ];
 
 const PROMPT_RENDERER_METHODS: ModuleMethod[] = [

@@ -29,7 +29,7 @@ type OpenProjectFileResult =
 
 interface Window {
   electronAPI?: {
-    openFileDialog: (options: { type: "backdrop" | "actor" | "sound"; multiple?: boolean }) => Promise<string[]>;
+    openFileDialog: (options: { type: "backdrop" | "actor" | "sound" | "font"; multiple?: boolean }) => Promise<string[]>;
     resolveAssetUrl: (filePath: string) => Promise<string>;
     readAssetFile: (filePath: string) => Promise<{ data: Uint8Array; mime: string }>;
     showSaveDialog: () => Promise<string | null>;

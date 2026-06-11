@@ -28,6 +28,7 @@ export type ProjectPatch = Partial<
     | "playerResolution"
     | "locales"
     | "defaultLocale"
+    | "defaultFontId"
     | "promptRendererTypescriptSource"
   >
 > & {

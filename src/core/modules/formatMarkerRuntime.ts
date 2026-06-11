@@ -10,12 +10,24 @@ export type FormatMarkerKind =
   | "shakePhraseStart"
   | "shakePhraseEnd"
   | "shakeCharsText"
-  | "shakePhraseText";
+  | "shakePhraseText"
+  | "fontStyleBegin"
+  | "fontStyleByPathBegin"
+  | "fontStyleEnd"
+  | "fontSizeBegin"
+  | "fontSizeEnd"
+  | "fontWeightBegin"
+  | "fontWeightEnd";
 
 export type FormatMarker = {
   kind: FormatMarkerKind;
   colorHex?: string;
   text?: string;
+  fontAssetId?: string;
+  fontGroupPath?: string;
+  fontAssetName?: string;
+  fontSizePx?: number;
+  fontWeight?: number;
 };
 
 export type FormatMarkerRuntime = {
@@ -31,6 +43,18 @@ export type FormatMarkerRuntime = {
   shakePhraseEnd(): FormatMarker;
   shakeCharsText(text: string): FormatMarker;
   shakePhraseText(text: string): FormatMarker;
+  fontStyleBegin(fontAssetId: string, fontSizePx?: number, fontWeight?: number): FormatMarker;
+  fontStyleByPathBegin(
+    groupPath: string,
+    assetName: string,
+    fontSizePx?: number,
+    fontWeight?: number
+  ): FormatMarker;
+  fontStyleEnd(): FormatMarker;
+  fontSizeBegin(fontSizePx: number): FormatMarker;
+  fontSizeEnd(): FormatMarker;
+  fontWeightBegin(fontWeight: number): FormatMarker;
+  fontWeightEnd(): FormatMarker;
 };
 
 function marker(kind: FormatMarkerKind, extra?: Partial<FormatMarker>): FormatMarker {
@@ -51,6 +75,24 @@ export function createFormatMarkerRuntime(): FormatMarkerRuntime {
     shakePhraseEnd: () => marker("shakePhraseEnd"),
     shakeCharsText: (text) => marker("shakeCharsText", { text }),
     shakePhraseText: (text) => marker("shakePhraseText", { text }),
+    fontStyleBegin: (fontAssetId, fontSizePx = -1, fontWeight = -1) =>
+      marker("fontStyleBegin", {
+        fontAssetId,
+        fontSizePx: fontSizePx >= 1 ? fontSizePx : undefined,
+        fontWeight: fontWeight >= 100 ? fontWeight : undefined,
+      }),
+    fontStyleByPathBegin: (groupPath, assetName, fontSizePx = -1, fontWeight = -1) =>
+      marker("fontStyleByPathBegin", {
+        fontGroupPath: groupPath,
+        fontAssetName: assetName,
+        fontSizePx: fontSizePx >= 1 ? fontSizePx : undefined,
+        fontWeight: fontWeight >= 100 ? fontWeight : undefined,
+      }),
+    fontStyleEnd: () => marker("fontStyleEnd"),
+    fontSizeBegin: (fontSizePx) => marker("fontSizeBegin", { fontSizePx }),
+    fontSizeEnd: () => marker("fontSizeEnd"),
+    fontWeightBegin: (fontWeight) => marker("fontWeightBegin", { fontWeight }),
+    fontWeightEnd: () => marker("fontWeightEnd"),
   };
 }
 
@@ -70,5 +112,12 @@ export function createFormatMarkerBridge(runtime: FormatMarkerRuntime = createFo
     ShakePhraseEnd: runtime.shakePhraseEnd,
     ShakeCharsText: runtime.shakeCharsText,
     ShakePhraseText: runtime.shakePhraseText,
+    FontStyleBegin: runtime.fontStyleBegin,
+    FontStyleByPathBegin: runtime.fontStyleByPathBegin,
+    FontStyleEnd: runtime.fontStyleEnd,
+    FontSizeBegin: runtime.fontSizeBegin,
+    FontSizeEnd: runtime.fontSizeEnd,
+    FontWeightBegin: runtime.fontWeightBegin,
+    FontWeightEnd: runtime.fontWeightEnd,
   };
 }

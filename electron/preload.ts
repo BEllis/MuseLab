@@ -5,7 +5,7 @@ export type OpenProjectFileResult =
   | { type: "json"; data: string; path: string };
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  openFileDialog: (options: { type: "backdrop" | "actor" | "sound"; multiple?: boolean }) =>
+  openFileDialog: (options: { type: "backdrop" | "actor" | "sound" | "font"; multiple?: boolean }) =>
     ipcRenderer.invoke("open-file-dialog", options),
   resolveAssetUrl: (filePath: string) =>
     ipcRenderer.invoke("resolve-asset-url", filePath),

@@ -11,6 +11,7 @@ import {
   PLACEHOLDER_EXPRESSION_URL,
 } from "./actorExpressions";
 import { DEFAULT_BACKDROP_ID } from "./defaultBackdrop";
+import { DEFAULT_FONT_ID } from "./defaultFont";
 import { getAssetBlob, putAssetBlob } from "./webAssetStorage";
 import { isElectron } from "@/utils/isElectron";
 
@@ -83,7 +84,11 @@ export async function hydrateLegacyEmbeddedAssets(project: Project): Promise<voi
       continue;
     }
 
-    if (asset.url?.startsWith("data:") && asset.id !== DEFAULT_BACKDROP_ID) {
+    if (
+      asset.url?.startsWith("data:") &&
+      asset.id !== DEFAULT_BACKDROP_ID &&
+      asset.id !== DEFAULT_FONT_ID
+    ) {
       const parsed = parseDataUrl(asset.url);
       if (parsed) {
         await putAssetBlob(asset.id, base64ToBlob(parsed.imageData, parsed.mimeType));
@@ -227,7 +232,11 @@ export function stripLegacyEmbeddedMedia(project: Project): void {
       delete asset.imageData;
       delete asset.imageMimeType;
     }
-    if (asset.url?.startsWith("data:") && asset.id !== DEFAULT_BACKDROP_ID) {
+    if (
+      asset.url?.startsWith("data:") &&
+      asset.id !== DEFAULT_BACKDROP_ID &&
+      asset.id !== DEFAULT_FONT_ID
+    ) {
       delete asset.url;
     }
   }

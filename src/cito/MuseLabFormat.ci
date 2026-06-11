@@ -59,4 +59,39 @@ public class MuseLabFormat
     {
         return null;
     }
+
+    public IFormatMarker FontStyleBegin(string fontAssetId, int fontSizePx = -1, int fontWeight = -1)
+    {
+        return null;
+    }
+
+    public IFormatMarker FontStyleByPathBegin(string groupPath, string assetName, int fontSizePx = -1, int fontWeight = -1)
+    {
+        return null;
+    }
+
+    public IFormatMarker FontStyleEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker FontSizeBegin(int fontSizePx)
+    {
+        return null;
+    }
+
+    public IFormatMarker FontSizeEnd()
+    {
+        return null;
+    }
+
+    public IFormatMarker FontWeightBegin(int fontWeight)
+    {
+        return null;
+    }
+
+    public IFormatMarker FontWeightEnd()
+    {
+        return null;
+    }
 }

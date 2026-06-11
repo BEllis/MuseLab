@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getDefaultFontId } from "@/core/assets/defaultFont";
 import type { Locale, Project } from "@/core/model/types";
 import {
   SINGLE_LINE_HEIGHT,
@@ -231,6 +232,14 @@ export function TemplateTextEditor({
   const [draft, setDraft] = useState(value ?? "");
   const [colorPickerValue, setColorPickerValue] = useState("#000000");
   const [selectedSoundId, setSelectedSoundId] = useState("");
+  const [selectedFontId, setSelectedFontId] = useState(() => getDefaultFontId(project));
+  const fontAssets = useMemo(
+    () =>
+      project.assets
+        .filter((asset) => asset.type === "font")
+        .map((asset) => ({ id: asset.id, name: asset.name })),
+    [project.assets]
+  );
   const committedValueRef = useRef(value ?? "");
   const lastExternalSyncKeyRef = useRef(syncKey);
 
@@ -360,6 +369,7 @@ export function TemplateTextEditor({
   }, []);
 
   const soundInsertDisabled = !selectedSoundId || soundAssets.length === 0;
+  const fontInsertDisabled = !selectedFontId || fontAssets.length === 0;
   const showPromptMeta = locales != null && onLocaleChange != null;
 
   return (
@@ -416,6 +426,55 @@ export function TemplateTextEditor({
           >
             Apply color
           </button>
+
+          <TemplateToolbarDropdown label="Font">
+            {(close) => (
+              <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <select
+                  value={selectedFontId}
+                  onChange={(e) => setSelectedFontId(e.target.value)}
+                  disabled={fontAssets.length === 0}
+                  title="Select font asset"
+                  style={{
+                    fontSize: "12px",
+                    padding: "4px 6px",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "4px",
+                    background: "var(--app-surface)",
+                    color: "var(--app-text)",
+                    width: "100%",
+                  }}
+                >
+                  <option value="">— Select —</option>
+                  {fontAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="app-context-menu-item"
+                  onClick={() => {
+                    applyWrap(
+                      `@Format.FontStyleBegin("${selectedFontId}")`,
+                      "@Format.FontStyleEnd()"
+                    );
+                    close();
+                  }}
+                  title="Wrap selection with font style"
+                  disabled={fontInsertDisabled}
+                  style={{
+                    borderRadius: "4px",
+                    opacity: fontInsertDisabled ? 0.5 : 1,
+                    cursor: fontInsertDisabled ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Apply font wrap
+                </button>
+              </div>
+            )}
+          </TemplateToolbarDropdown>
 
           <ToolbarSeparator />
 

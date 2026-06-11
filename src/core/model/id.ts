@@ -1,4 +1,5 @@
 import { DEFAULT_BACKDROP_ID } from "../assets/defaultBackdrop";
+import { DEFAULT_FONT_ID } from "../assets/defaultFont";
 
 /** UUID v4 pattern (lowercase hex with hyphens). */
 export const UUID_PATTERN =
@@ -16,7 +17,7 @@ export function isBuiltinModuleId(id: string): boolean {
 
 /** Reserved ids that are not migrated to UUIDs. */
 export function isReservedObjectId(id: string): boolean {
-  return id === DEFAULT_BACKDROP_ID || isBuiltinModuleId(id);
+  return id === DEFAULT_BACKDROP_ID || id === DEFAULT_FONT_ID || isBuiltinModuleId(id);
 }
 
 /** True for UUID entity ids and reserved built-in ids. */

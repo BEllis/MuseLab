@@ -26,6 +26,10 @@ MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (
 | `@Format.ShakePhraseStart()` … `@Format.ShakePhraseEnd()` | Phrase shake (wraps following text) |
 | `@Format.ShakeCharsText("…")` | Insert text with per-character shake |
 | `@Format.ShakePhraseText("…")` | Insert text with phrase shake |
+| `@Format.FontStyleBegin("font-id")` / `@Format.FontStyleEnd()` | Font family from a font asset; optional size/weight on Begin |
+| `@Format.FontStyleByPathBegin("UI", "Title")` / `@Format.FontStyleEnd()` | Font family resolved from Assets folder path + font name |
+| `@Format.FontSizeBegin(18)` / `@Format.FontSizeEnd()` | Nested font size (inside FontStyleBegin) |
+| `@Format.FontWeightBegin(700)` / `@Format.FontWeightEnd()` | Nested font weight (inside FontStyleBegin) |
 | `@@` | Literal `@` in output |
 
 **Rules:**

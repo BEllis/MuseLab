@@ -146,7 +146,7 @@ export function createPromptRenderer(
       console.warn("Custom prompt renderer failed, using default HTML renderer:", error);
     }
   }
-  return createHtmlPromptRenderer(options);
+  return createHtmlPromptRenderer({ ...options, project });
 }
 
 export type ModuleBindings = Record<string, unknown> & {

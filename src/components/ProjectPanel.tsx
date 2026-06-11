@@ -11,6 +11,7 @@ import {
   sanitizeLocaleCodeInput,
 } from "@/core/locale/localeTag";
 import { getDefaultLocale } from "@/core/locale/prompts";
+import { getDefaultFontId } from "@/core/assets/defaultFont";
 import { CloseButton } from "./CloseButton";
 import { AddButton } from "./AddButton";
 import { StoryTreeView } from "./StoryTreeView";
@@ -447,6 +448,8 @@ export function ProjectPanel() {
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
 
   const defaultLocale = getDefaultLocale(project);
+  const defaultFontId = getDefaultFontId(project);
+  const fontAssets = project.assets.filter((asset) => asset.type === "font");
 
   const [name, setName] = useState(project.name);
 
@@ -518,6 +521,31 @@ export function ProjectPanel() {
         onRemoveLocale={removeLocale}
         onAddLocale={handleAddLocale}
       />
+
+      <label style={{ display: "block", marginBottom: "16px", fontSize: "12px" }}>
+        <strong>Default font</strong>
+        <select
+          value={defaultFontId}
+          onChange={(e) => updateProject({ defaultFontId: e.target.value })}
+          style={{
+            display: "block",
+            width: "100%",
+            marginTop: "4px",
+            padding: "6px",
+            fontSize: "12px",
+            border: "1px solid var(--app-border)",
+            borderRadius: "4px",
+            background: "var(--app-input-bg)",
+            color: "var(--app-text)",
+          }}
+        >
+          {fontAssets.map((font) => (
+            <option key={font.id} value={font.id}>
+              {font.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <StoryTreeView />
 

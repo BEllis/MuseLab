@@ -8,6 +8,7 @@ import {
   type DialoguePlaybackGate,
 } from "@/components/PromptInstructionExecutor";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
+import { useLoadedFonts } from "@/hooks/useLoadedFonts";
 import { ActorRow } from "@/components/ActorImage";
 import {
   getNodeChoices,
@@ -190,6 +191,7 @@ export function SceneStagePreview({
   }, [dialogueSpeaker, story, storyId, project, promptsByLocale, node.id, locale, disableShake]);
 
   const html = dialogueHtml ?? previewHtml;
+  const { defaultFontFamily } = useLoadedFonts(project, html);
   const initialSpeakerHtml = dialogueSpeaker ?? previewSpeaker;
   const templateRuntimeState = templateState ?? story.globalState;
   const renderSpeakerTemplate = useCallback(
@@ -389,6 +391,7 @@ export function SceneStagePreview({
                 hasSpeaker={hasVisibleRichText(visibleSpeakerHtml)}
                 speakerHtml={visibleSpeakerHtml}
                 speakerTabStyle={speakerTabStyle}
+                defaultFontFamily={defaultFontFamily}
                 dialogueMeasureRef={!compact ? dialogueMeasureRef : undefined}
                 dialogueHtml={visibleHtml}
                 linePaginationEnabled={!compact && !isComplete}
@@ -431,6 +434,7 @@ export function SceneStagePreview({
             hasSpeaker={hasVisibleRichText(initialSpeakerHtml)}
             speakerHtml={initialSpeakerHtml}
             speakerTabStyle={speakerTabStyle}
+            defaultFontFamily={defaultFontFamily}
             dialogueHtml={html}
             linePaginationEnabled={interactionsEnabled}
             showContinueHint={(singleChoice || continueOnClick) && interactionsEnabled}
@@ -559,6 +563,7 @@ function DialogueCaptionBox({
   hasSpeaker,
   speakerHtml,
   speakerTabStyle,
+  defaultFontFamily,
   dialogueMeasureRef,
   dialogueHtml,
   linePaginationEnabled = true,
@@ -574,6 +579,7 @@ function DialogueCaptionBox({
   hasSpeaker: boolean;
   speakerHtml: string;
   speakerTabStyle: React.CSSProperties;
+  defaultFontFamily?: string;
   dialogueMeasureRef?: React.RefObject<HTMLDivElement | null>;
   dialogueHtml: string;
   linePaginationEnabled?: boolean;
@@ -745,6 +751,7 @@ function DialogueCaptionBox({
           style={{
             ...vnDialogueScrollStyle(compact, hintReservePx),
             lineHeight,
+            ...(defaultFontFamily ? { fontFamily: defaultFontFamily } : {}),
           }}
         >
           <div

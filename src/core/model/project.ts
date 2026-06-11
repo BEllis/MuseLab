@@ -20,6 +20,7 @@ import {
   isDefaultBackdrop,
   resolveBackdropId,
 } from "../assets/defaultBackdrop";
+import { ensureDefaultFont, isDefaultFont } from "../assets/defaultFont";
 import {
   createExpression,
   createBlankExpression,
@@ -134,6 +135,7 @@ export function createEmptyProject(name: string = "Untitled"): Project {
     modules: [],
   };
   ensureDefaultBackdrop(project);
+  ensureDefaultFont(project);
   return project;
 }
 
@@ -554,6 +556,7 @@ export function addNode(
 ): StoryNode {
   if (type === "scene") {
     ensureDefaultBackdrop(project);
+    ensureDefaultFont(project);
   }
   return addNodeToStory(getStory(project, storyId), position, type);
 }
@@ -578,6 +581,7 @@ export function cloneNode(
   let node: StoryNode;
   if (isSceneNode(source)) {
     ensureDefaultBackdrop(project);
+    ensureDefaultFont(project);
     node = {
       id,
       type: "scene",
@@ -1023,9 +1027,10 @@ export function replaceAssetMedia(
 
 /** Remove an asset (caller should ensure no nodes reference it) */
 export function removeAsset(project: Project, assetId: string): void {
-  if (isDefaultBackdrop(assetId)) return;
+  if (isDefaultBackdrop(assetId) || isDefaultFont(assetId)) return;
   project.assets = project.assets.filter((a) => a.id !== assetId);
   ensureDefaultBackdrop(project);
+  ensureDefaultFont(project);
 }
 
 /** Starting scene: the sole node with no incoming edges, if unambiguous. */
@@ -1294,6 +1299,7 @@ export function parseProject(json: string): Project {
   }
   normalizeProjectModules(project);
   ensureDefaultBackdrop(project);
+  ensureDefaultFont(project);
   normalizeStoryGroups(project);
   normalizeAssetGroups(project);
   normalizeProjectAttributes(project);

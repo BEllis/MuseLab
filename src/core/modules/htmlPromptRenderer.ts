@@ -1,3 +1,4 @@
+import type { Project } from "../model/types";
 import type { FormatMarker } from "./formatMarkerRuntime";
 import {
   createPromptInstructionRecorder,
@@ -5,13 +6,29 @@ import {
   type PromptInstructionRecorder,
 } from "@/core/prompt/promptInstructions";
 import { escapeHtml, literalTextToHtml } from "@/core/template/literalTextToHtml";
+import { resolveFontId } from "../assets/defaultFont";
+import { fontFamilyForAsset } from "../assets/fontFaces";
+import { resolveFontAssetId } from "../assets/resolveFontAsset";
 
 const SHAKE_CHAR_VARIANT_COUNT = 8;
 
 export type HtmlPromptRendererOptions = {
+  project?: Project;
   disableShake?: boolean;
   recorder?: PromptInstructionRecorder;
 };
+
+type FontRenderContext = {
+  project?: Project;
+  /** Unclosed FontSizeBegin/FontWeightBegin count per open FontStyleBegin block. */
+  fontBlockNestedSpans: number[];
+};
+
+function closeOpenFontBlock(fontContext: FontRenderContext): string {
+  const nested = fontContext.fontBlockNestedSpans.pop();
+  if (nested === undefined) return "";
+  return `${"</span>".repeat(nested)}</span>`;
+}
 
 export type PromptRenderer = {
   addLiteral(text: string): void;
@@ -65,7 +82,40 @@ function literalToHtml(text: string, shakeMode: ShakeMode, disableShake: boolean
   return shakePhraseHtml(text);
 }
 
-function markerToHtml(marker: FormatMarker, disableShake: boolean): string {
+function isValidFontSize(px: number | undefined): boolean {
+  return typeof px === "number" && Number.isInteger(px) && px >= 1 && px <= 200;
+}
+
+function isValidFontWeight(weight: number | undefined): boolean {
+  return (
+    typeof weight === "number" &&
+    Number.isInteger(weight) &&
+    weight >= 100 &&
+    weight <= 900 &&
+    weight % 100 === 0
+  );
+}
+
+function buildFontStyleOpen(marker: FormatMarker, project?: Project): string {
+  const fontAssetId = project
+    ? resolveFontId(project, marker.fontAssetId ?? "")
+    : (marker.fontAssetId ?? "");
+  const family = fontFamilyForAsset(fontAssetId);
+  const styles = [`font-family:${family}`];
+  if (isValidFontSize(marker.fontSizePx)) {
+    styles.push(`font-size:${marker.fontSizePx}px`);
+  }
+  if (isValidFontWeight(marker.fontWeight)) {
+    styles.push(`font-weight:${marker.fontWeight}`);
+  }
+  return `<span data-muselab-font="${escapeHtml(fontAssetId)}" style="${styles.join(";")}">`;
+}
+
+function markerToHtml(
+  marker: FormatMarker,
+  disableShake: boolean,
+  fontContext: FontRenderContext
+): string {
   switch (marker.kind) {
     case "boldStart":
       return "<b>";
@@ -98,6 +148,55 @@ function markerToHtml(marker: FormatMarker, disableShake: boolean): string {
       return disableShake
         ? literalTextToHtml(marker.text ?? "")
         : shakePhraseHtml(marker.text ?? "");
+    case "fontStyleBegin": {
+      if (!marker.fontAssetId) return "";
+      fontContext.fontBlockNestedSpans.push(0);
+      return buildFontStyleOpen(marker, fontContext.project);
+    }
+    case "fontStyleByPathBegin": {
+      if (!marker.fontGroupPath || !marker.fontAssetName || !fontContext.project) return "";
+      const fontAssetId = resolveFontAssetId(
+        fontContext.project,
+        marker.fontGroupPath,
+        marker.fontAssetName
+      );
+      fontContext.fontBlockNestedSpans.push(0);
+      return buildFontStyleOpen(
+        {
+          kind: "fontStyleBegin",
+          fontAssetId,
+          fontSizePx: marker.fontSizePx,
+          fontWeight: marker.fontWeight,
+        },
+        fontContext.project
+      );
+    }
+    case "fontStyleEnd":
+      return closeOpenFontBlock(fontContext);
+    case "fontSizeBegin": {
+      const nested = fontContext.fontBlockNestedSpans.at(-1);
+      if (nested === undefined || !isValidFontSize(marker.fontSizePx)) return "";
+      fontContext.fontBlockNestedSpans[fontContext.fontBlockNestedSpans.length - 1] = nested + 1;
+      return `<span style="font-size:${marker.fontSizePx}px">`;
+    }
+    case "fontSizeEnd": {
+      const nested = fontContext.fontBlockNestedSpans.at(-1);
+      if (nested === undefined || nested <= 0) return "";
+      fontContext.fontBlockNestedSpans[fontContext.fontBlockNestedSpans.length - 1] = nested - 1;
+      return "</span>";
+    }
+    case "fontWeightBegin": {
+      const nested = fontContext.fontBlockNestedSpans.at(-1);
+      if (nested === undefined || !isValidFontWeight(marker.fontWeight)) return "";
+      fontContext.fontBlockNestedSpans[fontContext.fontBlockNestedSpans.length - 1] = nested + 1;
+      return `<span style="font-weight:${marker.fontWeight}">`;
+    }
+    case "fontWeightEnd": {
+      const nested = fontContext.fontBlockNestedSpans.at(-1);
+      if (nested === undefined || nested <= 0) return "";
+      fontContext.fontBlockNestedSpans[fontContext.fontBlockNestedSpans.length - 1] = nested - 1;
+      return "</span>";
+    }
     default:
       return "";
   }
@@ -135,6 +234,10 @@ export function createHtmlPromptRenderer(
   const recorder = options.recorder ?? createPromptInstructionRecorder();
   const parts: string[] = [];
   let shakeMode: ShakeMode = "none";
+  const fontContext: FontRenderContext = {
+    project: options.project,
+    fontBlockNestedSpans: [],
+  };
 
   const pushHtml = (html: string, plainText: string) => {
     if (!html) return;
@@ -153,7 +256,7 @@ export function createHtmlPromptRenderer(
     },
     applyFormat(marker: FormatMarker | null | undefined) {
       if (!marker) return;
-      const html = markerToHtml(marker, disableShake);
+      const html = markerToHtml(marker, disableShake, fontContext);
       if (html) {
         pushHtml(html, markerPlainText(marker));
       }
@@ -186,11 +289,13 @@ export function createHtmlPromptRenderer(
     reset() {
       parts.length = 0;
       shakeMode = "none";
+      fontContext.fontBlockNestedSpans = [];
       recorder.reset();
     },
     clear() {
       parts.length = 0;
       shakeMode = "none";
+      fontContext.fontBlockNestedSpans = [];
       recorder.clear();
     },
     render() {

@@ -6,8 +6,10 @@ import { isElectron } from "@/utils/isElectron";
 
 function inferType(file: File): AssetType | null {
   const t = file.type;
+  const name = file.name.toLowerCase();
   if (t.startsWith("image/")) return "backdrop";
   if (t.startsWith("audio/")) return "sound";
+  if (t.startsWith("font/") || /\.(woff2?|ttf|otf)$/.test(name)) return "font";
   return null;
 }
 
@@ -47,7 +49,7 @@ export function AssetsPanel() {
       onDragLeave={onDragLeave}
     >
       <p style={{ margin: "0 0 8px", fontSize: "11px", color: "var(--app-text-muted)" }}>
-        Drop images (backdrop) or audio (sound clip) here to add.
+        Drop images (backdrop), audio (sound), or fonts here to add.
       </p>
       <AssetTreeView />
     </div>

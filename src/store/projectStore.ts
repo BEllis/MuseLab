@@ -59,7 +59,9 @@ import {
   revokeWebAssetObjectUrl,
   deleteAssetBlob,
 } from "@/core/assets/webAssetStorage";
-import { ensureDefaultBackdrop, canRemoveAsset, canReplaceAsset } from "@/core/assets/defaultBackdrop";
+import { ensureDefaultBackdrop } from "@/core/assets/defaultBackdrop";
+import { ensureDefaultFont } from "@/core/assets/defaultFont";
+import { canRemoveAsset, canReplaceAsset } from "@/core/assets/reservedAssets";
 import {
   assertArchivePromptLocales,
   packProjectArchive,
@@ -186,6 +188,7 @@ function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
     }
   }
   ensureDefaultBackdrop(bundle.project);
+  ensureDefaultFont(bundle.project);
   normalizeEdgeTargetPorts(bundle.project);
   readLegacyThumbnailAspectRatio(bundle.project);
   bundle.promptsByLocale = ensurePromptsForProjectLocales(

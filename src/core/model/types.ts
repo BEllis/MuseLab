@@ -2,8 +2,8 @@ import type { Attributes } from "./attributes";
 
 export type { AttributeValue, AttributeValueType, Attributes } from "./attributes";
 
-/** Asset type: backdrop (image), actor (sprite), or sound (audio) */
-export type AssetType = "backdrop" | "actor" | "sound";
+/** Asset type: backdrop (image), actor (sprite), sound (audio), or font */
+export type AssetType = "backdrop" | "actor" | "sound" | "font";
 
 /** One named visual variant of an actor (e.g. happy, sad). */
 export interface ActorExpression {
@@ -236,6 +236,8 @@ export interface Project {
   locales: Locale[];
   /** Default locale tag; must appear in locales. */
   defaultLocale?: string;
+  /** Default font asset id for unstyled dialogue text. */
+  defaultFontId?: string;
   /** Custom module interfaces available in Cito code */
   modules: ModuleInterface[];
   /** Scene thumbnail aspect ratio in the designer canvas */

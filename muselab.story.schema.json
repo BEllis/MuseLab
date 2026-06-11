@@ -43,6 +43,10 @@
       "pattern": "^[a-z]+(?:-[a-z]+)*$",
       "description": "Default locale tag; must match a locale entry's locale field."
     },
+    "defaultFontId": {
+      "$ref": "#/$defs/assetId",
+      "description": "Default font asset id for unstyled dialogue text."
+    },
     "entryNodeId": {
       "type": "string",
       "minLength": 1,
@@ -184,9 +188,18 @@
       "description": "UUID v4 object identifier (lowercase hex)."
     },
     "reservedAssetId": {
-      "type": "string",
-      "const": "muselab-default-backdrop",
-      "description": "Built-in default backdrop asset id."
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "muselab-default-backdrop",
+          "description": "Built-in default backdrop asset id."
+        },
+        {
+          "type": "string",
+          "const": "muselab-default-font",
+          "description": "Built-in default font asset id."
+        }
+      ]
     },
     "reservedModuleId": {
       "type": "string",
@@ -275,7 +288,7 @@
     },
     "assetType": {
       "type": "string",
-      "enum": ["backdrop", "actor", "sound"]
+      "enum": ["backdrop", "actor", "sound", "font"]
     },
     "actorExpression": {
       "type": "object",

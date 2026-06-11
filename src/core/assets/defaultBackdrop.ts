@@ -55,15 +55,3 @@ export function ensureDefaultBackdrop(project: Project): void {
 export function isDefaultBackdrop(assetId: string): boolean {
   return assetId === DEFAULT_BACKDROP_ID;
 }
-
-export function canRemoveAsset(assetId: string): boolean {
-  return !isDefaultBackdrop(assetId);
-}
-
-export function canRenameAsset(assetId: string): boolean {
-  return !isDefaultBackdrop(assetId);
-}
-
-export function canReplaceAsset(_assetId: string): boolean {
-  return true;
-}
