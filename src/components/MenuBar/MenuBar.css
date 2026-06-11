@@ -189,3 +189,31 @@
 .menubar-dropdown-item:not(:disabled):hover .menubar-dropdown-shortcut {
   opacity: 0.9;
 }
+
+.menubar-dropdown-header {
+  padding: 4px 12px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, rgba(127, 127, 127, 0.95));
+  pointer-events: none;
+}
+
+.menubar-submenu-wrap {
+  position: relative;
+}
+
+.menubar-dropdown-item--submenu {
+  grid-template-columns: 16px 1fr auto;
+}
+
+.menubar-dropdown-arrow {
+  opacity: 0.75;
+  font-size: 11px;
+}
+
+.menubar-submenu {
+  top: -4px;
+  left: calc(100% - 4px);
+}

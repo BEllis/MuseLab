@@ -9,6 +9,7 @@ import { loadUserSettings, resolveStartupTheme, saveUserSettings, getPlayerLocal
 import { readAutosaveFile, writeAutosaveFile } from "./autosave";
 import { transpileCiToTarget, type CitoTranspileTarget } from "./citoTranspile";
 import { handleAssetProtocolRequest, readAssetFile } from "./assetProtocol";
+import { buildNativeSchemaMenuItems } from "./schemaMenu";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -184,6 +185,11 @@ function buildApplicationMenu(): void {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send("show-about");
           },
+        },
+        { type: "separator" },
+        {
+          label: "Schemas",
+          submenu: buildNativeSchemaMenuItems(),
         },
       ],
     },

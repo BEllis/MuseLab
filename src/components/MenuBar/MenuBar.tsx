@@ -9,6 +9,7 @@ import {
   exportScriptWithScope,
   importScriptFile,
 } from "@/core/script/scriptFileActions";
+import { buildHelpSchemaMenuItems } from "@/core/schemas/helpSchemaMenuItems";
 import {
   dispatchViewCommand,
   reloadPage,
@@ -20,25 +21,10 @@ import { useThemeStore } from "@/store/themeStore";
 import { useAboutStore } from "@/store/aboutStore";
 import { useExportStore } from "@/store/exportStore";
 import logoUrl from "@/assets/logo.png";
+import type { MenuDef, MenuItem } from "./menuTypes";
 import "./MenuBar.css";
 
 export const MENU_BAR_HEIGHT = 28;
-
-type MenuItem =
-  | { type: "separator" }
-  | {
-      type?: "item";
-      label: string;
-      shortcut?: string;
-      disabled?: boolean;
-      checked?: boolean;
-      action?: () => void | Promise<void>;
-    };
-
-type MenuDef = {
-  label: string;
-  items: MenuItem[];
-};
 
 type MenuPlatform = "mac" | "win";
 
@@ -58,6 +44,87 @@ function isMac(): boolean {
 
 function modShortcut(key: string): string {
   return isMac() ? `⌘${key}` : `Ctrl+${key}`;
+}
+
+function MenuDropdownItems({
+  items,
+  onClose,
+  onKeepOpen,
+}: {
+  items: MenuItem[];
+  onClose: () => void;
+  onKeepOpen: () => void;
+}) {
+  const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null);
+
+  return (
+    <>
+      {items.map((item, index) => {
+        if (item.type === "separator") {
+          return <div key={`sep-${index}`} role="separator" className="menubar-dropdown-separator" />;
+        }
+        if (item.type === "header") {
+          return (
+            <div key={`header-${item.label}`} className="menubar-dropdown-header" aria-hidden="true">
+              {item.label}
+            </div>
+          );
+        }
+        if (item.submenu?.length) {
+          return (
+            <div
+              key={item.label}
+              className="menubar-submenu-wrap"
+              onMouseEnter={() => {
+                onKeepOpen();
+                setOpenSubmenuIndex(index);
+              }}
+              onMouseLeave={() => setOpenSubmenuIndex(null)}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                aria-haspopup="true"
+                aria-expanded={openSubmenuIndex === index}
+                className="menubar-dropdown-item menubar-dropdown-item--submenu"
+              >
+                <span className="menubar-dropdown-check" aria-hidden="true" />
+                <span>{item.label}</span>
+                <span className="menubar-dropdown-arrow" aria-hidden="true">
+                  ▸
+                </span>
+              </button>
+              {openSubmenuIndex === index && (
+                <div role="menu" className="menubar-dropdown menubar-submenu">
+                  <MenuDropdownItems items={item.submenu} onClose={onClose} onKeepOpen={onKeepOpen} />
+                </div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <button
+            key={item.label}
+            type="button"
+            role="menuitem"
+            disabled={item.disabled}
+            className={`menubar-dropdown-item${item.checked ? " is-checked" : ""}`}
+            onClick={async () => {
+              if (item.disabled || !item.action) return;
+              onClose();
+              await item.action();
+            }}
+          >
+            <span className="menubar-dropdown-check" aria-hidden="true">
+              {item.checked ? "✓" : ""}
+            </span>
+            <span>{item.label}</span>
+            {item.shortcut && <span className="menubar-dropdown-shortcut">{item.shortcut}</span>}
+          </button>
+        );
+      })}
+    </>
+  );
 }
 
 function MenuDropdown({
@@ -99,31 +166,7 @@ function MenuDropdown({
       </button>
       {open && (
         <div role="menu" className="menubar-dropdown">
-          {menu.items.map((item, index) => {
-            if (item.type === "separator") {
-              return <div key={`sep-${index}`} role="separator" className="menubar-dropdown-separator" />;
-            }
-            return (
-              <button
-                key={item.label}
-                type="button"
-                role="menuitem"
-                disabled={item.disabled}
-                className={`menubar-dropdown-item${item.checked ? " is-checked" : ""}`}
-                onClick={async () => {
-                  if (item.disabled || !item.action) return;
-                  onClose();
-                  await item.action();
-                }}
-              >
-                <span className="menubar-dropdown-check" aria-hidden="true">
-                  {item.checked ? "✓" : ""}
-                </span>
-                <span>{item.label}</span>
-                {item.shortcut && <span className="menubar-dropdown-shortcut">{item.shortcut}</span>}
-              </button>
-            );
-          })}
+          <MenuDropdownItems items={menu.items} onClose={onClose} onKeepOpen={onOpen} />
         </div>
       )}
     </div>
@@ -209,6 +252,11 @@ export function MenuBar() {
         {
           label: "About MuseLab",
           action: () => showAbout(),
+        },
+        { type: "separator" },
+        {
+          label: "Schemas",
+          submenu: buildHelpSchemaMenuItems(),
         },
       ],
     },

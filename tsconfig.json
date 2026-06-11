@@ -20,5 +20,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "muselab.*.schema.json"]
+  "include": ["src", "shared", "muselab.*.schema.json"]
 }

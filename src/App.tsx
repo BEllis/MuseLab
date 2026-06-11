@@ -14,6 +14,8 @@ import { LoadWarningBanner } from "./components/LoadWarningBanner";
 import { PwaStatusBanner } from "./components/PwaStatusBanner";
 import { useAboutStore } from "./store/aboutStore";
 import { runProjectEditCommand } from "./core/view/viewCommands";
+import { downloadSchema } from "./core/schemas/downloadSchema";
+import { getSchemaMenuEntry, type SchemaDownloadId } from "../shared/schemaMenuManifest";
 
 function App() {
   const usesInAppMenuBar = isElectron() && Boolean(window.electronAPI?.usesInAppMenuBar);
@@ -105,6 +107,11 @@ function App() {
       useAboutStore.getState().show();
     });
 
+    const removeDownloadSchema = api.onDownloadSchema?.((schemaId) => {
+      getSchemaMenuEntry(schemaId as SchemaDownloadId);
+      downloadSchema(schemaId as SchemaDownloadId);
+    });
+
     return () => {
       removeRequestSave?.();
       removeRequestLoad?.();
@@ -113,6 +120,7 @@ function App() {
       removeRequestRedo?.();
       removeSetTheme?.();
       removeShowAbout?.();
+      removeDownloadSchema?.();
     };
   }, []);
 

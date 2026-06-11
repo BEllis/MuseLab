@@ -7,5 +7,5 @@
     "moduleResolution": "bundler",
     "strict": true
   },
-  "include": ["vite.config.ts", "electron"]
+  "include": ["vite.config.ts", "electron", "shared"]
 }

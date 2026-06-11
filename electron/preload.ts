@@ -77,4 +77,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("show-about", handler);
     return () => ipcRenderer.removeListener("show-about", handler);
   },
+  onDownloadSchema: (callback: (schemaId: string) => void) => {
+    const handler = (_: unknown, schemaId: string) => callback(schemaId);
+    ipcRenderer.on("download-schema", handler);
+    return () => ipcRenderer.removeListener("download-schema", handler);
+  },
 });

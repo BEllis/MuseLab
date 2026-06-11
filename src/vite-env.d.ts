@@ -61,6 +61,7 @@ interface Window {
     usesInAppMenuBar?: boolean;
     onSetTheme?: (callback: (theme: "light" | "dark") => void) => (() => void) | void;
     onShowAbout?: (callback: () => void) => (() => void) | void;
+    onDownloadSchema?: (callback: (schemaId: string) => void) => (() => void) | void;
   };
   __playerPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
 }
