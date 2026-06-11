@@ -44,6 +44,14 @@ public class MuseLabPromptRenderer
     {
     }
 
+    public void Reset()
+    {
+    }
+
+    public void Clear()
+    {
+    }
+
     public string Render()
     {
         return "";

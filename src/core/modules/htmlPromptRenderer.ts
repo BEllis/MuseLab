@@ -25,6 +25,8 @@ export type PromptRenderer = {
   revealEnd(): void;
   waitForContinue(): void;
   updateSpeaker(template: string): void;
+  reset(): void;
+  clear(): void;
   render(): string;
   getInstructions(): PromptInstruction[];
 };
@@ -181,6 +183,16 @@ export function createHtmlPromptRenderer(
     updateSpeaker(template: string) {
       recorder.updateSpeaker(template);
     },
+    reset() {
+      parts.length = 0;
+      shakeMode = "none";
+      recorder.reset();
+    },
+    clear() {
+      parts.length = 0;
+      shakeMode = "none";
+      recorder.clear();
+    },
     render() {
       return parts.join("");
     },
@@ -205,6 +217,8 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     revealEnd: () => renderer.revealEnd(),
     waitForContinue: () => renderer.waitForContinue(),
     updateSpeaker: (template: string) => renderer.updateSpeaker(template),
+    reset: () => renderer.reset(),
+    clear: () => renderer.clear(),
     render: () => renderer.render(),
     AddLiteral: (text: string) => renderer.addLiteral(text),
     AppendResult: (value: unknown) => renderer.appendResult(value),
@@ -217,6 +231,8 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     RevealEnd: () => renderer.revealEnd(),
     WaitForContinue: () => renderer.waitForContinue(),
     UpdateSpeaker: (template: string) => renderer.updateSpeaker(template),
+    Reset: () => renderer.reset(),
+    Clear: () => renderer.clear(),
     Render: () => renderer.render(),
   };
 }

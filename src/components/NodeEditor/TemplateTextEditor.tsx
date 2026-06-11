@@ -516,16 +516,34 @@ export function TemplateTextEditor({
             )}
           </TemplateToolbarDropdown>
 
-          <TemplateToolbarDropdown label="Speaker">
+          <TemplateToolbarDropdown label="Dialogue">
             {(close) => (
-              <TemplateToolbarMenuItem
-                label="UpdateSpeaker"
-                title='Insert UpdateSpeaker (edit "Maya" after insert)'
-                onClick={() => {
-                  insertSnippet('@{ prompter.UpdateSpeaker("Maya"); }');
-                  close();
-                }}
-              />
+              <>
+                <TemplateToolbarMenuItem
+                  label="UpdateSpeaker"
+                  title='Insert UpdateSpeaker (edit "Maya" after insert)'
+                  onClick={() => {
+                    insertSnippet('@{ prompter.UpdateSpeaker("Maya"); }');
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="Reset"
+                  title="Clear prompt text and reset the speaker"
+                  onClick={() => {
+                    insertSnippet("@{ prompter.Reset(); }");
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="Clear"
+                  title="Clear prompt text but keep the current speaker"
+                  onClick={() => {
+                    insertSnippet("@{ prompter.Clear(); }");
+                    close();
+                  }}
+                />
+              </>
             )}
           </TemplateToolbarDropdown>
 

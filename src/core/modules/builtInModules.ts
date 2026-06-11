@@ -260,6 +260,18 @@ const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
       "Replace the speaker name at this point in the prompt stream. The template is rendered like a scene speaker field.",
   },
   {
+    name: "Reset",
+    parameters: [],
+    returnType: "void",
+    description: "Clear all prompt text and reset the speaker before continuing template playback.",
+  },
+  {
+    name: "Clear",
+    parameters: [],
+    returnType: "void",
+    description: "Clear prompt text while keeping the current speaker before continuing template playback.",
+  },
+  {
     name: "Render",
     parameters: [],
     returnType: "string",

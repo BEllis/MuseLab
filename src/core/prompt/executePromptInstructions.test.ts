@@ -72,54 +72,120 @@ describe("executePromptInstructions", () => {
     ]);
   });
 
-  it("pauses and resumes reveal when the viewport is full", async () => {
+  it("pauses and resumes reveal when shouldPause returns true", async () => {
     const updates: string[] = [];
-    let pauseAfterWords = 2;
     let continuePlayback: (() => void) | null = null;
+    const plain = "one two three four five six";
+    const pauseAfterStep = 10;
+    let paused = false;
 
     const run = executePromptInstructions({
       instructions: [
         {
           kind: "revealHtml",
-          html: "one two three four five",
-          plainLength: 23,
-          wordCount: 5,
-          mode: { kind: "wordsPerSecond", rate: 1000 },
+          html: plain,
+          plainLength: plain.length,
+          wordCount: 6,
+          mode: { kind: "charsPerSecond", rate: 1000 },
         },
       ],
       onHtmlUpdate: (html) => updates.push(html),
       onPlaySound: () => {},
-      shouldPause: () => (updates.at(-1)?.trim().split(/\s+/).length ?? 0) >= pauseAfterWords,
+      shouldPause: () => {
+        if (paused) return false;
+        if (updates.length >= pauseAfterStep) {
+          paused = true;
+          return true;
+        }
+        return false;
+      },
       waitForContinue: () =>
         new Promise<void>((resolve) => {
           continuePlayback = resolve;
         }),
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(updates.at(-1)).toBe("one two");
+    for (let attempt = 0; attempt < 50 && continuePlayback === null; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     expect(continuePlayback).not.toBeNull();
+    expect(updates.at(-1)).toBe(htmlPrefixForPlainLength(plain, pauseAfterStep));
 
-    pauseAfterWords = Number.POSITIVE_INFINITY;
     continuePlayback?.();
     await run;
 
-    expect(updates.at(-1)).toBe("one two three four five");
+    expect(updates.at(-1)).toBe(plain);
   });
 
-  it("defers playSound until playback reaches that instruction", async () => {
+  it("shows appendHtml in one burst without onRevealActiveChange", async () => {
+    const updates: string[] = [];
+    const revealActive: boolean[] = [];
+    const plain = "Hello world";
+
+    await executePromptInstructions({
+      instructions: [{ kind: "appendHtml", html: plain }],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+      waitForContinue: () => Promise.resolve(),
+      onRevealActiveChange: (active) => revealActive.push(active),
+    });
+
+    expect(updates).toEqual([plain]);
+    expect(revealActive).toEqual([]);
+  });
+
+  it("pauses appendHtml at visual-line boundaries using word bursts", async () => {
+    const updates: string[] = [];
+    let continuePlayback: (() => void) | null = null;
+    let linesAtLastContinue = 0;
+    const plain = "one two three four five";
+
+    const measureVisualLinesAtHtml = (html: string) => {
+      const text = html.replace(/<[^>]*>/g, "");
+      if (!text.trim()) return 0;
+      return text.trim().split(/\s+/).length;
+    };
+
+    const run = executePromptInstructions({
+      instructions: [{ kind: "appendHtml", html: plain }],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+      measureVisualLinesAtHtml,
+      getLinesAtLastContinue: () => linesAtLastContinue,
+      continuationVisualLineInterval: 3,
+      waitForContinue: () =>
+        new Promise<void>((resolve) => {
+          continuePlayback = () => {
+            linesAtLastContinue = measureVisualLinesAtHtml(updates.at(-1) ?? "");
+            resolve();
+          };
+        }),
+    });
+
+    for (let attempt = 0; attempt < 50 && continuePlayback === null; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(continuePlayback).not.toBeNull();
+    expect(updates.at(-1)).toBe("one two three");
+
+    continuePlayback?.();
+    await run;
+
+    expect(updates.at(-1)).toBe(plain);
+  });
+
+  it("defers playSound until an explicit waitForContinue instruction", async () => {
     const playSound = vi.fn();
-    let allowPlayback = false;
     let continuePlayback: (() => void) | null = null;
 
     const run = executePromptInstructions({
       instructions: [
         { kind: "appendHtml", html: "Before" },
+        { kind: "waitForContinue" },
         { kind: "playSound", assetId: "sfx", delaySeconds: 0 },
       ],
       onHtmlUpdate: () => {},
       onPlaySound: playSound,
-      shouldPause: () => !allowPlayback,
       waitForContinue: () =>
         new Promise<void>((resolve) => {
           continuePlayback = resolve;
@@ -129,7 +195,6 @@ describe("executePromptInstructions", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect(playSound).not.toHaveBeenCalled();
 
-    allowPlayback = true;
     continuePlayback?.();
     await run;
 
@@ -155,7 +220,7 @@ describe("executePromptInstructions", () => {
     });
 
     await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(updates).toEqual(["Before"]);
+    expect(updates.at(-1)).toBe("Before");
     expect(continuePlayback).not.toBeNull();
 
     continuePlayback?.();
@@ -164,10 +229,8 @@ describe("executePromptInstructions", () => {
     expect(updates.at(-1)).toBe("Before After");
   });
 
-  it("skips reveal animation for the current chunk up to the viewport limit", async () => {
+  it("skips reveal animation for the current chunk", async () => {
     const updates: string[] = [];
-    let pauseAfterWords = 2;
-    let continuePlayback: (() => void) | null = null;
     let skipRequested = false;
 
     const run = executePromptInstructions({
@@ -182,11 +245,6 @@ describe("executePromptInstructions", () => {
       ],
       onHtmlUpdate: (html) => updates.push(html),
       onPlaySound: () => {},
-      shouldPause: () => (updates.at(-1)?.trim().split(/\s+/).length ?? 0) >= pauseAfterWords,
-      waitForContinue: () =>
-        new Promise<void>((resolve) => {
-          continuePlayback = resolve;
-        }),
       skipRevealChunk: {
         consumeSkipRequest: () => {
           if (!skipRequested) return false;
@@ -201,11 +259,6 @@ describe("executePromptInstructions", () => {
 
     skipRequested = true;
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(updates.at(-1)).toBe("one two");
-    expect(continuePlayback).not.toBeNull();
-
-    pauseAfterWords = Number.POSITIVE_INFINITY;
-    continuePlayback?.();
     await run;
 
     expect(updates.at(-1)).toBe("one two three four five");
@@ -309,12 +362,12 @@ describe("executePromptInstructions", () => {
   it("updates speaker when playback reaches updateSpeaker instruction", async () => {
     const updates: string[] = [];
     const speakerUpdates: string[] = [];
-    let allowPlayback = false;
     let continuePlayback: (() => void) | null = null;
 
     const run = executePromptInstructions({
       instructions: [
         { kind: "appendHtml", html: "Hello" },
+        { kind: "waitForContinue" },
         { kind: "updateSpeaker", template: "Maya" },
         { kind: "appendHtml", html: " there" },
       ],
@@ -322,7 +375,6 @@ describe("executePromptInstructions", () => {
       onSpeakerUpdate: (html) => speakerUpdates.push(html),
       renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
       onPlaySound: () => {},
-      shouldPause: () => !allowPlayback,
       waitForContinue: () =>
         new Promise<void>((resolve) => {
           continuePlayback = resolve;
@@ -330,15 +382,57 @@ describe("executePromptInstructions", () => {
     });
 
     await new Promise((resolve) => setTimeout(resolve, 5));
-    expect(updates).toEqual(["Hello"]);
+    expect(updates.at(-1)).toBe("Hello");
     expect(speakerUpdates).toEqual([]);
 
-    allowPlayback = true;
     continuePlayback?.();
     await run;
 
     expect(speakerUpdates).toEqual(["<b>Maya</b>"]);
     expect(updates.at(-1)).toBe("Hello there");
+  });
+
+  it("resets prompt text and speaker during playback", async () => {
+    const updates: string[] = [];
+    const speakerUpdates: string[] = [];
+
+    await executePromptInstructions({
+      instructions: [
+        { kind: "appendHtml", html: "Hello" },
+        { kind: "updateSpeaker", template: "Maya" },
+        { kind: "reset" },
+        { kind: "appendHtml", html: "Fresh" },
+      ],
+      initialSpeakerHtml: "<i>Unknown</i>",
+      onHtmlUpdate: (html) => updates.push(html),
+      onSpeakerUpdate: (html) => speakerUpdates.push(html),
+      renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
+      onPlaySound: () => {},
+    });
+
+    expect(updates).toEqual(["Hello", "", "Fresh"]);
+    expect(speakerUpdates).toEqual(["<b>Maya</b>", "<i>Unknown</i>"]);
+  });
+
+  it("clears prompt text but keeps speaker during playback", async () => {
+    const updates: string[] = [];
+    const speakerUpdates: string[] = [];
+
+    await executePromptInstructions({
+      instructions: [
+        { kind: "appendHtml", html: "Hello" },
+        { kind: "updateSpeaker", template: "Maya" },
+        { kind: "clear" },
+        { kind: "appendHtml", html: "Again" },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onSpeakerUpdate: (html) => speakerUpdates.push(html),
+      renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
+      onPlaySound: () => {},
+    });
+
+    expect(updates).toEqual(["Hello", "", "Again"]);
+    expect(speakerUpdates).toEqual(["<b>Maya</b>"]);
   });
 
   it("continues after wait before more appendHtml", async () => {
@@ -355,5 +449,27 @@ describe("executePromptInstructions", () => {
     });
 
     expect(updates).toEqual(["Hello", "Hello World"]);
+  });
+
+  it("signals reveal active only for explicit revealHtml instructions", async () => {
+    const revealActive: boolean[] = [];
+
+    await executePromptInstructions({
+      instructions: [
+        { kind: "appendHtml", html: "Plain" },
+        {
+          kind: "revealHtml",
+          html: "Reveal",
+          plainLength: 6,
+          wordCount: 1,
+          mode: { kind: "charsPerSecond", rate: 1000 },
+        },
+      ],
+      onHtmlUpdate: () => {},
+      onPlaySound: () => {},
+      onRevealActiveChange: (active) => revealActive.push(active),
+    });
+
+    expect(revealActive).toEqual([true, false]);
   });
 });

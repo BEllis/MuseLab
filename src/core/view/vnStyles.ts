@@ -42,7 +42,8 @@ export const compactVnButtonStyle: CSSProperties = {
 };
 
 export const vnSpeakerTabStyle: CSSProperties = {
-  display: "inline-block",
+  display: "block",
+  width: "fit-content",
   maxWidth: "100%",
   marginLeft: "12px",
   marginBottom: "-2px",
@@ -66,6 +67,19 @@ export const compactVnSpeakerTabStyle: CSSProperties = {
   fontSize: "4px",
   lineHeight: 1.25,
 };
+
+/** Compact thumbnails overlay the speaker tab on the dialogue box so it does not add layout height. */
+export function compactVnSpeakerTabOverlayStyle(): CSSProperties {
+  return {
+    ...compactVnSpeakerTabStyle,
+    position: "absolute",
+    left: "4px",
+    bottom: "100%",
+    marginLeft: 0,
+    marginBottom: "-2px",
+    zIndex: 1,
+  };
+}
 
 export function vnDialogueBoxStyle(compact: boolean): CSSProperties {
   return compact ? compactVnBoxStyle : vnBoxStyle;

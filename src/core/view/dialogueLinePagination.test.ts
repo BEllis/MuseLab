@@ -5,7 +5,6 @@ import {
   countLinesThatFit,
   getDialoguePageState,
   getLastPageStartLine,
-  shouldPauseRevealPlayback,
   shouldResetDialogueLinePage,
 } from "./dialogueLinePagination";
 
@@ -83,21 +82,6 @@ describe("getDialoguePageState", () => {
       linesOnPage: 1,
       hasMoreToPaginate: false,
     });
-  });
-});
-
-describe("shouldPauseRevealPlayback", () => {
-  const lineOffsets = [0, 20, 40, 60, 80, 100];
-  const contentHeight = 120;
-  const viewportHeight = 60;
-
-  it("does not pause while all lines fit on the first page", () => {
-    expect(shouldPauseRevealPlayback([0, 20, 40], 60, 60)).toBe(false);
-  });
-
-  it("pauses once content overflows the first page", () => {
-    expect(shouldPauseRevealPlayback(lineOffsets, contentHeight, viewportHeight)).toBe(true);
-    expect(shouldPauseRevealPlayback([0, 20, 40, 60, 80], 100, 60)).toBe(true);
   });
 });
 

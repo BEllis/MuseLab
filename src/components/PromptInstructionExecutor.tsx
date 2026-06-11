@@ -9,10 +9,8 @@ import {
 } from "@/core/prompt/executePromptInstructions";
 
 export type DialoguePlaybackGate = {
-  totalLines: number;
-  linesOnPage: number;
-  startLineIndex: number;
-  hasOffscreenLines: boolean;
+  totalVisualLines: number;
+  linesSinceContinue: number;
   shouldPausePlayback: boolean;
   measuredForHtmlLength: number;
 };
@@ -23,6 +21,8 @@ export type PromptInstructionExecutorProps = {
   instructions: PromptInstruction[];
   renderSpeakerTemplate?: (template: string) => Promise<string>;
   playbackGateRef?: RefObject<DialoguePlaybackGate | undefined>;
+  measureVisualLinesAtHtml?: (html: string) => number;
+  getLinesAtLastContinue?: () => number;
   onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
   onComplete?: () => void;
   onSkipChange?: (skipped: boolean) => void;
@@ -48,6 +48,8 @@ export function PromptInstructionExecutor({
   instructions,
   renderSpeakerTemplate,
   playbackGateRef,
+  measureVisualLinesAtHtml,
+  getLinesAtLastContinue,
   onPlaySound,
   onComplete,
   onSkipChange,
@@ -93,7 +95,7 @@ export function PromptInstructionExecutor({
       if (instruction.endTime !== undefined) trim.endTime = instruction.endTime;
       onPlaySoundRef.current?.(
         instruction.assetId,
-        Object.keys(trim).length > 0 ? trim : undefined
+        Object.keys(trim).length > 0 ? trim : undefined,
       );
     }
   }, []);
@@ -130,7 +132,7 @@ export function PromptInstructionExecutor({
     const renderSpeaker = renderSpeakerTemplateRef.current;
     if (renderSpeaker) {
       void renderFinalSpeakerHtml(instructions, initialSpeakerHtml, renderSpeaker).then(
-        setVisibleSpeakerHtml
+        setVisibleSpeakerHtml,
       );
     }
     skipLatchActiveRef.current = false;
@@ -181,6 +183,7 @@ export function PromptInstructionExecutor({
         visibleHtmlLengthRef.current = html.length;
         setVisibleHtml(html);
       },
+      initialSpeakerHtml,
       onSpeakerUpdate: renderSpeaker ? setVisibleSpeakerHtml : undefined,
       renderSpeakerTemplate: renderSpeaker,
       onPlaySound: (assetId, options) => {
@@ -192,6 +195,8 @@ export function PromptInstructionExecutor({
         return gate.measuredForHtmlLength >= visibleHtmlLengthRef.current;
       },
       waitForContinue,
+      measureVisualLinesAtHtml,
+      getLinesAtLastContinue,
       skipRevealChunk: skipRevealChunkControlRef.current,
       onRevealActiveChange: handleRevealActiveChange,
     })
@@ -213,7 +218,16 @@ export function PromptInstructionExecutor({
       controller.abort();
       continueResolverRef.current?.();
     };
-  }, [fullHtml, initialSpeakerKey, instructionsKey, waitForContinue, handleRevealActiveChange]);
+  }, [
+    fullHtml,
+    initialSpeakerKey,
+    instructionsKey,
+    waitForContinue,
+    handleRevealActiveChange,
+    playbackGateRef,
+    measureVisualLinesAtHtml,
+    getLinesAtLastContinue,
+  ]);
 
   return (
     <>

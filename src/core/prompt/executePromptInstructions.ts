@@ -1,5 +1,7 @@
+import { DEFAULT_CONTINUATION_VISUAL_LINE_INTERVAL } from "@/core/view/dialogueLinePagination";
 import type { PromptInstruction, RevealMode } from "./promptInstructions";
 import {
+  countWords,
   DEFAULT_CHARS_PER_SECOND,
   DEFAULT_WORDS_PER_SECOND,
 } from "./promptInstructions";
@@ -24,11 +26,15 @@ export type ExecutePromptInstructionsOptions = {
   checkpoint?: PromptExecutionCheckpoint;
   onCheckpoint?: (checkpoint: PromptExecutionCheckpoint) => void;
   onHtmlUpdate: (html: string) => void;
+  initialSpeakerHtml?: string;
   onSpeakerUpdate?: (html: string) => void;
   renderSpeakerTemplate?: (template: string) => Promise<string>;
   onPlaySound: PlaySoundCallback;
   shouldPause?: () => boolean;
   waitForContinue?: () => Promise<void>;
+  measureVisualLinesAtHtml?: (html: string) => number;
+  getLinesAtLastContinue?: () => number;
+  continuationVisualLineInterval?: number;
   skipRevealChunk?: RevealSkipControl;
   onRevealActiveChange?: (active: boolean) => void;
   signal?: AbortSignal;
@@ -175,7 +181,7 @@ async function waitForLayout(): Promise<void> {
 
 async function maybePause(
   shouldPause: (() => boolean) | undefined,
-  waitForContinue: (() => Promise<void>) | undefined
+  waitForContinue: (() => Promise<void>) | undefined,
 ): Promise<void> {
   if (!shouldPause || !waitForContinue) return;
   await waitForLayout();
@@ -190,7 +196,7 @@ function consumeSkipRequest(skipRevealChunk: RevealSkipControl | undefined): boo
 async function interruptibleDelay(
   ms: number,
   signal: AbortSignal | undefined,
-  shouldInterrupt: () => boolean
+  shouldInterrupt: () => boolean,
 ): Promise<void> {
   if (ms <= 0) return;
   const end = Date.now() + ms;
@@ -208,14 +214,12 @@ async function fastForwardRevealSteps(
   maxStep: number,
   applyStep: (nextStep: number, partialHtml: string) => void,
   getPartialHtml: (nextStep: number) => string,
-  shouldPause: (() => boolean) | undefined
 ): Promise<number> {
   let nextStep = step;
   while (nextStep < maxStep) {
     nextStep += 1;
     applyStep(nextStep, getPartialHtml(nextStep));
     await waitForLayout();
-    if (shouldPause?.()) break;
   }
   return nextStep;
 }
@@ -263,7 +267,6 @@ async function runRevealSteps(options: RevealStepRunnerOptions): Promise<number>
       maxStep,
       applyStep,
       getPartialHtml,
-      shouldPause
     );
     skipBurstActive = false;
     return nextStep;
@@ -301,6 +304,109 @@ async function runRevealSteps(options: RevealStepRunnerOptions): Promise<number>
   return step;
 }
 
+type InstantWordRevealOptions = {
+  baseHtml: string;
+  html: string;
+  wordCount: number;
+  startStep: number;
+  getPartialHtml: (step: number) => string;
+  onHtmlUpdate: (fullHtml: string) => void;
+  measureVisualLinesAtHtml?: (html: string) => number;
+  getLinesAtLastContinue?: () => number;
+  continuationVisualLineInterval?: number;
+  shouldPause?: () => boolean;
+  waitForContinue?: () => Promise<void>;
+  skipRevealChunk?: RevealSkipControl;
+  signal?: AbortSignal;
+};
+
+async function runInstantWordReveal(options: InstantWordRevealOptions): Promise<number> {
+  const {
+    baseHtml,
+    html,
+    wordCount,
+    startStep,
+    getPartialHtml,
+    onHtmlUpdate,
+    measureVisualLinesAtHtml,
+    getLinesAtLastContinue,
+    continuationVisualLineInterval = DEFAULT_CONTINUATION_VISUAL_LINE_INTERVAL,
+    shouldPause,
+    waitForContinue,
+    skipRevealChunk,
+    signal,
+  } = options;
+
+  const maxStep = Math.max(wordCount, 1);
+  let step = startStep;
+
+  const applyStep = (nextStep: number) => {
+    onHtmlUpdate(baseHtml + getPartialHtml(nextStep));
+  };
+
+  const shouldPauseAtFullHtml = (fullHtml: string): boolean => {
+    if (!measureVisualLinesAtHtml || !getLinesAtLastContinue) return false;
+    const linesSince =
+      measureVisualLinesAtHtml(fullHtml) - getLinesAtLastContinue();
+    return linesSince >= continuationVisualLineInterval;
+  };
+
+  if (consumeSkipRequest(skipRevealChunk)) {
+    applyStep(maxStep);
+    return maxStep;
+  }
+
+  if (!measureVisualLinesAtHtml || !getLinesAtLastContinue) {
+    if (step < maxStep) {
+      applyStep(maxStep);
+      await maybePause(shouldPause, waitForContinue);
+    }
+    return maxStep;
+  }
+
+  while (step < maxStep) {
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    if (consumeSkipRequest(skipRevealChunk)) {
+      applyStep(maxStep);
+      return maxStep;
+    }
+
+    if (!shouldPauseAtFullHtml(baseHtml + getPartialHtml(maxStep))) {
+      applyStep(maxStep);
+      return maxStep;
+    }
+
+    let lo = step + 1;
+    let hi = maxStep;
+    let pauseStep = -1;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const candidate = baseHtml + getPartialHtml(mid);
+      if (shouldPauseAtFullHtml(candidate)) {
+        pauseStep = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+
+    if (pauseStep === -1) {
+      applyStep(maxStep);
+      return maxStep;
+    }
+
+    applyStep(pauseStep);
+    if (waitForContinue) {
+      await waitForContinue();
+    }
+    step = pauseStep;
+  }
+
+  return step;
+}
+
 async function revealHtml(
   baseHtml: string,
   instruction: Extract<PromptInstruction, { kind: "revealHtml" }>,
@@ -309,9 +415,12 @@ async function revealHtml(
     startStep?: number;
     shouldPause?: () => boolean;
     waitForContinue?: () => Promise<void>;
+    measureVisualLinesAtHtml?: (html: string) => number;
+    getLinesAtLastContinue?: () => number;
+    continuationVisualLineInterval?: number;
     skipRevealChunk?: RevealSkipControl;
     signal?: AbortSignal;
-  }
+  },
 ): Promise<RevealProgress> {
   const { html, plainLength, wordCount, mode } = instruction;
   const nextHtml = baseHtml + html;
@@ -352,6 +461,27 @@ async function revealHtml(
 
   if (mode.kind === "wordsOverTime") {
     const maxStep = Math.max(wordCount, 1);
+    if (mode.durationMs === 0) {
+      revealStep = await runInstantWordReveal({
+        baseHtml,
+        html,
+        wordCount,
+        startStep,
+        getPartialHtml: (step) => htmlPrefixForWordCount(html, step),
+        onHtmlUpdate: (fullHtml) => {
+          visibleHtml = fullHtml;
+          onHtmlUpdate(fullHtml);
+        },
+        measureVisualLinesAtHtml: options.measureVisualLinesAtHtml,
+        getLinesAtLastContinue: options.getLinesAtLastContinue,
+        continuationVisualLineInterval: options.continuationVisualLineInterval,
+        shouldPause: options.shouldPause,
+        waitForContinue: options.waitForContinue,
+        skipRevealChunk: options.skipRevealChunk,
+        signal: options.signal,
+      });
+      return { visibleHtml: nextHtml, revealStep: maxStep };
+    }
     const delay = mode.durationMs / maxStep;
     revealStep = await runRevealSteps({
       ...runnerOptions,
@@ -384,23 +514,46 @@ async function revealHtml(
   return { visibleHtml: nextHtml, revealStep: wordCount };
 }
 
+function instantRevealInstruction(
+  html: string,
+): Extract<PromptInstruction, { kind: "revealHtml" }> {
+  const plain = plainTextFromHtml(html);
+  return {
+    kind: "revealHtml",
+    html,
+    plainLength: plain.length,
+    wordCount: countWords(plain),
+    mode: { kind: "wordsOverTime", durationMs: 0 },
+  };
+}
+
 export async function executePromptInstructions(
-  options: ExecutePromptInstructionsOptions
+  options: ExecutePromptInstructionsOptions,
 ): Promise<void> {
   const {
     instructions,
     checkpoint,
     onCheckpoint,
     onHtmlUpdate,
+    initialSpeakerHtml = "",
     onSpeakerUpdate,
     renderSpeakerTemplate,
     onPlaySound,
     shouldPause,
     waitForContinue,
+    measureVisualLinesAtHtml,
+    getLinesAtLastContinue,
+    continuationVisualLineInterval,
     skipRevealChunk,
     onRevealActiveChange,
     signal,
   } = options;
+
+  const revealMeasureOptions = {
+    measureVisualLinesAtHtml,
+    getLinesAtLastContinue,
+    continuationVisualLineInterval,
+  };
 
   let instructionIndex = checkpoint?.instructionIndex ?? 0;
   let visibleHtml = checkpoint?.visibleHtml ?? "";
@@ -409,7 +562,7 @@ export async function executePromptInstructions(
   const saveCheckpoint = (
     nextInstructionIndex: number,
     nextVisibleHtml: string,
-    nextRevealStep?: number
+    nextRevealStep?: number,
   ) => {
     onCheckpoint?.({
       instructionIndex: nextInstructionIndex,
@@ -430,8 +583,20 @@ export async function executePromptInstructions(
     const instruction = instructions[instructionIndex];
 
     if (instruction.kind === "appendHtml") {
-      visibleHtml += instruction.html;
-      onHtmlUpdate(visibleHtml);
+      const chunkHtml = instruction.html;
+      const chunkPlain = plainTextFromHtml(chunkHtml);
+      if (waitForContinue && chunkPlain.length > 0) {
+        const progress = await revealHtml(
+          visibleHtml,
+          instantRevealInstruction(chunkHtml),
+          onHtmlUpdate,
+          { shouldPause, waitForContinue, skipRevealChunk, signal, ...revealMeasureOptions },
+        );
+        visibleHtml = progress.visibleHtml;
+      } else {
+        visibleHtml += chunkHtml;
+        onHtmlUpdate(visibleHtml);
+      }
       instructionIndex += 1;
       activeRevealStep = undefined;
       saveCheckpoint(instructionIndex, visibleHtml, undefined);
@@ -468,6 +633,7 @@ export async function executePromptInstructions(
           waitForContinue,
           skipRevealChunk,
           signal,
+          ...revealMeasureOptions,
         });
       } finally {
         onRevealActiveChange?.(false);
@@ -490,7 +656,7 @@ export async function executePromptInstructions(
       if (instruction.endTime !== undefined) trim.endTime = instruction.endTime;
       onPlaySound(
         instruction.assetId,
-        Object.keys(trim).length > 0 ? trim : undefined
+        Object.keys(trim).length > 0 ? trim : undefined,
       );
       instructionIndex += 1;
       activeRevealStep = undefined;
@@ -506,6 +672,29 @@ export async function executePromptInstructions(
       instructionIndex += 1;
       activeRevealStep = undefined;
       saveCheckpoint(instructionIndex, visibleHtml, undefined);
+      continue;
+    }
+
+    if (instruction.kind === "reset") {
+      await maybePause(shouldPause, waitForContinue);
+      visibleHtml = "";
+      onHtmlUpdate(visibleHtml);
+      if (onSpeakerUpdate) {
+        onSpeakerUpdate(initialSpeakerHtml);
+      }
+      instructionIndex += 1;
+      activeRevealStep = undefined;
+      saveCheckpoint(instructionIndex, visibleHtml, undefined);
+      continue;
+    }
+
+    if (instruction.kind === "clear") {
+      await maybePause(shouldPause, waitForContinue);
+      visibleHtml = "";
+      onHtmlUpdate(visibleHtml);
+      instructionIndex += 1;
+      activeRevealStep = undefined;
+      saveCheckpoint(instructionIndex, visibleHtml, undefined);
     }
   }
 }
@@ -513,7 +702,7 @@ export async function executePromptInstructions(
 export async function renderFinalSpeakerHtml(
   instructions: PromptInstruction[],
   initialSpeakerHtml: string,
-  renderSpeakerTemplate: (template: string) => Promise<string>
+  renderSpeakerTemplate: (template: string) => Promise<string>,
 ): Promise<string> {
   let speakerHtml = initialSpeakerHtml;
   for (const instruction of instructions) {
@@ -525,12 +714,12 @@ export async function renderFinalSpeakerHtml(
 
 export function collectRemainingPlaySounds(
   instructions: PromptInstruction[],
-  startIndex: number
+  startIndex: number,
 ): Extract<PromptInstruction, { kind: "playSound" }>[] {
   return instructions
     .slice(startIndex)
     .filter((instruction): instruction is Extract<PromptInstruction, { kind: "playSound" }> =>
-      instruction.kind === "playSound"
+      instruction.kind === "playSound",
     );
 }
 

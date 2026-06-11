@@ -1,3 +1,5 @@
+export const DEFAULT_CONTINUATION_VISUAL_LINE_INTERVAL = 3;
+
 export function shouldResetDialogueLinePage(previousHtml: string, nextHtml: string): boolean {
   return nextHtml.length < previousHtml.length || !nextHtml.startsWith(previousHtml);
 }
@@ -59,18 +61,6 @@ export function getDialoguePageState(
 export function clampDialogueStartLine(lineOffsets: number[], startLineIndex: number): number {
   if (lineOffsets.length === 0) return 0;
   return Math.min(startLineIndex, Math.max(0, lineOffsets.length - 1));
-}
-
-/** Start line of the last page that still fits in the viewport. */
-/** True when revealed content no longer fits on the first dialogue page. */
-export function shouldPauseRevealPlayback(
-  lineOffsets: number[],
-  contentHeight: number,
-  viewportHeightPx: number,
-): boolean {
-  if (viewportHeightPx <= 0) return false;
-  const { linesOnPage } = getDialoguePageState(lineOffsets, contentHeight, 0, viewportHeightPx);
-  return linesOnPage < lineOffsets.length;
 }
 
 export function getLastPageStartLine(

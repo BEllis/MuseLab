@@ -23,7 +23,9 @@ export type PromptInstruction =
       startTime?: number;
       endTime?: number;
     }
-  | { kind: "updateSpeaker"; template: string };
+  | { kind: "updateSpeaker"; template: string }
+  | { kind: "reset" }
+  | { kind: "clear" };
 
 type OverTimeItem =
   | { kind: "text"; html: string; plainLength: number; wordCount: number }
@@ -64,6 +66,8 @@ export type PromptInstructionRecorder = {
     endTime: number
   ): void;
   updateSpeaker(template: string): void;
+  reset(): void;
+  clear(): void;
 };
 
 export function countWords(text: string): number {
@@ -148,6 +152,16 @@ function flushOverTimeItems(
     instructions.push(sound);
   }
   state.items = [];
+}
+
+function endActiveRevealBlock(
+  block: RevealBlockState,
+  instructions: PromptInstruction[]
+): RevealBlockState {
+  if (block.kind === "overTime") {
+    flushOverTimeItems(block, instructions);
+  }
+  return { kind: "none" };
 }
 
 export function createPromptInstructionRecorder(): PromptInstructionRecorder {
@@ -242,10 +256,7 @@ export function createPromptInstructionRecorder(): PromptInstructionRecorder {
       };
     },
     revealEnd() {
-      if (block.kind === "overTime") {
-        flushOverTimeItems(block, instructions);
-      }
-      block = { kind: "none" };
+      block = endActiveRevealBlock(block, instructions);
     },
     playSound(assetId: string, delaySeconds: number, startTime: number, endTime: number) {
       const sound: OverTimeItem = {
@@ -275,16 +286,27 @@ export function createPromptInstructionRecorder(): PromptInstructionRecorder {
       }
       instructions.push({ kind: "updateSpeaker", template });
     },
+    reset() {
+      block = endActiveRevealBlock(block, instructions);
+      instructions.push({ kind: "reset" });
+    },
+    clear() {
+      block = endActiveRevealBlock(block, instructions);
+      instructions.push({ kind: "clear" });
+    },
   };
 }
 
 export function promptInstructionsNeedExecutor(instructions: PromptInstruction[]): boolean {
   return instructions.some(
     (instruction) =>
+      instruction.kind === "appendHtml" ||
       instruction.kind === "wait" ||
       instruction.kind === "waitForContinue" ||
       instruction.kind === "revealHtml" ||
       instruction.kind === "playSound" ||
-      instruction.kind === "updateSpeaker"
+      instruction.kind === "updateSpeaker" ||
+      instruction.kind === "reset" ||
+      instruction.kind === "clear"
   );
 }

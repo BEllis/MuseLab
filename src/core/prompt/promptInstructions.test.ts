@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createHtmlPromptRenderer } from "@/core/modules/htmlPromptRenderer";
-import { createPromptInstructionRecorder } from "./promptInstructions";
+import {
+  createPromptInstructionRecorder,
+  promptInstructionsNeedExecutor,
+} from "./promptInstructions";
 
 describe("createPromptInstructionRecorder", () => {
   it("records instant and revealed text in order", () => {
@@ -66,6 +69,43 @@ describe("createPromptInstructionRecorder", () => {
     ]);
   });
 
+  it("records reset and clear instructions", () => {
+    const recorder = createPromptInstructionRecorder();
+    recorder.appendRevealText("Hi", "Hi");
+    recorder.updateSpeaker("Maya");
+    recorder.reset();
+    recorder.appendRevealText("Bye", "Bye");
+    recorder.clear();
+    recorder.appendRevealText("!", "!");
+
+    expect(recorder.instructions).toEqual([
+      { kind: "appendHtml", html: "Hi" },
+      { kind: "updateSpeaker", template: "Maya" },
+      { kind: "reset" },
+      { kind: "appendHtml", html: "Bye" },
+      { kind: "clear" },
+      { kind: "appendHtml", html: "!" },
+    ]);
+  });
+
+  it("flushes an active over-time block before reset", () => {
+    const recorder = createPromptInstructionRecorder();
+    recorder.revealCharsOverTimeBegin(1000);
+    recorder.appendRevealText("ab", "ab");
+    recorder.reset();
+
+    expect(recorder.instructions).toEqual([
+      {
+        kind: "revealHtml",
+        html: "ab",
+        plainLength: 2,
+        wordCount: 1,
+        mode: { kind: "charsOverTime", durationMs: 1000 },
+      },
+      { kind: "reset" },
+    ]);
+  });
+
   it("collapses over-time reveal blocks on RevealEnd", () => {
     const recorder = createPromptInstructionRecorder();
     recorder.revealCharsOverTimeBegin(1200);
@@ -95,6 +135,14 @@ describe("createPromptInstructionRecorder", () => {
         mode: { kind: "charsOverTime", durationMs: 600 },
       },
     ]);
+  });
+});
+
+describe("promptInstructionsNeedExecutor", () => {
+  it("uses the executor for appendHtml-only playback", () => {
+    expect(
+      promptInstructionsNeedExecutor([{ kind: "appendHtml", html: "Hello world" }]),
+    ).toBe(true);
   });
 });
 

@@ -71,6 +71,8 @@ describe("parseTemplateSurface", () => {
     expect(isStatementExpression("rt.PlaySoundClip(\"sfx\", 0, -1, -1)")).toBe(true);
     expect(isStatementExpression("prompter.WaitForContinue()")).toBe(true);
     expect(isStatementExpression('prompter.UpdateSpeaker("Maya")')).toBe(true);
+    expect(isStatementExpression("prompter.Reset()")).toBe(true);
+    expect(isStatementExpression("prompter.Clear()")).toBe(true);
     expect(isStatementExpression("Format.BoldStart()")).toBe(false);
   });
 

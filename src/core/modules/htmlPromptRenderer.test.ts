@@ -56,6 +56,28 @@ describe("createPromptRendererBridge", () => {
     expect(renderer.getInstructions()).toEqual([{ kind: "updateSpeaker", template: "Maya" }]);
   });
 
+  it("clears rendered output and instructions on reset and clear", () => {
+    const renderer = createHtmlPromptRenderer();
+    const prompter = createPromptRendererBridge(renderer);
+
+    prompter.addLiteral("Hello");
+    prompter.updateSpeaker("Maya");
+    prompter.reset();
+    prompter.addLiteral("World");
+    prompter.clear();
+    prompter.addLiteral("!");
+
+    expect(renderer.render()).toBe("!");
+    expect(renderer.getInstructions()).toEqual([
+      { kind: "appendHtml", html: "Hello" },
+      { kind: "updateSpeaker", template: "Maya" },
+      { kind: "reset" },
+      { kind: "appendHtml", html: "World" },
+      { kind: "clear" },
+      { kind: "appendHtml", html: "!" },
+    ]);
+  });
+
   it("queues WaitForContinue for sequential prompt playback", () => {
     const renderer = createHtmlPromptRenderer();
     const prompter = createPromptRendererBridge(renderer);

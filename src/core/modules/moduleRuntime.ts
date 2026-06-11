@@ -92,6 +92,8 @@ const noopTimingMethods = {
   revealEnd: () => undefined,
   waitForContinue: () => undefined,
   updateSpeaker: () => undefined,
+  reset: () => undefined,
+  clear: () => undefined,
 };
 
 export function createPromptRenderer(
