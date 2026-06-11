@@ -54,22 +54,39 @@ export function resolveDotnetPath(citoDir?: string): string {
   return "dotnet";
 }
 
-export async function transpileCiToJs(ciSource: string): Promise<string> {
-  const hash = createHash("sha256").update(ciSource).digest("hex");
-  const cached = memoryCache.get(hash);
+export type CitoTranspileTarget = "js" | "cs" | "py" | "java";
+
+const TARGET_OUTPUT: Record<CitoTranspileTarget, string> = {
+  js: "output.js",
+  cs: "output.cs",
+  py: "output.py",
+  java: "MuseLabEngine.java",
+};
+
+function cacheKey(target: CitoTranspileTarget, ciSource: string): string {
+  return `${target}:${createHash("sha256").update(ciSource).digest("hex")}`;
+}
+
+export async function transpileCiToTarget(
+  ciSource: string,
+  target: CitoTranspileTarget = "js"
+): Promise<string> {
+  const key = cacheKey(target, ciSource);
+  const cached = memoryCache.get(key);
   if (cached) return cached;
 
+  const hash = createHash("sha256").update(ciSource).digest("hex");
   const tmpDir = path.join(tmpdir(), "muselab-cito", hash.slice(0, 16));
   await mkdir(tmpDir, { recursive: true });
   const ciPath = path.join(tmpDir, "input.ci");
-  const jsPath = path.join(tmpDir, "output.js");
+  const outputPath = path.join(tmpDir, TARGET_OUTPUT[target]);
 
   await writeFile(ciPath, ciSource, "utf8");
 
   const { executable, argsPrefix } = resolveCitoToolPaths();
 
   await new Promise<void>((resolve, reject) => {
-    const proc = spawn(executable, [...argsPrefix, "-o", jsPath, ciPath], {
+    const proc = spawn(executable, [...argsPrefix, "-o", outputPath, ciPath], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stderr = "";
@@ -83,9 +100,13 @@ export async function transpileCiToJs(ciSource: string): Promise<string> {
     });
   });
 
-  const js = await readFile(jsPath, "utf8");
-  memoryCache.set(hash, js);
-  return js;
+  const output = await readFile(outputPath, "utf8");
+  memoryCache.set(key, output);
+  return output;
+}
+
+export async function transpileCiToJs(ciSource: string): Promise<string> {
+  return transpileCiToTarget(ciSource, "js");
 }
 
 export function clearCitoTranspileCache(): void {

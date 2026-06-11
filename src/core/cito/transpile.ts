@@ -1,23 +1,27 @@
 import type { MuseLabRuntimeBridge } from "./runtimeBridge";
 import { isElectron } from "@/utils/isElectron";
-import { transpileCiSourceWithWasm } from "./citoWasmLoader";
+import { initCitoWasm, transpileCiSourceWithWasm } from "./citoWasmLoader";
+import type { CitoTranspileTarget } from "./exportTarget";
 
 export type TranspileCitoRequest = {
   ciSource: string;
+  target?: CitoTranspileTarget;
 };
 
 export type TranspileCitoResult = {
-  js: string;
+  output: string;
+  /** @deprecated Use output */
+  js?: string;
 };
 
-const jsCache = new Map<string, string>();
+const transpileCache = new Map<string, string>();
 
-function cacheKey(ciSource: string): string {
+function cacheKey(target: CitoTranspileTarget, ciSource: string): string {
   let hash = 0;
   for (let i = 0; i < ciSource.length; i++) {
     hash = (hash * 31 + ciSource.charCodeAt(i)) | 0;
   }
-  return `cito:${hash}:${ciSource.length}`;
+  return `${target}:${hash}:${ciSource.length}`;
 }
 
 export function getTranspileCitoUnavailableMessage(): string {
@@ -27,25 +31,36 @@ export function getTranspileCitoUnavailableMessage(): string {
   return "Cito transpilation is unavailable. Run npm run build:cito-wasm and reload the page.";
 }
 
-export async function transpileCiToJs(ciSource: string): Promise<string> {
-  const key = cacheKey(ciSource);
-  const cached = jsCache.get(key);
+export async function transpileCiToTarget(
+  ciSource: string,
+  target: CitoTranspileTarget = "js"
+): Promise<string> {
+  const key = cacheKey(target, ciSource);
+  const cached = transpileCache.get(key);
   if (cached) return cached;
 
-  let js: string;
+  let output: string;
   if (isElectron()) {
     const api = window.electronAPI?.transpileCito;
     if (!api) {
       throw new Error(getTranspileCitoUnavailableMessage());
     }
-    const result = await api({ ciSource });
-    js = result.js;
+    const result = await api({ ciSource, target });
+    output = result.output ?? result.js ?? "";
+    if (!output) {
+      throw new Error("Cito transpilation returned empty output.");
+    }
   } else {
-    js = await transpileCiSourceWithWasm(ciSource);
+    await initCitoWasm();
+    output = await transpileCiSourceWithWasm(ciSource, target);
   }
 
-  jsCache.set(key, js);
-  return js;
+  transpileCache.set(key, output);
+  return output;
+}
+
+export async function transpileCiToJs(ciSource: string): Promise<string> {
+  return transpileCiToTarget(ciSource, "js");
 }
 
 export function runTranspiledMethod(
@@ -83,5 +98,5 @@ export function runTranspiledMethodLegacy(
 }
 
 export function clearTranspileCache(): void {
-  jsCache.clear();
+  transpileCache.clear();
 }

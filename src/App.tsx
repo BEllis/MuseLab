@@ -9,6 +9,7 @@ import { isElectron } from "./utils/isElectron";
 import { useThemeStore } from "./store/themeStore";
 import { isAppTheme } from "./core/view/theme";
 import { AboutDialog } from "./components/AboutDialog";
+import { ExportDialog } from "./components/ExportDialog/ExportDialog";
 import { LoadWarningBanner } from "./components/LoadWarningBanner";
 import { PwaStatusBanner } from "./components/PwaStatusBanner";
 import { useAboutStore } from "./store/aboutStore";
@@ -127,6 +128,7 @@ function App() {
         </Routes>
       </div>
       <AboutDialog />
+      <ExportDialog />
     </div>
   );
 }

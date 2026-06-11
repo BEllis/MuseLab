@@ -1,4 +1,5 @@
 import { isElectron } from "@/utils/isElectron";
+import type { CitoTranspileTarget } from "./exportTarget";
 
 export type CitoWasmLoadProgress = {
   phase: "config" | "runtime" | "assemblies" | "init";
@@ -18,6 +19,9 @@ type DotNetExports = {
     Ci: {
       TranspileLib: {
         TranspileJs: (ciSource: string) => string;
+        TranspileCs: (ciSource: string) => string;
+        TranspilePy: (ciSource: string) => string;
+        TranspileJava: (ciSource: string) => string;
       };
     };
   };
@@ -48,7 +52,17 @@ type DotNetModule = {
 const CITO_ASSEMBLY = "cito-wasm";
 const FRAMEWORK_DIR = "_framework/";
 
-let transpileFn: ((ciSource: string) => string) | null = null;
+const WASM_TRANSPILERS: Record<
+  CitoTranspileTarget,
+  keyof DotNetExports["Foxoft"]["Ci"]["TranspileLib"]
+> = {
+  js: "TranspileJs",
+  cs: "TranspileCs",
+  py: "TranspilePy",
+  java: "TranspileJava",
+};
+
+let transpileLib: DotNetExports["Foxoft"]["Ci"]["TranspileLib"] | null = null;
 let initPromise: Promise<void> | null = null;
 
 function citoWasmBaseUrl(): string {
@@ -112,7 +126,7 @@ export async function initCitoWasm(
   onProgress?: (progress: CitoWasmLoadProgress) => void
 ): Promise<void> {
   if (isElectron()) return;
-  if (transpileFn) return;
+  if (transpileLib) return;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
@@ -174,12 +188,12 @@ export async function initCitoWasm(
       .create();
 
     const exports = await runtime.getAssemblyExports(CITO_ASSEMBLY);
-    const transpile = exports.Foxoft.Ci.TranspileLib.TranspileJs;
-    if (typeof transpile !== "function") {
+    const lib = exports.Foxoft.Ci.TranspileLib;
+    if (typeof lib.TranspileJs !== "function") {
       throw new Error("Cito WASM transpiler export is missing.");
     }
 
-    transpileFn = transpile.bind(exports.Foxoft.Ci.TranspileLib);
+    transpileLib = lib;
 
     reportProgress(onProgress, {
       phase: "init",
@@ -195,18 +209,26 @@ export async function initCitoWasm(
   return initPromise;
 }
 
-export async function transpileCiSourceWithWasm(ciSource: string): Promise<string> {
+export async function transpileCiSourceWithWasm(
+  ciSource: string,
+  target: CitoTranspileTarget = "js"
+): Promise<string> {
   if (isElectron()) {
     throw new Error("transpileCiSourceWithWasm is only available on web.");
   }
   await initCitoWasm();
-  if (!transpileFn) {
+  if (!transpileLib) {
     throw new Error("Cito WASM transpiler is not initialized.");
   }
-  return transpileFn(ciSource);
+  const methodName = WASM_TRANSPILERS[target];
+  const transpile = transpileLib[methodName];
+  if (typeof transpile !== "function") {
+    throw new Error(`Cito WASM transpiler for ${target} is missing. Rebuild with npm run build:cito-wasm.`);
+  }
+  return transpile.call(transpileLib, ciSource);
 }
 
 export function resetCitoWasmForTests(): void {
-  transpileFn = null;
+  transpileLib = null;
   initPromise = null;
 }

@@ -14,6 +14,7 @@ import {
 import { useProjectStore } from "@/store/projectStore";
 import { useThemeStore } from "@/store/themeStore";
 import { useAboutStore } from "@/store/aboutStore";
+import { useExportStore } from "@/store/exportStore";
 import logoUrl from "@/assets/logo.png";
 import "./MenuBar.css";
 
@@ -134,6 +135,7 @@ export function MenuBar() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const showAbout = useAboutStore((s) => s.show);
+  const showExport = useExportStore((s) => s.show);
   const canUndo = useProjectStore((s) => s.canUndo);
   const canRedo = useProjectStore((s) => s.canRedo);
 
@@ -147,6 +149,8 @@ export function MenuBar() {
         { type: "separator" },
         { label: "Save", shortcut: modShortcut("S"), action: () => saveProject() },
         { label: "Load", shortcut: modShortcut("O"), action: () => loadProject() },
+        { type: "separator" },
+        { label: "Export…", action: () => showExport() },
       ],
     },
     {

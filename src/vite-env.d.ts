@@ -53,7 +53,10 @@ interface Window {
     writeAutosave?: (payload: string) => Promise<void>;
     getPlayerLocale?: (projectKey: string) => Promise<string | null>;
     setPlayerLocale?: (projectKey: string, locale: string) => Promise<void>;
-    transpileCito?: (request: { ciSource: string }) => Promise<{ js: string }>;
+    transpileCito?: (request: {
+      ciSource: string;
+      target?: "js" | "cs" | "py" | "java";
+    }) => Promise<{ output: string; js?: string }>;
     syncTheme?: (theme: "light" | "dark") => void;
     usesInAppMenuBar?: boolean;
     onSetTheme?: (callback: (theme: "light" | "dark") => void) => (() => void) | void;

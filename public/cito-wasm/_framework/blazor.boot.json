@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "cito-wasm.dll",
   "resources": {
-    "hash": "sha256-FowXo0wwOAjp7+Fh9KjeBqcoCLNIRkyOG4WPn/ox5yI=",
+    "hash": "sha256-j8BTeVyfDvjYrddNiEodgJ1spXLNJCoAdXXnasMH/+4=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-SaO0De1V1FjzOBWH6QNHwTqlYSG2F2ZbFQ44wUxdO5I="
     },
@@ -9,13 +9,13 @@
       "dotnet.runtime.js": "sha256-8TPKoZjPkxn9U2bhn70tBfGFmfwnOXj2CAKmQl5+oJ4="
     },
     "wasmNative": {
-      "dotnet.native.wasm": "sha256-8YmxpAlk35anc0bI3RRLBPN6hiG1V5f+vGDGC4uZFh0="
+      "dotnet.native.wasm": "sha256-P7nye59BS5Dm/ONP6AJ9WoNYaq3chWpYla02O5NMQiA="
     },
     "wasmSymbols": {
       "dotnet.native.js.symbols": "sha256-rnMAzFJe4V7jcw6nPmv+ZmCwUC6AOV3WFYn2kRt6lKA="
     },
     "assembly": {
-      "cito-wasm.wasm": "sha256-hxTtl2td20Ofm98smRIigs5UOXqJDiUm1BE1rwWaQRk=",
+      "cito-wasm.wasm": "sha256-c80NwYz2ZANJPlnIiee6jJ/6RnM+DpqeECpOaCpbyM4=",
       "Microsoft.CSharp.wasm": "sha256-Fj1ys00SJOdcd7CPWhzvXPiYtdFLRYjwJyuT75VtLvI=",
       "Microsoft.VisualBasic.Core.wasm": "sha256-MgRcZyUWHUF+Uy2S6AG51O4WySJf/urqKtHmN8C5xHI=",
       "Microsoft.VisualBasic.wasm": "sha256-4WBi8XIsky5BvjXfSkuxDUvxCroA44YJ9gH/J5GtEf8=",

@@ -63,8 +63,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-player-locale", projectKey) as Promise<string | null>,
   setPlayerLocale: (projectKey: string, locale: string) =>
     ipcRenderer.invoke("set-player-locale", projectKey, locale) as Promise<void>,
-  transpileCito: (request: { ciSource: string }) =>
-    ipcRenderer.invoke("cito:transpile", request) as Promise<{ js: string }>,
+  transpileCito: (request: { ciSource: string; target?: "js" | "cs" | "py" | "java" }) =>
+    ipcRenderer.invoke("cito:transpile", request) as Promise<{ output: string; js?: string }>,
   syncTheme: (theme: "light" | "dark") => ipcRenderer.send("sync-theme", theme),
   usesInAppMenuBar: process.platform === "linux",
   onSetTheme: (callback: (theme: "light" | "dark") => void) => {

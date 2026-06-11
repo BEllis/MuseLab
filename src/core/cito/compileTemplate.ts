@@ -1,6 +1,10 @@
 import type { Project } from "../model/types";
 import { hashId } from "./hashId";
-import { buildCiPreamble, buildRenderParameterList } from "../modules/generateModuleCi";
+import {
+  buildCiPreamble,
+  buildExportRenderParameterList,
+  buildRenderParameterList,
+} from "../modules/generateModuleCi";
 import { isFormatExpression, normalizeFormatExpression } from "../modules/builtInModules";
 import {
   parseTemplateSurface,
@@ -64,25 +68,44 @@ export function getOutputExpressionRoots(project: Project): string[] {
   return ["rt", "format", "Format", ...project.modules.map((service) => service.bindingName)];
 }
 
-export function compileTemplate(template: string, project: Project): CompiledTemplate {
+export type CompileTemplateOptions = {
+  forExport?: boolean;
+  includePreamble?: boolean;
+};
+
+function buildTemplateClass(
+  template: string,
+  project: Project,
+  options?: CompileTemplateOptions
+): { className: string; classSource: string } {
   validateRazorTemplate(template, getOutputExpressionRoots(project));
   const segments = parseTemplateSurface(template);
   const className = hashId(template, "Template");
   const renderBody = buildRenderMethod(segments);
-  const params = buildRenderParameterList(project);
-  const generated = `
-public static class ${className}
+  const params = options?.forExport
+    ? buildExportRenderParameterList(project)
+    : buildRenderParameterList(project);
+  const classSource = `public static class ${className}
 {
     public static string Render(${params})
     {
         ${renderBody}
     }
+}`;
+  return { className, classSource };
 }
-`;
 
+export function compileTemplate(
+  template: string,
+  project: Project,
+  options?: CompileTemplateOptions
+): CompiledTemplate {
+  const { className, classSource } = buildTemplateClass(template, project, options);
+  const includePreamble = options?.includePreamble !== false;
+  const preamble = options?.forExport ? "" : buildCiPreamble(project);
   return {
     className,
-    ciSource: `${buildCiPreamble(project)}${generated.trim()}\n`,
+    ciSource: includePreamble ? `${preamble}${classSource}\n` : `${classSource}\n`,
   };
 }
 

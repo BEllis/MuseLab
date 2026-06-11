@@ -6,7 +6,7 @@ import {
   iFormatMarkerCi,
   museLabPromptRendererCi,
 } from "@/cito/ciSources";
-import { citoTypeToString } from "./builtInModules";
+import { BUILT_IN_MODULES, citoTypeToString, toModuleInterfaceShape } from "./builtInModules";
 
 function methodSignature(method: ModuleInterface["methods"][number]): string {
   const params = method.parameters
@@ -59,6 +59,37 @@ export function buildRenderParameterList(project: Project): string {
     "MuseLabFormat format",
     ...customParams,
   ].join(", ");
+}
+
+function methodInterfaceSignature(method: ModuleInterface["methods"][number]): string {
+  const params = method.parameters
+    .map((param) => `${citoTypeToString(param.type)} ${param.name}`)
+    .join(", ");
+  const returnType = citoTypeToString(method.returnType);
+  if (returnType === "void") {
+    return `public abstract void ${method.name}(${params});`;
+  }
+  return `public abstract ${returnType} ${method.name}(${params});`;
+}
+
+export function generateExportModuleInterface(service: ModuleInterface): string {
+  const methods = service.methods.map((method) => `    ${methodInterfaceSignature(method)}`).join("\n");
+  return `public abstract class ${service.name}\n{\n${methods}\n}`;
+}
+
+export function buildExportRenderParameterList(project: Project): string {
+  const customParams = project.modules.map((service) => `${service.name} ${service.bindingName}`);
+  return ["IMuseLabRuntime rt", "IMuseLabPromptRenderer prompter", "IMuseLabFormat format", ...customParams].join(
+    ", "
+  );
+}
+
+export function buildExportCiPreamble(project: Project): string {
+  const builtInInterfaces = BUILT_IN_MODULES.map((module) =>
+    generateExportModuleInterface(toModuleInterfaceShape(module))
+  );
+  const customInterfaces = project.modules.map(generateExportModuleInterface);
+  return `${[...builtInInterfaces, ...customInterfaces].join("\n\n")}\n`;
 }
 
 export function buildCiPreamble(project: Project): string {

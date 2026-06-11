@@ -7,7 +7,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { loadUserSettings, resolveStartupTheme, saveUserSettings, getPlayerLocale, setPlayerLocale, type AppTheme } from "./userSettings";
 import { readAutosaveFile, writeAutosaveFile } from "./autosave";
-import { transpileCiToJs } from "./citoTranspile";
+import { transpileCiToTarget, type CitoTranspileTarget } from "./citoTranspile";
 import { handleAssetProtocolRequest, readAssetFile } from "./assetProtocol";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -347,13 +347,17 @@ app.whenReady().then(async () => {
     setPlayerLocale(projectKey, locale)
   );
 
-  ipcMain.handle("cito:transpile", async (_, request: { ciSource: string }) => {
-    if (!request?.ciSource || typeof request.ciSource !== "string") {
-      throw new Error("cito:transpile requires ciSource string");
+  ipcMain.handle(
+    "cito:transpile",
+    async (_, request: { ciSource: string; target?: CitoTranspileTarget }) => {
+      if (!request?.ciSource || typeof request.ciSource !== "string") {
+        throw new Error("cito:transpile requires ciSource string");
+      }
+      const target = request.target ?? "js";
+      const output = await transpileCiToTarget(request.ciSource, target);
+      return { output, js: target === "js" ? output : undefined };
     }
-    const js = await transpileCiToJs(request.ciSource);
-    return { js };
-  });
+  );
 
   ipcMain.on("sync-theme", (_, theme: AppTheme) => {
     setAppTheme(theme, "renderer");
