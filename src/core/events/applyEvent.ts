@@ -550,6 +550,20 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
       state.highlightedRootNodeIds = [...(useAfter ? event.after : event.before)];
       break;
 
+    case "importStoryScript": {
+      const payload = useAfter ? event.after : event.before;
+      const index = state.project.stories.findIndex((story) => story.id === event.storyId);
+      if (index < 0) {
+        throw new Error(`Story "${event.storyId}" not found`);
+      }
+      state.project.stories[index] = cloneNode(payload.story);
+      for (const [locale, storyPrompts] of Object.entries(payload.storyPromptsByLocale)) {
+        const prompts = ensureLocalePrompts(state.promptsByLocale, locale);
+        prompts.stories[event.storyId] = cloneNode(storyPrompts);
+      }
+      break;
+    }
+
     case "batch": {
       const events = direction === "forward" ? event.events : [...event.events].reverse();
       for (const child of events) {

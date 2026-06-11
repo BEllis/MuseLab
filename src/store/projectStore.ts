@@ -131,6 +131,19 @@ import type {
   StoryPatch,
 } from "@/core/events/types";
 import { eventTouchesActiveStory, eventNeedsFullGraphRefresh } from "@/core/events/types";
+import { exportProjectScript, exportStoryScript } from "@/core/script/exportScript";
+import {
+  captureStoryScriptState,
+  importStoryScript,
+} from "@/core/script/importScript";
+import type {
+  ImportScriptMode,
+  MuseLabProjectScript,
+  MuseLabScriptDocument,
+  MuseLabStoryScript,
+} from "@/core/script/types";
+import { isProjectScript } from "@/core/script/types";
+import { resolveStoryIdByPath } from "@/core/export/resolveStoryPath";
 import {
   cloneProjectBundle,
   migrateProjectBundle,
@@ -479,6 +492,13 @@ interface ProjectState {
   loadFromArchive: (data: Uint8Array, mlvnPath?: string | null) => Promise<void>;
   hydrateAssets: () => Promise<void>;
   exportArchive: () => Promise<Uint8Array>;
+  exportStoryScript: (storyId: string) => MuseLabStoryScript;
+  exportProjectScript: () => MuseLabProjectScript;
+  importScriptDocument: (
+    document: MuseLabScriptDocument,
+    mode: ImportScriptMode,
+    targetStoryId?: string | null
+  ) => void;
   isDirty: () => boolean;
   markSaved: () => void;
   undo: () => void;
@@ -1241,6 +1261,72 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   exportArchive: async () => packProjectArchive(getBundle(get())),
+
+  exportStoryScript: (storyId) => exportStoryScript(getBundle(get()), storyId),
+
+  exportProjectScript: (): MuseLabProjectScript =>
+    exportProjectScript(getBundle(get())),
+
+  importScriptDocument: (document, mode, targetStoryId = null) => {
+    const resolveStoryId = (storyScript: MuseLabStoryScript): string => {
+      if (targetStoryId) {
+        getStory(get().project, targetStoryId);
+        return targetStoryId;
+      }
+      if (
+        storyScript.story_id &&
+        get().project.stories.some((story) => story.id === storyScript.story_id)
+      ) {
+        return storyScript.story_id;
+      }
+      if (storyScript.story_name) {
+        return resolveStoryIdByPath(
+          get().project,
+          storyScript.story_path ?? "",
+          storyScript.story_name
+        );
+      }
+      const activeStoryId = get().selectedStoryId ?? get().activeStoryId;
+      getStory(get().project, activeStoryId);
+      return activeStoryId;
+    };
+
+    const original = getBundle(get());
+    const working = cloneProjectBundle(original);
+    const events: AppEvent[] = [];
+
+    if (isProjectScript(document)) {
+      const storyIds = document.stories.map((storyScript) => resolveStoryId(storyScript));
+      const beforeByStory = new Map(
+        storyIds.map((storyId) => [storyId, captureStoryScriptState(original, storyId)] as const)
+      );
+      for (const storyScript of document.stories) {
+        importStoryScript(working, storyScript, mode, resolveStoryId(storyScript));
+      }
+      for (const storyId of storyIds) {
+        events.push({
+          ...createEventMeta(),
+          type: "importStoryScript",
+          storyId,
+          before: beforeByStory.get(storyId)!,
+          after: captureStoryScriptState(working, storyId),
+        });
+      }
+    } else {
+      const storyId = resolveStoryId(document);
+      const before = captureStoryScriptState(original, storyId);
+      importStoryScript(working, document, mode, storyId);
+      events.push({
+        ...createEventMeta(),
+        type: "importStoryScript",
+        storyId,
+        before,
+        after: captureStoryScriptState(working, storyId),
+      });
+    }
+
+    dispatchEventBatch(get, set, events);
+  },
 
   isDirty: () => serializeProjectBundleSnapshot(getBundle(get())) !== get().lastSavedSnapshot,
 

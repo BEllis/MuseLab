@@ -443,6 +443,18 @@ export type ClearPlayValidationHighlightEvent = AppEventBase & {
   after: string[];
 };
 
+export type ImportStoryScriptPayload = {
+  story: Story;
+  storyPromptsByLocale: Record<string, StoryPrompts>;
+};
+
+export type ImportStoryScriptEvent = AppEventBase & {
+  type: "importStoryScript";
+  storyId: string;
+  before: ImportStoryScriptPayload;
+  after: ImportStoryScriptPayload;
+};
+
 export type BatchEvent = AppEventBase & {
   type: "batch";
   events: AppEvent[];
@@ -495,6 +507,7 @@ export type AppEvent =
   | ClearSelectionEvent
   | SetHighlightedRootNodeIdsEvent
   | ClearPlayValidationHighlightEvent
+  | ImportStoryScriptEvent
   | BatchEvent;
 
 export function getEventType(event: AppEvent): AppEvent["type"] {
@@ -541,6 +554,7 @@ export function eventNeedsFullGraphRefresh(event: AppEvent): boolean {
     case "setActiveStoryId":
     case "addStory":
     case "removeStory":
+    case "importStoryScript":
       return true;
     case "batch":
       return event.events.some(eventNeedsFullGraphRefresh);

@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://muselab.dev/schemas/script.schema.json",
+  "title": "MuseLab Script",
+  "description": "Human-readable MuseLab story script for bulk export/import of scene prompts and navigation flow.",
+  "oneOf": [
+    { "$ref": "#/$defs/storyScript" },
+    { "$ref": "#/$defs/projectScript" }
+  ],
+  "$defs": {
+    "attributeValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "string" },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "integer" },
+            "value": { "type": "integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "number" },
+            "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "object" },
+            "value": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "list" },
+            "value": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/attributeValue" }
+            }
+          }
+        }
+      ]
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Custom key-value metadata for export targets.",
+      "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "dialogueLocale": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "speaker": { "type": "string" },
+        "dialogue": { "type": "string" }
+      }
+    },
+    "scriptActor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_path", "expression"],
+      "properties": {
+        "actor_id": { "$ref": "#/$defs/uuid" },
+        "actor_path": { "type": "string", "minLength": 1 },
+        "expression": { "type": "string", "minLength": 1 },
+        "attributes": { "$ref": "#/$defs/attributes" }
+      }
+    },
+    "scriptBackdrop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backdrop_path"],
+      "properties": {
+        "backdrop_id": { "$ref": "#/$defs/uuid" },
+        "backdrop_path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "scriptSound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sound_path"],
+      "properties": {
+        "sound_id": { "$ref": "#/$defs/uuid" },
+        "sound_path": { "type": "string", "minLength": 1 },
+        "start_on_load": { "type": "boolean" },
+        "stop_on_load": { "type": "boolean" },
+        "loop": { "type": "boolean" },
+        "start_time": { "type": "number", "minimum": 0 },
+        "end_time": { "type": "number", "minimum": 0 },
+        "attributes": { "$ref": "#/$defs/attributes" }
+      }
+    },
+    "scriptOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_name"],
+      "properties": {
+        "edge_id": { "$ref": "#/$defs/uuid" },
+        "node_id": { "$ref": "#/$defs/uuid" },
+        "node_name": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "condition": { "type": "string" },
+        "on_click": { "type": "string" },
+        "attributes": { "$ref": "#/$defs/attributes" }
+      }
+    },
+    "scriptScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_name"],
+      "properties": {
+        "node_id": { "$ref": "#/$defs/uuid" },
+        "node_name": { "type": "string", "minLength": 1 },
+        "attributes": { "$ref": "#/$defs/attributes" },
+        "actors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scriptActor" }
+        },
+        "backdrop": { "$ref": "#/$defs/scriptBackdrop" },
+        "sound": { "$ref": "#/$defs/scriptSound" },
+        "dialogue": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/dialogueLocale" }
+        },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scriptOption" }
+        }
+      }
+    },
+    "storyScriptBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "story_id": { "$ref": "#/$defs/uuid" },
+        "story_name": { "type": "string", "minLength": 1 },
+        "story_path": { "type": "string" },
+        "entry_node_name": { "type": "string", "minLength": 1 },
+        "prompt_start_template": { "type": "string" },
+        "prompt_end_template": { "type": "string" },
+        "speaker_start_template": { "type": "string" },
+        "speaker_end_template": { "type": "string" },
+        "attributes": { "$ref": "#/$defs/attributes" },
+        "scenes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scriptScene" }
+        }
+      }
+    },
+    "storyScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format_version", "scenes"],
+      "properties": {
+        "format_version": { "type": "integer", "minimum": 1 },
+        "schema": { "type": "string" },
+        "story_id": { "$ref": "#/$defs/uuid" },
+        "story_name": { "type": "string", "minLength": 1 },
+        "story_path": { "type": "string" },
+        "entry_node_name": { "type": "string", "minLength": 1 },
+        "prompt_start_template": { "type": "string" },
+        "prompt_end_template": { "type": "string" },
+        "speaker_start_template": { "type": "string" },
+        "speaker_end_template": { "type": "string" },
+        "attributes": { "$ref": "#/$defs/attributes" },
+        "scenes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scriptScene" }
+        }
+      }
+    },
+    "projectScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format_version", "stories"],
+      "properties": {
+        "format_version": { "type": "integer", "minimum": 1 },
+        "schema": { "type": "string" },
+        "stories": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "allOf": [
+              { "$ref": "#/$defs/storyScriptBody" },
+              {
+                "type": "object",
+                "required": ["scenes"]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

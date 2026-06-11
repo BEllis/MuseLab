@@ -7,6 +7,7 @@ import {
   getStoryTreeSiblings,
 } from "@/core/model/storyTree";
 import type { StoryTreeNode, StoryTreePlacement, StoryTreeSibling } from "@/core/model/storyTree";
+import { exportActiveStoryScript, importStoryScriptFile } from "@/core/script/scriptFileActions";
 import { AddButton } from "./AddButton";
 import { CloseButton } from "./CloseButton";
 import {
@@ -72,7 +73,13 @@ export function StoryTreeView() {
   const [nestGroupId, setNestGroupId] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [sectionExpanded, setSectionExpanded] = useState(true);
+  const [storyContextMenu, setStoryContextMenu] = useState<{
+    storyId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const storyMenuRef = useRef<HTMLDivElement>(null);
   const dragItemRef = useRef<StoryTreeDragItem | null>(null);
 
   const tree = useMemo(() => buildStoryTree(project), [project]);
@@ -92,6 +99,16 @@ export function StoryTreeView() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [addMenuOpen]);
+
+  useEffect(() => {
+    if (!storyContextMenu) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (storyMenuRef.current?.contains(event.target as Node)) return;
+      setStoryContextMenu(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [storyContextMenu]);
 
   const clearDragState = useCallback(() => {
     dragItemRef.current = null;
@@ -323,6 +340,11 @@ export function StoryTreeView() {
           className={`story-tree-row${selected ? " is-selected" : ""}`}
           style={{ paddingLeft: `${treeRowPaddingLeft(depth)}px` }}
           onClick={() => selectStory(node.id)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            selectStory(node.id);
+            setStoryContextMenu({ storyId: node.id, x: event.clientX, y: event.clientY });
+          }}
         >
           <TreeToggleSpacer />
           {renderDragHandle({ kind: "story", id: node.id }, isEditing, () =>
@@ -470,6 +492,39 @@ export function StoryTreeView() {
       </div>
       {sectionExpanded && (
         <ul className="story-tree-list story-tree-root">{renderLevel(undefined, 0, tree)}</ul>
+      )}
+      {storyContextMenu && (
+        <div
+          ref={storyMenuRef}
+          className="app-context-menu"
+          style={{
+            position: "fixed",
+            left: storyContextMenu.x,
+            top: storyContextMenu.y,
+            zIndex: 1000,
+          }}
+        >
+          <button
+            type="button"
+            className="app-context-menu-item"
+            onClick={() => {
+              void exportActiveStoryScript("yaml");
+              setStoryContextMenu(null);
+            }}
+          >
+            Export Script
+          </button>
+          <button
+            type="button"
+            className="app-context-menu-item"
+            onClick={() => {
+              void importStoryScriptFile(storyContextMenu.storyId);
+              setStoryContextMenu(null);
+            }}
+          >
+            Import Script
+          </button>
+        </div>
       )}
     </div>
   );

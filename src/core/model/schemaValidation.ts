@@ -3,11 +3,14 @@ import bundleSchema from "../../../muselab.bundle.schema.json";
 import mlvnSchema from "../../../muselab.mlvn.schema.json";
 import promptsSchema from "../../../muselab.prompts.schema.json";
 import storySchema from "../../../muselab.story.schema.json";
+import scriptSchema from "../../../muselab.script.schema.json";
 import {
   BUNDLE_SCHEMA_ID,
   MLVN_SCHEMA_ID,
   PROMPTS_SCHEMA_ID,
+  SCRIPT_SCHEMA_ID,
   STORY_SCHEMA_ID,
+  MUSELAB_SCRIPT_FORMAT_VERSION,
   collectFormatVersionWarnings,
   readManifestMetadata,
   type ManifestMetadata,
@@ -31,6 +34,7 @@ function getValidator(): Ajv2020 {
   ajv.addSchema(promptsSchema);
   ajv.addSchema(bundleSchema);
   ajv.addSchema(mlvnSchema);
+  ajv.addSchema(scriptSchema);
   validator = ajv;
   return ajv;
 }
@@ -99,6 +103,47 @@ export function validateBundlePayload(data: unknown): ValidationResult {
     getValidateFn(BUNDLE_SCHEMA_ID),
     data
   );
+}
+
+export function validateScriptDocument(data: unknown): ValidationResult {
+  const metadata = readScriptMetadata(data);
+  const warnings: string[] = [];
+  if (metadata.schema && metadata.schema !== SCRIPT_SCHEMA_ID) {
+    warnings.push(`Unexpected schema reference: ${metadata.schema}`);
+  }
+  if (metadata.formatVersion === undefined) {
+    warnings.push("Missing format_version.");
+  } else if (metadata.formatVersion > MUSELAB_SCRIPT_FORMAT_VERSION) {
+    warnings.push(
+      `Format version ${metadata.formatVersion} is newer than this app supports (${MUSELAB_SCRIPT_FORMAT_VERSION}).`
+    );
+  }
+
+  const validate = getValidateFn(SCRIPT_SCHEMA_ID);
+  if (!validate) {
+    warnings.push("Schema validator is unavailable.");
+    return { valid: false, warnings, metadata };
+  }
+
+  const valid = validate(data) === true;
+  if (!valid) {
+    warnings.push(...formatAjvErrors(validate.errors));
+  }
+
+  return { valid, warnings, metadata };
+}
+
+export function readScriptMetadata(data: unknown): ManifestMetadata {
+  if (!data || typeof data !== "object") {
+    return {};
+  }
+  const record = data as Record<string, unknown>;
+  return {
+    formatVersion:
+      typeof record.format_version === "number" ? record.format_version : undefined,
+    schema: typeof record.schema === "string" ? record.schema : undefined,
+    $schema: typeof record.$schema === "string" ? record.$schema : undefined,
+  };
 }
 
 export function validateMlvnMetadata(data: unknown): ValidationResult {

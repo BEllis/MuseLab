@@ -6,6 +6,10 @@ import {
   saveProject,
 } from "@/core/project/projectFileActions";
 import {
+  exportScriptWithScope,
+  importScriptFile,
+} from "@/core/script/scriptFileActions";
+import {
   dispatchViewCommand,
   reloadPage,
   runProjectEditCommand,
@@ -151,6 +155,9 @@ export function MenuBar() {
         { label: "Load", shortcut: modShortcut("O"), action: () => loadProject() },
         { type: "separator" },
         { label: "Export…", action: () => showExport() },
+        { type: "separator" },
+        { label: "Export Script…", action: () => exportScriptWithScope() },
+        { label: "Import Script…", action: () => importScriptFile() },
       ],
     },
     {

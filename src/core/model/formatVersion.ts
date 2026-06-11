@@ -4,6 +4,9 @@ export const BUNDLE_SCHEMA_ID = "https://muselab.dev/schemas/bundle.schema.json"
 export const STORY_SCHEMA_ID = "https://muselab.dev/schemas/story.schema.json";
 export const PROMPTS_SCHEMA_ID = "https://muselab.dev/schemas/prompts.schema.json";
 export const MLVN_SCHEMA_ID = "https://muselab.dev/schemas/mlvn.schema.json";
+export const SCRIPT_SCHEMA_ID = "https://muselab.dev/schemas/script.schema.json";
+
+export const MUSELAB_SCRIPT_FORMAT_VERSION = 1;
 
 export const MLVN_METADATA_FILE = "muselab.json";
 
