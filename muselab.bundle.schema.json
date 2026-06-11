@@ -48,6 +48,7 @@
         },
         "selectedAssetId": { "type": ["string", "null"] },
         "selectedModuleId": { "type": ["string", "null"] },
+        "selectedStoryId": { "type": ["string", "null"] },
         "highlightedRootNodeIds": {
           "type": "array",
           "items": { "type": "string" }

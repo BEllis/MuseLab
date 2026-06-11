@@ -188,6 +188,38 @@ describe("MuseLab JSON schemas", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("validates bundle session with selectedStoryId", () => {
+    const result = validateBundlePayload({
+      project: {
+        name: "Untitled",
+        assets: [],
+        stories: [
+          {
+            id: STORY_ID,
+            name: "Main",
+            nodes: [],
+            edges: [],
+            globalState: {},
+          },
+        ],
+        locales: [LOCALE_EN],
+      },
+      promptsByLocale: {
+        en: { stories: {} },
+      },
+      session: {
+        activeStoryId: STORY_ID,
+        selectedStoryId: STORY_ID,
+        eventLog: { events: [], cursor: -1 },
+      },
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.warnings.filter((warning) => warning.includes("additional properties"))).toEqual(
+      []
+    );
+  });
+
   it("warns about missing formatVersion but still validates legacy-shaped data", () => {
     const result = validateStoryManifest({
       name: "Legacy",
