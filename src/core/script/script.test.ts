@@ -193,7 +193,7 @@ describe("MuseLab script export/import", () => {
     );
   });
 
-  it("fails import when an actor path cannot be resolved", () => {
+  it("creates placeholder assets when script references missing project assets", () => {
     const bundle = createScriptFixtureBundle();
     const storyId = getFirstStoryId(bundle.project);
     const script: MuseLabStoryScript = {
@@ -202,13 +202,54 @@ describe("MuseLab script export/import", () => {
         {
           node_name: "Opening",
           actors: [{ actor_path: "cast/Missing", expression: "happy" }],
+          backdrop: { backdrop_path: "backgrounds/NewPlace" },
+          sound: { sound_path: "music/NewTrack.wav" },
         },
       ],
       entry_node_name: "Opening",
     };
 
-    expect(() => importStoryScript(bundle, script, "replace", storyId)).toThrow(
-      /Actor not found/
+    const result = importStoryScript(bundle, script, "replace", storyId);
+    expect(result.warnings.some((warning) => warning.includes("cast/Missing"))).toBe(true);
+    expect(result.warnings.some((warning) => warning.includes("backgrounds/NewPlace"))).toBe(true);
+    expect(result.warnings.some((warning) => warning.includes("music/NewTrack"))).toBe(true);
+
+    const story = bundle.project.stories[0];
+    const opening = story.nodes.find(
+      (node) => isSceneNode(node) && getNodeDisplayName(node) === "Opening"
+    )!;
+    expect(opening.actorConfigs?.[0]?.assetId).toBeTruthy();
+    expect(opening.backdropId).not.toBe("muselab-default-backdrop");
+    expect(opening.soundConfigs?.[0]?.assetId).toBeTruthy();
+  });
+
+  it("creates missing story folders and stories from story_path + story_name", () => {
+    const bundle = createScriptFixtureBundle();
+    const script: MuseLabStoryScript = {
+      format_version: 1,
+      story_path: "Chapter2/Act1",
+      story_name: "SideQuest",
+      scenes: [{ node_name: "Opening" }],
+      entry_node_name: "Opening",
+    };
+
+    const result = importStoryScript(bundle, script, "merge");
+    expect(result.warnings.some((warning) => warning.includes('Added story folder "Chapter2"'))).toBe(
+      true
     );
+    expect(
+      result.warnings.some((warning) => warning.includes('Added story folder "Chapter2/Act1"'))
+    ).toBe(true);
+    expect(result.warnings.some((warning) => warning.includes('Added story "Chapter2/Act1/SideQuest"'))).toBe(
+      true
+    );
+
+    const story = bundle.project.stories.find((entry) => entry.name === "SideQuest");
+    expect(story).toBeTruthy();
+    expect(
+      bundle.project.storyGroups?.some(
+        (group) => group.name === "Act1" && group.parentGroupId === bundle.project.storyGroups?.find((g) => g.name === "Chapter2")?.id
+      )
+    ).toBe(true);
   });
 });

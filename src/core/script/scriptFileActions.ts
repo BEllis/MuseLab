@@ -1,4 +1,5 @@
 import { useProjectStore } from "@/store/projectStore";
+import { useScriptImportDialogStore } from "@/store/scriptImportDialogStore";
 import { isElectron } from "@/utils/isElectron";
 import {
   parseScriptText,
@@ -42,6 +43,15 @@ function chooseImportMode(): ImportScriptMode | null {
   return merge ? "merge" : "replace";
 }
 
+function formatImportFailure(error: unknown): string[] {
+  const message = error instanceof Error ? error.message : String(error);
+  const lines = message
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length > 0 ? lines : ["Unknown error"];
+}
+
 async function writeScriptFile(filename: string, text: string): Promise<void> {
   const data = new TextEncoder().encode(text);
   if (isElectron() && window.electronAPI?.showSaveDialog && window.electronAPI.writeProjectFile) {
@@ -78,22 +88,11 @@ export async function exportProjectScriptFile(format: "yaml" | "json" = "yaml"):
 }
 
 export async function exportScriptWithScope(): Promise<void> {
-  const store = useProjectStore.getState();
-  if (store.project.stories.length === 1) {
-    await exportActiveStoryScript("yaml");
-    return;
-  }
-  const exportAll = window.confirm(
-    "Export whole project script?\n\nOK = All stories in one file\nCancel = Active story only"
-  );
-  if (exportAll) {
-    await exportProjectScriptFile("yaml");
-  } else {
-    await exportActiveStoryScript("yaml");
-  }
+  await exportProjectScriptFile("yaml");
 }
 
 export async function importScriptFile(targetStoryId: string | null = null): Promise<void> {
+  const dialog = useScriptImportDialogStore.getState();
   const picked = await pickScriptFile();
   if (!picked) return;
 
@@ -101,7 +100,7 @@ export async function importScriptFile(targetStoryId: string | null = null): Pro
   try {
     document = parseScriptText(picked.text, picked.name);
   } catch (error) {
-    window.alert(error instanceof Error ? error.message : String(error));
+    dialog.showFailure(formatImportFailure(error));
     return;
   }
 
@@ -111,11 +110,12 @@ export async function importScriptFile(targetStoryId: string | null = null): Pro
   const store = useProjectStore.getState();
   try {
     store.beginHistoryTransaction();
-    store.importScriptDocument(document, mode, targetStoryId);
+    const notes = store.importScriptDocument(document, mode, targetStoryId);
     store.commitHistoryTransaction();
+    dialog.showSuccess(notes);
   } catch (error) {
     store.cancelHistoryTransaction();
-    window.alert(error instanceof Error ? error.message : String(error));
+    dialog.showFailure(formatImportFailure(error));
   }
 }
 

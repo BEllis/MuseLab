@@ -63,7 +63,7 @@ function resolveGroupIdByPath(
   return parentGroupId;
 }
 
-function splitAssetPath(assetPath: string): { groupPath: string; assetName: string } {
+export function splitAssetPath(assetPath: string): { groupPath: string; assetName: string } {
   const trimmed = assetPath.trim();
   if (!trimmed) {
     throw new Error("Asset path must not be empty");
@@ -127,6 +127,18 @@ export function resolveAssetById(project: Project, assetId: string): Asset {
     throw new Error(`Asset not found: "${assetId}"`);
   }
   return asset;
+}
+
+export function findAssetIdByPath(
+  project: Project,
+  assetType: AssetType,
+  assetPath: string
+): string | null {
+  try {
+    return resolveAssetIdByPath(project, assetType, assetPath);
+  } catch {
+    return null;
+  }
 }
 
 /** Strip common audio extensions when resolving sound paths from script files. */

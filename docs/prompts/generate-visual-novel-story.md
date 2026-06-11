@@ -77,7 +77,7 @@ Store all player-facing text per locale, keyed by story id:
     "story-main": {
       "nodes": {
         "scene-opening": {
-          "textTemplate": "<p>The rain hasn't stopped for three days.</p>",
+          "textTemplate": "The rain hasn't stopped for three days.",
           "speaker": "Narrator"
         }
       },
@@ -118,12 +118,14 @@ Each scene is a `StoryNode`:
 
 **Actors on stage:** List actor asset ids in `actorIds` for characters visible in that scene (left-to-right order).
 
-**Dialogue (`textTemplate`):** HTML subset only: `<p>`, `<b>`, `<i>`, `<br>`, `<span>`, `<div>`. Use separate `<p>` blocks for narration vs dialogue. Example:
+**Dialogue (`textTemplate`):** Plain text with Razor-style `@` syntax. Do **not** use HTML tags — `<` and `>` are escaped when rendered. Use `@Format.*` for bold, italic, color, and other styling. Separate blocks with blank lines. Example:
 
-```html
-<p><i>The door creaks open.</i></p>
-<p>You came back.</p>
-<p>@(rt.GetString("playerName") != "" ? rt.GetString("playerName") : "Stranger"), she whispers.</p>
+```
+@Format.ItalicStart()The door creaks open.@Format.ItalicEnd()
+
+You came back.
+
+@(rt.GetString("playerName") != "" ? rt.GetString("playerName") : "Stranger"), she whispers.
 ```
 
 **Template syntax (Razor-style `@` with Cito):**

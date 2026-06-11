@@ -12,6 +12,18 @@ describe("createHtmlPromptRenderer", () => {
     expect(prompter.render()).toBe("a&nbsp;&nbsp;b");
   });
 
+  it("escapes angle brackets in literals", () => {
+    const prompter = createHtmlPromptRenderer();
+    prompter.addLiteral("<p>Hello</p>");
+    expect(prompter.render()).toBe("&lt;p&gt;Hello&lt;/p&gt;");
+  });
+
+  it("escapes angle brackets in appendResult output", () => {
+    const prompter = createHtmlPromptRenderer();
+    prompter.appendResult('<script>alert("x")</script>');
+    expect(prompter.render()).toBe("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
+  });
+
   it("renders literals and format markers", () => {
     const format = createFormatMarkerRuntime();
     const prompter = createHtmlPromptRenderer();

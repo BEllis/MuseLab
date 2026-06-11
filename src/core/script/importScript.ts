@@ -10,12 +10,17 @@ import type {
 import {
   addEdge,
   addNode,
+  addStory,
   getStory,
   removeEdge,
   removeNode,
   updateNode,
 } from "../model/project";
-import { resolveStoryIdByPath } from "../export/resolveStoryPath";
+import {
+  ensureStoryGroupIdByPath,
+  findStoryIdByPath,
+  formatStoryPath,
+} from "../export/resolveStoryPath";
 import { getNodeDisplayName } from "../model/nodeNames";
 import { isJumpNode, isSceneNode, getStartNodes } from "../model/nodeTypes";
 import { validatePlayEntry } from "../model/graphHierarchy";
@@ -39,6 +44,10 @@ import {
 } from "./assetPath";
 import { resolveExpressionIdByName } from "./expressionPath";
 import { assignScenePositions, assignStartNodePosition } from "./layout";
+import {
+  collectScriptAssetReferences,
+  ensureScriptAssets,
+} from "./ensureScriptAssets";
 import type {
   ImportScriptMode,
   MuseLabProjectScript,
@@ -460,10 +469,11 @@ function prepareReplaceMode(
   clearStoryPrompts(bundle, storyId);
 }
 
-function resolveTargetStoryId(
+export function resolveTargetStoryId(
   project: Project,
   script: MuseLabStoryScript,
-  explicitStoryId: string | null
+  explicitStoryId: string | null,
+  notes: string[]
 ): string {
   if (explicitStoryId) {
     getStory(project, explicitStoryId);
@@ -472,8 +482,27 @@ function resolveTargetStoryId(
   if (script.story_id && project.stories.some((story) => story.id === script.story_id)) {
     return script.story_id;
   }
-  if (script.story_name) {
-    return resolveStoryIdByPath(project, script.story_path ?? "", script.story_name);
+  if (script.story_name?.trim()) {
+    const groupPath = script.story_path ?? "";
+    const storyName = script.story_name.trim();
+    ensureStoryGroupIdByPath(project, groupPath, notes);
+
+    const existingId = findStoryIdByPath(project, groupPath, storyName);
+    if (existingId) {
+      return existingId;
+    }
+
+    const groupId = ensureStoryGroupIdByPath(project, groupPath);
+    const story = addStory(project, storyName, groupId);
+    if (
+      script.story_id &&
+      isUuid(script.story_id) &&
+      !project.stories.some((entry) => entry.id === script.story_id && entry.id !== story.id)
+    ) {
+      story.id = script.story_id;
+    }
+    notes.push(`Added story "${formatStoryPath(groupPath, storyName)}"`);
+    return story.id;
   }
   throw new Error("Script import requires a target story (story_id, story_path+story_name, or active story)");
 }
@@ -482,13 +511,18 @@ export function importStoryScript(
   bundle: ProjectBundle,
   script: MuseLabStoryScript,
   mode: ImportScriptMode,
-  targetStoryId: string | null = null
+  targetStoryId: string | null = null,
+  skipAssetProvisioning = false
 ): ImportScriptResult {
   const warnings: string[] = [];
   const { project } = bundle;
-  const storyId = resolveTargetStoryId(project, script, targetStoryId);
+  const storyId = resolveTargetStoryId(project, script, targetStoryId, warnings);
   const story = getStory(project, storyId);
   const defaultLocale = normalizeLocaleTags(project.locales)[0];
+
+  if (!skipAssetProvisioning) {
+    warnings.push(...ensureScriptAssets(project, collectScriptAssetReferences(script)));
+  }
 
   if (mode === "replace") {
     prepareReplaceMode(project, bundle, story, storyId);
@@ -550,12 +584,15 @@ export function importProjectScript(
   script: MuseLabProjectScript,
   mode: ImportScriptMode
 ): ImportScriptResult {
-  const warnings: string[] = [];
+  const warnings = ensureScriptAssets(
+    bundle.project,
+    collectScriptAssetReferences(script)
+  );
   for (const storyScript of script.stories) {
-    const result = importStoryScript(bundle, storyScript, mode, null);
+    const result = importStoryScript(bundle, storyScript, mode, null, true);
     warnings.push(...result.warnings);
   }
-  return { bundle, warnings };
+  return { bundle, warnings: [...new Set(warnings)] };
 }
 
 export function importScriptDocument(
@@ -573,26 +610,52 @@ export function importScriptDocument(
 export function captureStoryScriptState(
   bundle: ProjectBundle,
   storyId: string
-): { story: Story; storyPromptsByLocale: Record<string, StoryPrompts> } {
-  const story = JSON.parse(JSON.stringify(getStory(bundle.project, storyId))) as Story;
+): {
+  storyPromptsByLocale: Record<string, StoryPrompts>;
+  assets: Project["assets"];
+  assetGroups: NonNullable<Project["assetGroups"]>;
+  stories: Project["stories"];
+  storyGroups: NonNullable<Project["storyGroups"]>;
+} {
+  const storyExists = bundle.project.stories.some((story) => story.id === storyId);
   return {
-    story,
-    storyPromptsByLocale: captureStoryPrompts(bundle, storyId),
+    storyPromptsByLocale: storyExists ? captureStoryPrompts(bundle, storyId) : {},
+    assets: JSON.parse(JSON.stringify(bundle.project.assets)) as Project["assets"],
+    assetGroups: JSON.parse(
+      JSON.stringify(bundle.project.assetGroups ?? [])
+    ) as NonNullable<Project["assetGroups"]>,
+    stories: JSON.parse(JSON.stringify(bundle.project.stories)) as Project["stories"],
+    storyGroups: JSON.parse(
+      JSON.stringify(bundle.project.storyGroups ?? [])
+    ) as NonNullable<Project["storyGroups"]>,
   };
 }
 
 export function restoreStoryScriptState(
   bundle: ProjectBundle,
   storyId: string,
-  payload: { story: Story; storyPromptsByLocale: Record<string, StoryPrompts> }
-): void {
-  const index = bundle.project.stories.findIndex((story) => story.id === storyId);
-  if (index < 0) {
-    throw new Error(`Story "${storyId}" not found`);
+  payload: {
+    storyPromptsByLocale: Record<string, StoryPrompts>;
+    assets: Project["assets"];
+    assetGroups: NonNullable<Project["assetGroups"]>;
+    stories: Project["stories"];
+    storyGroups: NonNullable<Project["storyGroups"]>;
   }
-  bundle.project.stories[index] = JSON.parse(JSON.stringify(payload.story)) as Story;
+): void {
+  bundle.project.stories = JSON.parse(JSON.stringify(payload.stories)) as Project["stories"];
+  bundle.project.storyGroups = JSON.parse(JSON.stringify(payload.storyGroups)) as NonNullable<
+    Project["storyGroups"]
+  >;
+  bundle.project.assets = JSON.parse(JSON.stringify(payload.assets)) as Project["assets"];
+  bundle.project.assetGroups = JSON.parse(JSON.stringify(payload.assetGroups)) as NonNullable<
+    Project["assetGroups"]
+  >;
   for (const [locale, storyPrompts] of Object.entries(payload.storyPromptsByLocale)) {
     const prompts = ensureLocalePrompts(bundle.promptsByLocale, locale);
-    prompts.stories[storyId] = JSON.parse(JSON.stringify(storyPrompts)) as StoryPrompts;
+    if (Object.keys(storyPrompts.nodes).length === 0 && Object.keys(storyPrompts.edges).length === 0) {
+      delete prompts.stories[storyId];
+    } else {
+      prompts.stories[storyId] = JSON.parse(JSON.stringify(storyPrompts)) as StoryPrompts;
+    }
   }
 }

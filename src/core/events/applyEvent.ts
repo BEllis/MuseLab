@@ -552,14 +552,20 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
 
     case "importStoryScript": {
       const payload = useAfter ? event.after : event.before;
-      const index = state.project.stories.findIndex((story) => story.id === event.storyId);
-      if (index < 0) {
-        throw new Error(`Story "${event.storyId}" not found`);
-      }
-      state.project.stories[index] = cloneNode(payload.story);
+      state.project.stories = cloneNode(payload.stories);
+      state.project.storyGroups = cloneNode(payload.storyGroups);
+      state.project.assets = cloneNode(payload.assets);
+      state.project.assetGroups = cloneNode(payload.assetGroups);
       for (const [locale, storyPrompts] of Object.entries(payload.storyPromptsByLocale)) {
         const prompts = ensureLocalePrompts(state.promptsByLocale, locale);
-        prompts.stories[event.storyId] = cloneNode(storyPrompts);
+        if (
+          Object.keys(storyPrompts.nodes).length === 0 &&
+          Object.keys(storyPrompts.edges).length === 0
+        ) {
+          delete prompts.stories[event.storyId];
+        } else {
+          prompts.stories[event.storyId] = cloneNode(storyPrompts);
+        }
       }
       break;
     }

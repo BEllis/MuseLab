@@ -134,7 +134,9 @@ import { eventTouchesActiveStory, eventNeedsFullGraphRefresh } from "@/core/even
 import { exportProjectScript, exportStoryScript } from "@/core/script/exportScript";
 import {
   captureStoryScriptState,
+  importProjectScript,
   importStoryScript,
+  resolveTargetStoryId,
 } from "@/core/script/importScript";
 import type {
   ImportScriptMode,
@@ -143,7 +145,6 @@ import type {
   MuseLabStoryScript,
 } from "@/core/script/types";
 import { isProjectScript } from "@/core/script/types";
-import { resolveStoryIdByPath } from "@/core/export/resolveStoryPath";
 import {
   cloneProjectBundle,
   migrateProjectBundle,
@@ -498,7 +499,7 @@ interface ProjectState {
     document: MuseLabScriptDocument,
     mode: ImportScriptMode,
     targetStoryId?: string | null
-  ) => void;
+  ) => string[];
   isDirty: () => boolean;
   markSaved: () => void;
   undo: () => void;
@@ -1268,64 +1269,41 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     exportProjectScript(getBundle(get())),
 
   importScriptDocument: (document, mode, targetStoryId = null) => {
-    const resolveStoryId = (storyScript: MuseLabStoryScript): string => {
-      if (targetStoryId) {
-        getStory(get().project, targetStoryId);
-        return targetStoryId;
-      }
-      if (
-        storyScript.story_id &&
-        get().project.stories.some((story) => story.id === storyScript.story_id)
-      ) {
-        return storyScript.story_id;
-      }
-      if (storyScript.story_name) {
-        return resolveStoryIdByPath(
-          get().project,
-          storyScript.story_path ?? "",
-          storyScript.story_name
-        );
-      }
-      const activeStoryId = get().selectedStoryId ?? get().activeStoryId;
-      getStory(get().project, activeStoryId);
-      return activeStoryId;
-    };
-
     const original = getBundle(get());
     const working = cloneProjectBundle(original);
     const events: AppEvent[] = [];
+    let importWarnings: string[] = [];
 
     if (isProjectScript(document)) {
-      const storyIds = document.stories.map((storyScript) => resolveStoryId(storyScript));
-      const beforeByStory = new Map(
-        storyIds.map((storyId) => [storyId, captureStoryScriptState(original, storyId)] as const)
+      const result = importProjectScript(working, document, mode);
+      importWarnings = [...new Set(result.warnings)];
+      const storyIds = document.stories.map((storyScript) =>
+        resolveTargetStoryId(working.project, storyScript, null, [])
       );
-      for (const storyScript of document.stories) {
-        importStoryScript(working, storyScript, mode, resolveStoryId(storyScript));
-      }
       for (const storyId of storyIds) {
         events.push({
           ...createEventMeta(),
           type: "importStoryScript",
           storyId,
-          before: beforeByStory.get(storyId)!,
+          before: captureStoryScriptState(original, storyId),
           after: captureStoryScriptState(working, storyId),
         });
       }
     } else {
-      const storyId = resolveStoryId(document);
-      const before = captureStoryScriptState(original, storyId);
-      importStoryScript(working, document, mode, storyId);
+      const result = importStoryScript(working, document, mode, targetStoryId);
+      importWarnings = result.warnings;
+      const storyId = resolveTargetStoryId(working.project, document, targetStoryId, []);
       events.push({
         ...createEventMeta(),
         type: "importStoryScript",
         storyId,
-        before,
+        before: captureStoryScriptState(original, storyId),
         after: captureStoryScriptState(working, storyId),
       });
     }
 
     dispatchEventBatch(get, set, events);
+    return importWarnings;
   },
 
   isDirty: () => serializeProjectBundleSnapshot(getBundle(get())) !== get().lastSavedSnapshot,

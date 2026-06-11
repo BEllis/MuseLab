@@ -13,4 +13,10 @@ describe("literalTextToHtml", () => {
   it("converts newlines to br", () => {
     expect(literalTextToHtml("line one\nline two")).toBe("line one<br>line two");
   });
+
+  it("escapes angle brackets and ampersands", () => {
+    expect(literalTextToHtml("<p>Hello & goodbye</p>")).toBe(
+      "&lt;p&gt;Hello &amp; goodbye&lt;/p&gt;"
+    );
+  });
 });

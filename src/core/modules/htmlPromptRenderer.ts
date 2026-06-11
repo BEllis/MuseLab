@@ -252,7 +252,7 @@ export function createHtmlPromptRenderer(
     appendResult(value: unknown) {
       if (value === undefined || value === null) return;
       const text = String(value);
-      pushHtml(text, text);
+      pushHtml(literalTextToHtml(text), text);
     },
     applyFormat(marker: FormatMarker | null | undefined) {
       if (!marker) return;

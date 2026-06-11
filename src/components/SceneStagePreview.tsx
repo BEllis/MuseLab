@@ -210,6 +210,8 @@ export function SceneStagePreview({
     !compact && shouldUsePromptExecutor(promptInstructions);
   const interactionsEnabled = compact || promptComplete;
   const singleChoice = singleChoiceProp ?? (choices.length === 1 && !hasOptions);
+  const hasChoiceButtons = choices.length > 0 && !singleChoice;
+  const showChoiceButtons = hasChoiceButtons && interactionsEnabled;
   const continueOnClick = showContinue && !compact && interactionsEnabled;
   const handlePromptComplete = useCallback(() => {
     setPromptComplete(true);
@@ -226,13 +228,17 @@ export function SceneStagePreview({
   }, [html, promptInstructions, usePromptExecutor]);
   const showCaptionPanel = hasDialogueContent;
   const choiceAreaBottom =
-    showCaptionPanel && choices.length > 0 && !singleChoice
+    showCaptionPanel && showChoiceButtons
       ? compact
         ? `${DIALOGUE_PANEL_FRACTION * 100}%`
         : DIALOGUE_PANEL_HEIGHT
       : 0;
   const needsStageContinue =
-    !compact && !hasDialogueContent && interactionsEnabled && (singleChoice || showContinue);
+    !compact &&
+    !hasDialogueContent &&
+    interactionsEnabled &&
+    (singleChoice || showContinue) &&
+    !hasChoiceButtons;
 
   const buttonStyle = compact ? compactVnButtonStyle : vnButtonStyle;
   const speakerTabStyle = compact ? compactVnSpeakerTabStyle : vnSpeakerTabStyle;
@@ -270,7 +276,7 @@ export function SceneStagePreview({
         zIndex={0}
       />
 
-      {choices.length > 0 && !singleChoice && (
+      {showChoiceButtons && (
         <div
           style={{
             position: "absolute",
@@ -299,8 +305,8 @@ export function SceneStagePreview({
               <button
                 key={edge.id}
                 type="button"
-                disabled={compact || !interactionsEnabled}
-                onClick={compact || !interactionsEnabled ? undefined : () => onChoice?.(targetNode.id)}
+                disabled={compact}
+                onClick={compact ? undefined : () => onChoice?.(targetNode.id)}
                 style={{
                   ...buttonStyle,
                   cursor: compact ? "default" : "pointer",
@@ -402,7 +408,9 @@ export function SceneStagePreview({
                   !compact && !isComplete ? handlePlaybackGateChange : undefined
                 }
                 showContinueHint={
-                  (singleChoice || (showContinue && !compact && isComplete)) && isComplete
+                  (singleChoice || (showContinue && !compact && isComplete)) &&
+                  isComplete &&
+                  !hasChoiceButtons
                 }
                 interactive={!compact}
                 onActivate={() => {
@@ -437,7 +445,9 @@ export function SceneStagePreview({
             defaultFontFamily={defaultFontFamily}
             dialogueHtml={html}
             linePaginationEnabled={interactionsEnabled}
-            showContinueHint={(singleChoice || continueOnClick) && interactionsEnabled}
+            showContinueHint={
+              (singleChoice || continueOnClick) && interactionsEnabled && !hasChoiceButtons
+            }
             interactive={!compact && (singleChoice || continueOnClick || usePromptExecutor)}
             onActivate={() => {
               if (singleChoice) {

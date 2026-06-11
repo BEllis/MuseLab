@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project, Story } from "../model/types";
 import {
+  ensureStoryGroupIdByPath,
   resolveStartNodeIdByName,
   resolveStoryEntryNodeId,
   resolveStoryIdByPath,
@@ -83,6 +84,33 @@ describe("resolveStoryIdByPath", () => {
       ],
     });
     expect(() => resolveStoryIdByPath(project, "Chapter1", "Main")).toThrow(/Ambiguous story name/);
+  });
+});
+
+describe("ensureStoryGroupIdByPath", () => {
+  it("creates missing story folders along a path", () => {
+    const project = makeProject({ storyGroups: [] });
+    const notes: string[] = [];
+    const groupId = ensureStoryGroupIdByPath(project, "Chapter1/Nested", notes);
+
+    expect(project.storyGroups).toHaveLength(2);
+    expect(project.storyGroups?.[0]?.name).toBe("Chapter1");
+    expect(project.storyGroups?.[1]?.name).toBe("Nested");
+    expect(project.storyGroups?.[1]?.parentGroupId).toBe(project.storyGroups?.[0]?.id);
+    expect(groupId).toBe(project.storyGroups?.[1]?.id);
+    expect(notes).toEqual([
+      'Added story folder "Chapter1"',
+      'Added story folder "Chapter1/Nested"',
+    ]);
+  });
+
+  it("reuses existing folders without notes", () => {
+    const project = makeProject();
+    const notes: string[] = [];
+    const groupId = ensureStoryGroupIdByPath(project, "Chapter1", notes);
+
+    expect(groupId).toBe("group-ch1");
+    expect(notes).toEqual([]);
   });
 });
 

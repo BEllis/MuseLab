@@ -444,8 +444,11 @@ export type ClearPlayValidationHighlightEvent = AppEventBase & {
 };
 
 export type ImportStoryScriptPayload = {
-  story: Story;
   storyPromptsByLocale: Record<string, StoryPrompts>;
+  assets: Asset[];
+  assetGroups: AssetGroup[];
+  stories: Story[];
+  storyGroups: StoryGroup[];
 };
 
 export type ImportStoryScriptEvent = AppEventBase & {

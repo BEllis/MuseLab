@@ -1,7 +1,15 @@
 import type { Project, Story } from "../model/types";
+import { addStory, addStoryGroup } from "../model/project";
 import { getNodeDisplayName } from "../model/nodeNames";
 import { getPlayEntryNodeId } from "../model/graphHierarchy";
 import { isStartNode } from "../model/nodeTypes";
+import { isUuid } from "../model/id";
+
+export function formatStoryPath(groupPath: string, storyName: string): string {
+  const trimmedName = storyName.trim();
+  if (!groupPath.trim()) return trimmedName;
+  return `${groupPath}/${trimmedName}`;
+}
 
 function resolveStoryGroupIdByPath(project: Project, groupPath: string): string | undefined {
   const segments = groupPath
@@ -25,6 +33,57 @@ function resolveStoryGroupIdByPath(project: Project, groupPath: string): string 
     parentGroupId = matches[0].id;
   }
   return parentGroupId;
+}
+
+/** Create missing story folders along a path; returns the leaf group id. */
+export function ensureStoryGroupIdByPath(
+  project: Project,
+  groupPath: string,
+  notes?: string[]
+): string | undefined {
+  const segments = groupPath
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  if (!project.storyGroups) {
+    project.storyGroups = [];
+  }
+
+  let parentGroupId: string | undefined;
+  const createdSegments: string[] = [];
+  for (const segment of segments) {
+    const matches = project.storyGroups.filter(
+      (group) => group.name === segment && group.parentGroupId === parentGroupId
+    );
+    if (matches.length === 1) {
+      parentGroupId = matches[0].id;
+      continue;
+    }
+    if (matches.length > 1) {
+      throw new Error(`Ambiguous story folder: "${segment}" in path "${groupPath}"`);
+    }
+    const created = addStoryGroup(project, segment, parentGroupId);
+    parentGroupId = created.id;
+    createdSegments.push(segment);
+    if (notes) {
+      notes.push(`Added story folder "${createdSegments.join("/")}"`);
+    }
+  }
+  return parentGroupId;
+}
+
+export function findStoryIdByPath(
+  project: Project,
+  groupPath: string,
+  storyName: string
+): string | null {
+  try {
+    return resolveStoryIdByPath(project, groupPath, storyName);
+  } catch {
+    return null;
+  }
 }
 
 export function resolveStoryIdByPath(
