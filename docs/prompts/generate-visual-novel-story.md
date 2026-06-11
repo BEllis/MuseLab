@@ -123,17 +123,17 @@ Each scene is a `StoryNode`:
 ```html
 <p><i>The door creaks open.</i></p>
 <p>You came back.</p>
-<p>{{ rt.GetString("playerName") != "" ? rt.GetString("playerName") : "Stranger" }}, she whispers.</p>
+<p>@(rt.GetString("playerName") != "" ? rt.GetString("playerName") : "Stranger"), she whispers.</p>
 ```
 
-**Template syntax (Cito in `{{ }}` blocks):**
+**Template syntax (Razor-style `@` with Cito):**
 
 | Syntax | Meaning |
 |--------|---------|
-| `{{ rt.GetString("flag") }}` | Insert a string from runtime state |
-| `{{ rt.SetBool("flag", true) }}` | Set state (side effect) |
-| `{{#if rt.GetBool("metMaya")}}...{{/if}}` | Conditional block |
-| `{{ Format.BoldStart() }}` … `{{ Format.BoldEnd() }}` | Bold markup |
+| `@rt.GetString("flag")` | Insert a string from runtime state |
+| `@{ rt.SetBool("flag", true); }` | Set state (side effect) |
+| `@if (rt.GetBool("metMaya")) { ... }` | Conditional block |
+| `@Format.BoldStart()` … `@Format.BoldEnd()` | Bold markup |
 
 Available in expressions: `rt.GetString`, `rt.GetBool`, `rt.GetInt`, `rt.SetString`, `rt.SetBool`, `rt.SetInt`, `rt.Emit`, `rt.Call`, `rt.PlaySound`, `Format.*`. See [docs/cito-templates.md](../cito-templates.md).
 

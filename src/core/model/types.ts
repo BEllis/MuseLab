@@ -189,6 +189,8 @@ export interface ModuleMethod {
   name: string;
   parameters: ModuleMethodParam[];
   returnType: CitoType;
+  /** Human-readable summary for the module editor and tooling. */
+  description?: string;
 }
 
 /** User-defined module interface for Cito templates and future export targets. */
@@ -198,6 +200,8 @@ export interface ModuleInterface {
   name: string;
   /** Cito/JS binding, e.g. gameSave */
   bindingName: string;
+  /** Human-readable summary for the module editor and tooling. */
+  description?: string;
   methods: ModuleMethod[];
   /** Optional TS implementation for preview/player */
   typescriptSource?: string;

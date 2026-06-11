@@ -12,7 +12,7 @@ public class MuseLabPromptRenderer
     {
     }
 
-    public void Wait(int milliseconds)
+    public void WaitInMs(int milliseconds)
     {
     }
 

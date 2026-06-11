@@ -1,0 +1,21 @@
+@top Template { item* }
+
+item {
+  Text |
+  EscapedAt |
+  OutputExpr |
+  OutputExprParen |
+  CodeBlock |
+  IfBlock
+}
+
+@external tokens templateTokens from "./museLabRazor.tokens" {
+  Text
+  EscapedAt
+  OutputExpr
+  OutputExprParen
+  CodeBlock
+  IfBlock
+}
+
+@detectDelim

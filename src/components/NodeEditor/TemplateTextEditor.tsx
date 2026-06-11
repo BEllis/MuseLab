@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Project } from "@/core/model/types";
+import {
+  TemplateCodeEditor,
+  type TemplateCodeEditorHandle,
+} from "./templateEditor/TemplateCodeEditor";
+import { applyColorAtCursor } from "./templateEditor/colorCommands";
+import { insertAroundSelection, insertAtCursor } from "./templateEditor/editorCommands";
 
-const COMMIT_IDLE_MS = 700;
 const DEFAULT_MIN_HEIGHT = 120;
 const DEFAULT_MAX_HEIGHT = 280;
 const REVEAL_OVER_TIME_MS = 2000;
@@ -23,25 +29,6 @@ const toolbarSeparatorStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function insertAroundSelection(
-  textarea: HTMLTextAreaElement,
-  open: string,
-  close: string
-): string {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const value = textarea.value;
-  const selected = value.slice(start, end);
-  return value.slice(0, start) + open + selected + close + value.slice(end);
-}
-
-function insertAtSelection(textarea: HTMLTextAreaElement, text: string): string {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const value = textarea.value;
-  return value.slice(0, start) + text + value.slice(end);
-}
-
 function ToolbarSeparator() {
   return <span style={toolbarSeparatorStyle} aria-hidden />;
 }
@@ -59,6 +46,7 @@ export function TemplateTextEditor({
   minHeight = DEFAULT_MIN_HEIGHT,
   maxHeight = DEFAULT_MAX_HEIGHT,
   soundAssets = [],
+  project,
 }: {
   value: string;
   onChange: (markup: string) => void;
@@ -72,37 +60,29 @@ export function TemplateTextEditor({
   minHeight?: number;
   maxHeight?: number;
   soundAssets?: Array<{ id: string; name: string }>;
+  project: Project;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<TemplateCodeEditorHandle | null>(null);
   const [draft, setDraft] = useState(value ?? "");
+  const [colorPickerValue, setColorPickerValue] = useState("#000000");
+  const colorAtPickerOpenRef = useRef(colorPickerValue);
   const [selectedSoundId, setSelectedSoundId] = useState("");
-  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedValueRef = useRef(value ?? "");
+  const lastExternalSyncKeyRef = useRef(syncKey);
 
   useEffect(() => {
+    const syncKeyChanged = syncKey !== lastExternalSyncKeyRef.current;
+    lastExternalSyncKeyRef.current = syncKey;
+    if (!syncKeyChanged) return;
+
     const next = value ?? "";
     committedValueRef.current = next;
     setDraft(next);
     onDraftChange?.(next);
-    const el = textareaRef.current;
-    if (el && syncKey !== undefined && el.value !== next) {
-      el.value = next;
-    }
   }, [syncKey, value, onDraftChange]);
-
-  useEffect(
-    () => () => {
-      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
-    },
-    []
-  );
 
   const commit = useCallback(
     (next: string) => {
-      if (commitTimerRef.current) {
-        clearTimeout(commitTimerRef.current);
-        commitTimerRef.current = null;
-      }
       if (next === committedValueRef.current) return;
       committedValueRef.current = next;
       onChange(next);
@@ -110,28 +90,12 @@ export function TemplateTextEditor({
     [onChange]
   );
 
-  const scheduleCommit = useCallback(
-    (next: string) => {
-      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
-      commitTimerRef.current = setTimeout(() => {
-        commitTimerRef.current = null;
-        commit(next);
-      }, COMMIT_IDLE_MS);
-    },
-    [commit]
-  );
-
   const applyEdit = useCallback(
     (next: string) => {
       setDraft(next);
       onDraftChange?.(next);
       commit(next);
-      const el = textareaRef.current;
-      if (el) {
-        el.focus();
-        const cursor = el.selectionStart;
-        el.setSelectionRange(cursor, cursor);
-      }
+      editorRef.current?.getView()?.focus();
     },
     [commit, onDraftChange]
   );
@@ -140,9 +104,9 @@ export function TemplateTextEditor({
     (next: string) => {
       setDraft(next);
       onDraftChange?.(next);
-      scheduleCommit(next);
+      commit(next);
     },
-    [onDraftChange, scheduleCommit]
+    [commit, onDraftChange]
   );
 
   const handleBlur = useCallback(() => {
@@ -152,9 +116,9 @@ export function TemplateTextEditor({
 
   const applyWrap = useCallback(
     (open: string, close: string) => {
-      const el = textareaRef.current;
-      if (!el) return;
-      const next = insertAroundSelection(el, open, close);
+      const view = editorRef.current?.getView();
+      if (!view) return;
+      const next = insertAroundSelection(view, open, close);
       applyEdit(next);
     },
     [applyEdit]
@@ -162,23 +126,28 @@ export function TemplateTextEditor({
 
   const applyColor = useCallback(
     (color: string) => {
-      const el = textareaRef.current;
-      if (!el) return;
-      const open = `{{ Format.ColorStart("${color}") }}`;
-      const hasSelection = el.selectionStart !== el.selectionEnd;
-      const next = hasSelection
-        ? insertAroundSelection(el, open, "{{ Format.ColorEnd() }}")
-        : insertAtSelection(el, open);
+      const view = editorRef.current?.getView();
+      if (!view) return;
+      const next = applyColorAtCursor(view, color);
       applyEdit(next);
     },
     [applyEdit]
   );
 
+  const handleColorPickerFocus = useCallback(() => {
+    colorAtPickerOpenRef.current = colorPickerValue;
+  }, [colorPickerValue]);
+
+  const handleColorPickerBlur = useCallback(() => {
+    if (colorPickerValue === colorAtPickerOpenRef.current) return;
+    applyColor(colorPickerValue);
+  }, [applyColor, colorPickerValue]);
+
   const insertSnippet = useCallback(
     (text: string) => {
-      const el = textareaRef.current;
-      if (!el) return;
-      const next = insertAtSelection(el, text);
+      const view = editorRef.current?.getView();
+      if (!view) return;
+      const next = insertAtCursor(view, text);
       applyEdit(next);
     },
     [applyEdit]
@@ -202,7 +171,7 @@ export function TemplateTextEditor({
         >
           <button
             type="button"
-            onClick={() => applyWrap("{{ Format.BoldStart() }}", "{{ Format.BoldEnd() }}")}
+            onClick={() => applyWrap("@Format.BoldStart()", "@Format.BoldEnd()")}
             title="Bold"
             style={{ ...toolbarButtonStyle, fontWeight: "bold" }}
           >
@@ -210,7 +179,7 @@ export function TemplateTextEditor({
           </button>
           <button
             type="button"
-            onClick={() => applyWrap("{{ Format.ItalicStart() }}", "{{ Format.ItalicEnd() }}")}
+            onClick={() => applyWrap("@Format.ItalicStart()", "@Format.ItalicEnd()")}
             title="Italic"
             style={{ ...toolbarButtonStyle, fontStyle: "italic" }}
           >
@@ -219,9 +188,11 @@ export function TemplateTextEditor({
           <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Color:</span>
           <input
             type="color"
-            defaultValue="#000000"
+            value={colorPickerValue}
             title="Text color"
-            onChange={(e) => applyColor(e.target.value)}
+            onChange={(e) => setColorPickerValue(e.target.value)}
+            onFocus={handleColorPickerFocus}
+            onBlur={handleColorPickerBlur}
             style={{
               width: "28px",
               height: "28px",
@@ -239,7 +210,7 @@ export function TemplateTextEditor({
           <button
             type="button"
             onClick={() =>
-              applyWrap("{{ Format.ShakeCharsStart() }}", "{{ Format.ShakeCharsEnd() }}")
+              applyWrap("@Format.ShakeCharsStart()", "@Format.ShakeCharsEnd()")
             }
             title="Per-character shake"
             style={toolbarButtonStyle}
@@ -249,7 +220,7 @@ export function TemplateTextEditor({
           <button
             type="button"
             onClick={() =>
-              applyWrap("{{ Format.ShakePhraseStart() }}", "{{ Format.ShakePhraseEnd() }}")
+              applyWrap("@Format.ShakePhraseStart()", "@Format.ShakePhraseEnd()")
             }
             title="Phrase shake"
             style={toolbarButtonStyle}
@@ -263,7 +234,7 @@ export function TemplateTextEditor({
           <button
             type="button"
             onClick={() =>
-              applyWrap("{{ prompter.RevealCharsBegin(-1) }}", "{{ prompter.RevealEnd() }}")
+              applyWrap("@{ prompter.RevealCharsBegin(-1); }", "@{ prompter.RevealEnd(); }")
             }
             title="Reveal by character"
             style={toolbarButtonStyle}
@@ -273,7 +244,7 @@ export function TemplateTextEditor({
           <button
             type="button"
             onClick={() =>
-              applyWrap("{{ prompter.RevealWordsBegin(-1) }}", "{{ prompter.RevealEnd() }}")
+              applyWrap("@{ prompter.RevealWordsBegin(-1); }", "@{ prompter.RevealEnd(); }")
             }
             title="Reveal by word"
             style={toolbarButtonStyle}
@@ -284,8 +255,8 @@ export function TemplateTextEditor({
             type="button"
             onClick={() =>
               applyWrap(
-                `{{ prompter.RevealCharsOverTimeBegin(${REVEAL_OVER_TIME_MS}) }}`,
-                "{{ prompter.RevealEnd() }}"
+                `@{ prompter.RevealCharsOverTimeBegin(${REVEAL_OVER_TIME_MS}); }`,
+                "@{ prompter.RevealEnd(); }"
               )
             }
             title={`Reveal by character over ${REVEAL_OVER_TIME_MS}ms`}
@@ -297,8 +268,8 @@ export function TemplateTextEditor({
             type="button"
             onClick={() =>
               applyWrap(
-                `{{ prompter.RevealWordsOverTimeBegin(${REVEAL_OVER_TIME_MS}) }}`,
-                "{{ prompter.RevealEnd() }}"
+                `@{ prompter.RevealWordsOverTimeBegin(${REVEAL_OVER_TIME_MS}); }`,
+                "@{ prompter.RevealEnd(); }"
               )
             }
             title={`Reveal by word over ${REVEAL_OVER_TIME_MS}ms`}
@@ -311,11 +282,11 @@ export function TemplateTextEditor({
 
           <button
             type="button"
-            onClick={() => insertSnippet(`{{ prompter.Wait(${DEFAULT_WAIT_MS}) }}`)}
-            title={`Wait ${DEFAULT_WAIT_MS}ms`}
+            onClick={() => insertSnippet(`@{ prompter.WaitInMs(${DEFAULT_WAIT_MS}); }`)}
+            title={`WaitInMs(${DEFAULT_WAIT_MS})`}
             style={toolbarButtonStyle}
           >
-            Wait
+            WaitInMs
           </button>
 
           <ToolbarSeparator />
@@ -346,7 +317,7 @@ export function TemplateTextEditor({
           <button
             type="button"
             onClick={() =>
-              insertSnippet(`{{ rt.PlaySoundClip("${selectedSoundId}", 0, -1, -1) }}`)
+              insertSnippet(`@{ rt.PlaySoundClip("${selectedSoundId}", 0, -1, -1); }`)
             }
             title="Play sound when the prompt reaches this point"
             disabled={soundInsertDisabled}
@@ -360,28 +331,17 @@ export function TemplateTextEditor({
           </button>
         </div>
       )}
-      <textarea
-        ref={textareaRef}
+      <TemplateCodeEditor
         value={draft}
         placeholder={placeholder}
-        onChange={(e) => handleDraftChange(e.target.value)}
+        project={project}
+        minHeight={minHeight}
+        maxHeight={maxHeight}
+        onChange={handleDraftChange}
         onFocus={onFocus}
         onBlur={handleBlur}
-        style={{
-          display: "block",
-          width: "100%",
-          minHeight: `${minHeight}px`,
-          maxHeight: `${maxHeight}px`,
-          padding: "8px 10px",
-          fontSize: "14px",
-          lineHeight: 1.5,
-          border: "none",
-          outline: "none",
-          resize: "vertical",
-          background: "var(--app-input-bg)",
-          color: "var(--app-text)",
-          fontFamily: "inherit",
-        }}
+        syncKey={syncKey}
+        editorRef={editorRef}
       />
     </div>
   );

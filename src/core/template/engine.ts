@@ -20,7 +20,7 @@ export type RunTemplateResult = {
 };
 
 /**
- * Process template string: {{#if}}, {{ Cito expr }}, Format.* calls, then sanitize HTML.
+ * Process template string: Razor @ syntax, Cito expressions, Format.* calls, then sanitize HTML.
  */
 export async function runTemplate(
   template: string,

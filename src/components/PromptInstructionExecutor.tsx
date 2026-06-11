@@ -34,8 +34,11 @@ export function PromptInstructionExecutor({
   const playedSoundsRef = useRef<Set<number>>(new Set());
   const onCompleteRef = useRef(onComplete);
   const onPlaySoundRef = useRef(onPlaySound);
+  const onSkipChangeRef = useRef(onSkipChange);
   onCompleteRef.current = onComplete;
   onPlaySoundRef.current = onPlaySound;
+  onSkipChangeRef.current = onSkipChange;
+  const instructionsKey = JSON.stringify(instructions);
 
   const runSounds = useCallback((pending: PromptInstruction[]) => {
     for (const instruction of pending) {
@@ -54,10 +57,10 @@ export function PromptInstructionExecutor({
     abortRef.current?.abort();
     setVisibleHtml(fullHtml);
     setIsComplete(true);
-    onSkipChange?.(true);
+    onSkipChangeRef.current?.(true);
     runSounds(instructions.filter((instruction) => instruction.kind === "playSound"));
     onCompleteRef.current?.();
-  }, [fullHtml, instructions, onSkipChange, runSounds]);
+  }, [fullHtml, instructions, runSounds]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -65,7 +68,7 @@ export function PromptInstructionExecutor({
     abortRef.current = controller;
     playedSoundsRef.current = new Set();
     setIsComplete(false);
-    onSkipChange?.(false);
+    onSkipChangeRef.current?.(false);
 
     if (!shouldUsePromptExecutor(instructions)) {
       setVisibleHtml(fullHtml);
@@ -101,7 +104,7 @@ export function PromptInstructionExecutor({
     return () => {
       controller.abort();
     };
-  }, [fullHtml, instructions, onSkipChange]);
+  }, [fullHtml, instructionsKey]);
 
   return <>{children({ visibleHtml, isComplete, skip })}</>;
 }

@@ -36,4 +36,20 @@ describe("executePromptInstructions", () => {
     expect(updates).toEqual(["Hi"]);
     expect(playSound).toHaveBeenCalledWith("sfx", undefined);
   });
+
+  it("continues after wait before more appendHtml", async () => {
+    const updates: string[] = [];
+
+    await executePromptInstructions({
+      instructions: [
+        { kind: "appendHtml", html: "Hello" },
+        { kind: "wait", milliseconds: 1 },
+        { kind: "appendHtml", html: " World" },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+    });
+
+    expect(updates).toEqual(["Hello", "Hello World"]);
+  });
 });

@@ -44,6 +44,7 @@ function useSingleSelectionInspector():
 export default function DesignerView() {
   const inspector = useSingleSelectionInspector();
   const hidePreview = useSceneEditorPreviewStore((s) => s.hidePreview);
+  const editingTemplate = useSceneEditorPreviewStore((s) => s.editingTemplate);
   const [inspectorExpanded, setInspectorExpanded] = useState(false);
 
   useEffect(() => {
@@ -70,12 +71,12 @@ export default function DesignerView() {
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <LeftPanel />
-      {!inspectorExpanded && (
+      {(!inspectorExpanded || editingTemplate) && (
         <div style={{ flex: 1, minWidth: 0 }}>
           <FlowCanvas />
         </div>
       )}
-      {inspector && (
+      {inspector && !editingTemplate && (
         <InspectorPanelShell
           expanded={inspectorExpanded}
           onToggleExpanded={toggleInspectorExpanded}

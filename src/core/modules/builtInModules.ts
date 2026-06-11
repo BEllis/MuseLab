@@ -5,6 +5,7 @@ export type BuiltInModuleId = "builtin:runtime" | "builtin:format" | "builtin:pr
 export type BuiltInModuleDefinition = {
   id: BuiltInModuleId;
   name: string;
+  description: string;
   bindingName: string;
   className: string;
   overridableTypescript: boolean;
@@ -12,15 +13,69 @@ export type BuiltInModuleDefinition = {
 };
 
 const RUNTIME_METHODS: ModuleMethod[] = [
-  { name: "GetString", parameters: [{ name: "key", type: "string" }], returnType: "string" },
-  { name: "GetBool", parameters: [{ name: "key", type: "string" }], returnType: "bool" },
-  { name: "GetInt", parameters: [{ name: "key", type: "string" }], returnType: "int" },
-  { name: "SetString", parameters: [{ name: "key", type: "string" }, { name: "value", type: "string" }], returnType: "void" },
-  { name: "SetBool", parameters: [{ name: "key", type: "string" }, { name: "value", type: "bool" }], returnType: "void" },
-  { name: "SetInt", parameters: [{ name: "key", type: "string" }, { name: "value", type: "int" }], returnType: "void" },
-  { name: "Emit", parameters: [{ name: "eventName", type: "string" }], returnType: "void" },
-  { name: "Call", parameters: [{ name: "name", type: "string" }], returnType: "string" },
-  { name: "PlaySound", parameters: [{ name: "assetId", type: "string" }], returnType: "void" },
+  {
+    name: "GetString",
+    parameters: [{ name: "key", type: "string" }],
+    returnType: "string",
+    description: "Read a string value from story runtime state.",
+  },
+  {
+    name: "GetBool",
+    parameters: [{ name: "key", type: "string" }],
+    returnType: "bool",
+    description: "Read a boolean value from story runtime state.",
+  },
+  {
+    name: "GetInt",
+    parameters: [{ name: "key", type: "string" }],
+    returnType: "int",
+    description: "Read an integer value from story runtime state.",
+  },
+  {
+    name: "SetString",
+    parameters: [
+      { name: "key", type: "string" },
+      { name: "value", type: "string" },
+    ],
+    returnType: "void",
+    description: "Write a string value into story runtime state.",
+  },
+  {
+    name: "SetBool",
+    parameters: [
+      { name: "key", type: "string" },
+      { name: "value", type: "bool" },
+    ],
+    returnType: "void",
+    description: "Write a boolean value into story runtime state.",
+  },
+  {
+    name: "SetInt",
+    parameters: [
+      { name: "key", type: "string" },
+      { name: "value", type: "int" },
+    ],
+    returnType: "void",
+    description: "Write an integer value into story runtime state.",
+  },
+  {
+    name: "Emit",
+    parameters: [{ name: "eventName", type: "string" }],
+    returnType: "void",
+    description: "Fire a named event to the player host (fire-and-forget side effect).",
+  },
+  {
+    name: "Call",
+    parameters: [{ name: "name", type: "string" }],
+    returnType: "string",
+    description: "Invoke a registered host handler by name and insert its string return value.",
+  },
+  {
+    name: "PlaySound",
+    parameters: [{ name: "assetId", type: "string" }],
+    returnType: "void",
+    description: "Play a sound asset immediately when the template is evaluated.",
+  },
   {
     name: "PlaySoundTrim",
     parameters: [
@@ -29,6 +84,7 @@ const RUNTIME_METHODS: ModuleMethod[] = [
       { name: "endTime", type: "double" },
     ],
     returnType: "void",
+    description: "Play a trimmed segment of a sound asset immediately.",
   },
   {
     name: "PlaySoundClip",
@@ -39,6 +95,8 @@ const RUNTIME_METHODS: ModuleMethod[] = [
       { name: "endTime", type: "double" },
     ],
     returnType: "void",
+    description:
+      "Queue a sound clip at this point in the prompt stream. Use delaySeconds 0 to play when the player reaches this instruction; use startTime/endTime -1 for the full clip.",
   },
   {
     name: "PlaySoundClipByPath",
@@ -50,41 +108,157 @@ const RUNTIME_METHODS: ModuleMethod[] = [
       { name: "endTime", type: "double" },
     ],
     returnType: "void",
+    description:
+      "Queue a sound clip resolved from an Assets folder path at this point in the prompt stream.",
   },
 ];
 
 const FORMAT_METHODS: ModuleMethod[] = [
-  { name: "BoldStart", parameters: [], returnType: "string" },
-  { name: "BoldEnd", parameters: [], returnType: "string" },
-  { name: "ItalicStart", parameters: [], returnType: "string" },
-  { name: "ItalicEnd", parameters: [], returnType: "string" },
-  { name: "ColorStart", parameters: [{ name: "colorHex", type: "string" }], returnType: "string" },
-  { name: "ColorEnd", parameters: [], returnType: "string" },
-  { name: "ShakeCharsStart", parameters: [], returnType: "string" },
-  { name: "ShakeCharsEnd", parameters: [], returnType: "string" },
-  { name: "ShakePhraseStart", parameters: [], returnType: "string" },
-  { name: "ShakePhraseEnd", parameters: [], returnType: "string" },
-  { name: "ShakeCharsText", parameters: [{ name: "text", type: "string" }], returnType: "string" },
-  { name: "ShakePhraseText", parameters: [{ name: "text", type: "string" }], returnType: "string" },
+  {
+    name: "BoldStart",
+    parameters: [],
+    returnType: "string",
+    description: "Open a bold span; pair with BoldEnd around following text.",
+  },
+  {
+    name: "BoldEnd",
+    parameters: [],
+    returnType: "string",
+    description: "Close a bold span opened with BoldStart.",
+  },
+  {
+    name: "ItalicStart",
+    parameters: [],
+    returnType: "string",
+    description: "Open an italic span; pair with ItalicEnd around following text.",
+  },
+  {
+    name: "ItalicEnd",
+    parameters: [],
+    returnType: "string",
+    description: "Close an italic span opened with ItalicStart.",
+  },
+  {
+    name: "ColorStart",
+    parameters: [{ name: "colorHex", type: "string" }],
+    returnType: "string",
+    description: "Open a colored span using a CSS hex color (e.g. #ff0000).",
+  },
+  {
+    name: "ColorEnd",
+    parameters: [],
+    returnType: "string",
+    description: "Close a colored span opened with ColorStart.",
+  },
+  {
+    name: "ShakeCharsStart",
+    parameters: [],
+    returnType: "string",
+    description: "Start per-character shake on following text; pair with ShakeCharsEnd.",
+  },
+  {
+    name: "ShakeCharsEnd",
+    parameters: [],
+    returnType: "string",
+    description: "End per-character shake started with ShakeCharsStart.",
+  },
+  {
+    name: "ShakePhraseStart",
+    parameters: [],
+    returnType: "string",
+    description: "Start phrase-level shake on following text; pair with ShakePhraseEnd.",
+  },
+  {
+    name: "ShakePhraseEnd",
+    parameters: [],
+    returnType: "string",
+    description: "End phrase-level shake started with ShakePhraseStart.",
+  },
+  {
+    name: "ShakeCharsText",
+    parameters: [{ name: "text", type: "string" }],
+    returnType: "string",
+    description: "Insert text with per-character shake applied inline.",
+  },
+  {
+    name: "ShakePhraseText",
+    parameters: [{ name: "text", type: "string" }],
+    returnType: "string",
+    description: "Insert text with phrase-level shake applied inline.",
+  },
 ];
 
 const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
-  { name: "AddLiteral", parameters: [{ name: "text", type: "string" }], returnType: "void" },
-  { name: "AppendResult", parameters: [{ name: "value", type: "string" }], returnType: "void" },
-  { name: "ApplyFormat", parameters: [{ name: "marker", type: "string" }], returnType: "void" },
-  { name: "Wait", parameters: [{ name: "milliseconds", type: "int" }], returnType: "void" },
-  { name: "RevealCharsBegin", parameters: [{ name: "charsPerSecond", type: "double" }], returnType: "void" },
-  { name: "RevealWordsBegin", parameters: [{ name: "wordsPerSecond", type: "double" }], returnType: "void" },
-  { name: "RevealCharsOverTimeBegin", parameters: [{ name: "durationMs", type: "int" }], returnType: "void" },
-  { name: "RevealWordsOverTimeBegin", parameters: [{ name: "durationMs", type: "int" }], returnType: "void" },
-  { name: "RevealEnd", parameters: [], returnType: "void" },
-  { name: "Render", parameters: [], returnType: "string" },
+  {
+    name: "AddLiteral",
+    parameters: [{ name: "text", type: "string" }],
+    returnType: "void",
+    description: "Append literal text to the rendered output (used internally by the template compiler).",
+  },
+  {
+    name: "AppendResult",
+    parameters: [{ name: "value", type: "string" }],
+    returnType: "void",
+    description: "Append an expression result to the rendered output (used internally by the template compiler).",
+  },
+  {
+    name: "ApplyFormat",
+    parameters: [{ name: "marker", type: "string" }],
+    returnType: "void",
+    description: "Apply a format marker to the output stream (used internally by the template compiler).",
+  },
+  {
+    name: "WaitInMs",
+    parameters: [{ name: "milliseconds", type: "int" }],
+    returnType: "void",
+    description: "Pause prompt playback for the given number of milliseconds before continuing.",
+  },
+  {
+    name: "RevealCharsBegin",
+    parameters: [{ name: "charsPerSecond", type: "double" }],
+    returnType: "void",
+    description:
+      "Reveal following text character by character; use -1 for the default rate (40 characters per second).",
+  },
+  {
+    name: "RevealWordsBegin",
+    parameters: [{ name: "wordsPerSecond", type: "double" }],
+    returnType: "void",
+    description: "Reveal following text word by word; use -1 for the default rate (12 words per second).",
+  },
+  {
+    name: "RevealCharsOverTimeBegin",
+    parameters: [{ name: "durationMs", type: "int" }],
+    returnType: "void",
+    description:
+      "Reveal the block from Begin to RevealEnd over durationMs milliseconds, character by character.",
+  },
+  {
+    name: "RevealWordsOverTimeBegin",
+    parameters: [{ name: "durationMs", type: "int" }],
+    returnType: "void",
+    description: "Reveal the block from Begin to RevealEnd over durationMs milliseconds, word by word.",
+  },
+  {
+    name: "RevealEnd",
+    parameters: [],
+    returnType: "void",
+    description: "End a reveal block; following text appears instantly.",
+  },
+  {
+    name: "Render",
+    parameters: [],
+    returnType: "string",
+    description: "Return the accumulated HTML output (used internally by the template compiler).",
+  },
 ];
 
 export const BUILT_IN_MODULES: BuiltInModuleDefinition[] = [
   {
     id: "builtin:runtime",
     name: "IMuseLabRuntime",
+    description:
+      "Story runtime bridge for reading and writing state, firing host events, calling handlers, and playing sounds.",
     bindingName: "rt",
     className: "MuseLabRuntime",
     overridableTypescript: false,
@@ -93,6 +267,7 @@ export const BUILT_IN_MODULES: BuiltInModuleDefinition[] = [
   {
     id: "builtin:format",
     name: "IMuseLabFormat",
+    description: "HTML markup helpers for bold, italic, color, and shake effects in scene text.",
     bindingName: "format",
     className: "MuseLabFormat",
     overridableTypescript: false,
@@ -101,6 +276,8 @@ export const BUILT_IN_MODULES: BuiltInModuleDefinition[] = [
   {
     id: "builtin:prompter",
     name: "IMuseLabPromptRenderer",
+    description:
+      "Sequential prompt renderer for timed dialogue playback (waits, reveals, and text assembly).",
     bindingName: "prompter",
     className: "MuseLabPromptRenderer",
     overridableTypescript: true,
@@ -150,6 +327,7 @@ export function toModuleInterfaceShape(service: BuiltInModuleDefinition): Module
   return {
     id: service.id,
     name: service.name,
+    description: service.description,
     bindingName: service.bindingName,
     methods: service.methods,
   };

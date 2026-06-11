@@ -1,39 +1,41 @@
 # Cito templates in MuseLab
 
-MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (transpiled with **cito**) inside scene text templates and edge conditions. Authors write **Cito expressions** inside `{{ }}` blocks; at runtime MuseLab compiles them to `.ci`, transpiles to JavaScript via cito, and executes the result against a typed runtime bridge.
+MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (transpiled with **cito**) inside scene text templates and edge conditions. Authors write **Razor-style `@` syntax** with Cito expressions; at runtime MuseLab compiles them to `.ci`, transpiles to JavaScript via cito, and executes the result against a typed runtime bridge.
 
 ## Syntax overview
 
 | Syntax | Meaning |
 |--------|---------|
-| `{{ rt.GetString("key") }}` | Insert a string from story state |
-| `{{ rt.GetBool("flag") }}` | Insert a boolean value |
-| `{{ rt.GetInt("count") }}` | Insert an integer value |
-| `{{ rt.SetBool("flag", true) }}` | Set state (side effect; no visible output) |
-| `{{ rt.SetString("name", "Ada") }}` | Set a string state value |
-| `{{ rt.Emit("event") }}` | Fire a runtime event |
-| `{{ rt.Call("handler") }}` | Call a registered handler; return value is inserted |
-| `{{ rt.PlaySound("asset-id") }}` | Play a sound asset immediately |
-| `{{ rt.PlaySoundClip("asset-id", 0, -1, -1) }}` | Queue a sound clip when the prompt reaches this point |
-| `{{ prompter.Wait(500) }}` | Pause 500 ms before continuing the prompt |
-| `{{ prompter.RevealCharsBegin(-1) }}` … `{{ prompter.RevealEnd() }}` | Reveal following text character-by-character |
-| `{{ prompter.RevealWordsBegin(-1) }}` … `{{ prompter.RevealEnd() }}` | Reveal following text word-by-word |
-| `{{ prompter.RevealCharsOverTimeBegin(2000) }}` … `{{ prompter.RevealEnd() }}` | Reveal text over 2 seconds (by character) |
-| `{{ prompter.RevealWordsOverTimeBegin(2000) }}` … `{{ prompter.RevealEnd() }}` | Reveal text over 2 seconds (by word) |
-| `{{#if rt.GetBool("metMaya")}}…{{/if}}` | Conditional block |
-| `{{ Format.BoldStart() }}` / `{{ Format.BoldEnd() }}` | Bold markup |
-| `{{ Format.ItalicStart() }}` / `{{ Format.ItalicEnd() }}` | Italic markup |
-| `{{ Format.ColorStart("#ff0000") }}` / `{{ Format.ColorEnd() }}` | Colored span |
-| `{{ Format.ShakeCharsStart() }}` … `{{ Format.ShakeCharsEnd() }}` | Per-character shake (wraps following text) |
-| `{{ Format.ShakePhraseStart() }}` … `{{ Format.ShakePhraseEnd() }}` | Phrase shake (wraps following text) |
-| `{{ Format.ShakeCharsText("…") }}` | Insert text with per-character shake |
-| `{{ Format.ShakePhraseText("…") }}` | Insert text with phrase shake |
+| `@rt.GetString("key")` | Insert the value returned by a Cito expression |
+| `@(rt.GetInt("a") + rt.GetInt("b"))` | Insert a complex expression (use parentheses) |
+| `@{ rt.SetBool("flag", true); }` | Set state (side effect; no visible output) |
+| `@{ rt.Emit("event"); }` | Fire a runtime event |
+| `@{ rt.PlaySoundClip("asset-id", 0, -1, -1); }` | Queue a sound clip when the prompt reaches this point |
+| `@{ prompter.WaitInMs(500); }` | Pause 500 ms before continuing the prompt |
+| `@{ prompter.RevealCharsBegin(-1); }` … `@{ prompter.RevealEnd(); }` | Reveal following text character-by-character |
+| `@{ prompter.RevealWordsBegin(-1); }` … `@{ prompter.RevealEnd(); }` | Reveal following text word-by-word |
+| `@{ prompter.RevealCharsOverTimeBegin(2000); }` … `@{ prompter.RevealEnd(); }` | Reveal text over 2 seconds (by character) |
+| `@{ prompter.RevealWordsOverTimeBegin(2000); }` … `@{ prompter.RevealEnd(); }` | Reveal text over 2 seconds (by word) |
+| `@if (rt.GetBool("metMaya")) { … }` | Conditional block |
+| `@Format.BoldStart()` / `@Format.BoldEnd()` | Bold markup |
+| `@Format.ItalicStart()` / `@Format.ItalicEnd()` | Italic markup |
+| `@Format.ColorStart("#ff0000")` / `@Format.ColorEnd()` | Colored span |
+| `@Format.ShakeCharsStart()` … `@Format.ShakeCharsEnd()` | Per-character shake (wraps following text) |
+| `@Format.ShakePhraseStart()` … `@Format.ShakePhraseEnd()` | Phrase shake (wraps following text) |
+| `@Format.ShakeCharsText("…")` | Insert text with per-character shake |
+| `@Format.ShakePhraseText("…")` | Insert text with phrase shake |
+| `@@` | Literal `@` in output |
 
-Plain HTML (`<p>`, `<b>`, `<i>`, `<br>`, `<span>`, `<div>`) is allowed outside `{{ }}` blocks.
+**Rules:**
+
+- Bare `@expr` and `@(expr)` are **output** only. Side-effect APIs (`prompter.*`, `rt.Set*`, `rt.Emit`, `rt.PlaySound*`) must use `@{ …; }` or compilation fails.
+- Literal text is **WYSIWYG** — every line break in the template is preserved in rendered output.
+
+Plain HTML (`<p>`, `<b>`, `<i>`, `<br>`, `<span>`, `<div>`) is allowed outside `@` code regions.
 
 ## Edge conditions
 
-Edge `condition` fields are **bare Cito expressions** (no `{{ }}`), evaluated as booleans:
+Edge `condition` fields are **bare Cito expressions** (no `@`), evaluated as booleans:
 
 ```
 rt.GetBool("hasKey")
@@ -70,7 +72,7 @@ These instructions run **in order** during player playback. Designer thumbnails 
 
 | Method | Description |
 |--------|-------------|
-| `Wait(milliseconds)` | Pause before continuing |
+| `WaitInMs(milliseconds)` | Pause before continuing |
 | `RevealCharsBegin(charsPerSecond)` | Reveal following text by character; `-1` uses 40 cps |
 | `RevealWordsBegin(wordsPerSecond)` | Reveal following text by word; `-1` uses 12 wps |
 | `RevealCharsOverTimeBegin(durationMs)` | Reveal the block from Begin to End over `durationMs` (by character) |
@@ -80,12 +82,12 @@ These instructions run **in order** during player playback. Designer thumbnails 
 Example:
 
 ```cito
-{{ prompter.RevealCharsBegin(-1) }}
+@{ prompter.RevealCharsBegin(-1); }
 The lights flicker.
-{{ rt.PlaySoundClip("sfx-buzz", 0, -1, -1) }}
+@{ rt.PlaySoundClip("sfx-buzz", 0, -1, -1); }
 Something hums nearby.
-{{ prompter.RevealEnd() }}
-{{ prompter.Wait(800) }}
+@{ prompter.RevealEnd(); }
+@{ prompter.WaitInMs(800); }
 Everything goes still.
 ```
 
@@ -95,14 +97,14 @@ Click the dialogue box during playback to skip to the end and fire any remaining
 
 MuseLab previously evaluated raw JavaScript in templates. That path has been removed. Update projects manually:
 
-| Old (JavaScript) | New (Cito) |
-|------------------|------------|
-| `{{ state.name }}` | `{{ rt.GetString("name") }}` |
-| `{{ state.flag }}` | `{{ rt.GetBool("flag") }}` |
-| `{{ setState("x", true) }}` | `{{ rt.SetBool("x", true) }}` |
-| `{{ emit("evt") }}` | `{{ rt.Emit("evt") }}` |
-| `{{#if state.metMaya}}` | `{{#if rt.GetBool("metMaya")}}` |
-| `{{bold_start()}}` | `{{ Format.BoldStart() }}` |
+| Old (JavaScript) | New (Cito / Razor) |
+|------------------|--------------------|
+| `{{ state.name }}` | `@rt.GetString("name")` |
+| `{{ state.flag }}` | `@rt.GetBool("flag")` |
+| `{{ setState("x", true) }}` | `@{ rt.SetBool("x", true); }` |
+| `{{ emit("evt") }}` | `@{ rt.Emit("evt"); }` |
+| `{{#if state.metMaya}}` | `@if (rt.GetBool("metMaya")) {` |
+| `{{bold_start()}}` | `@Format.BoldStart()` |
 | `state.trust >= 3` (edge) | `rt.GetInt("trust") >= 3` |
 
 ## Developer setup
@@ -113,9 +115,13 @@ MuseLab previously evaluated raw JavaScript in templates. That path has been rem
 
 Cito transpilation runs in the **Electron main process**. Browser-only `npm run dev` cannot evaluate templates; use `npm run electron:dev`.
 
+When editing the Razor grammar, run `npm run build:razor-grammar` to regenerate the Lezer parser.
+
 ## Architecture
 
-- [`src/core/cito/compileTemplate.ts`](../src/core/cito/compileTemplate.ts) — parse HTML + `{{ }}` → `.ci` `Render` method
+- [`src/core/cito/museLabRazor.grammar`](../src/core/cito/museLabRazor.grammar) — Lezer grammar (shared by parser and CodeMirror)
+- [`src/core/cito/parseRazorTemplate.ts`](../src/core/cito/parseRazorTemplate.ts) — Lezer tree walk → template segments
+- [`src/core/cito/compileTemplate.ts`](../src/core/cito/compileTemplate.ts) — parse Razor + HTML → `.ci` `Render` method
 - [`src/core/cito/compileCondition.ts`](../src/core/cito/compileCondition.ts) — wrap edge conditions in `Eval`
 - [`electron/citoTranspile.ts`](../electron/citoTranspile.ts) — invoke cito subprocess
 - [`src/core/cito/runtimeBridge.ts`](../src/core/cito/runtimeBridge.ts) — TS bridge for state and side effects

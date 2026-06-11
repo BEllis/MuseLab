@@ -157,6 +157,10 @@ export function SceneStagePreview({
     setPromptComplete(true);
   }, []);
 
+  const handlePromptSkipChange = useCallback((skipped: boolean) => {
+    if (skipped) setPromptComplete(true);
+  }, []);
+
   useEffect(() => {
     setPromptComplete(!usePromptExecutor);
   }, [html, promptInstructions, usePromptExecutor]);
@@ -312,9 +316,7 @@ export function SceneStagePreview({
             instructions={promptInstructions}
             onPlaySound={onPlaySound}
             onComplete={handlePromptComplete}
-            onSkipChange={(skipped) => {
-              if (skipped) setPromptComplete(true);
-            }}
+            onSkipChange={handlePromptSkipChange}
           >
             {({ visibleHtml, isComplete, skip }) => (
               <DialogueCaptionBox

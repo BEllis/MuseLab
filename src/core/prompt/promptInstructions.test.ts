@@ -26,6 +26,33 @@ describe("createPromptInstructionRecorder", () => {
     ]);
   });
 
+  it("records wait inside an active rate reveal block", () => {
+    const recorder = createPromptInstructionRecorder();
+    recorder.revealCharsBegin(-1);
+    recorder.appendRevealText("Hi", "Hi");
+    recorder.wait(500);
+    recorder.appendRevealText(" there", " there");
+    recorder.revealEnd();
+
+    expect(recorder.instructions).toEqual([
+      {
+        kind: "revealHtml",
+        html: "Hi",
+        plainLength: 2,
+        wordCount: 1,
+        mode: { kind: "charsPerSecond", rate: 40 },
+      },
+      { kind: "wait", milliseconds: 500 },
+      {
+        kind: "revealHtml",
+        html: " there",
+        plainLength: 6,
+        wordCount: 1,
+        mode: { kind: "charsPerSecond", rate: 40 },
+      },
+    ]);
+  });
+
   it("collapses over-time reveal blocks on RevealEnd", () => {
     const recorder = createPromptInstructionRecorder();
     recorder.revealCharsOverTimeBegin(1200);
@@ -59,6 +86,29 @@ describe("createPromptInstructionRecorder", () => {
 });
 
 describe("html prompt renderer instructions", () => {
+  it("records wait between revealed segments", () => {
+    const recorder = createPromptInstructionRecorder();
+    const prompter = createHtmlPromptRenderer({ recorder });
+
+    prompter.addLiteral("Hi");
+    prompter.revealCharsBegin(-1);
+    prompter.wait(500);
+    prompter.addLiteral(" there");
+    prompter.revealEnd();
+
+    expect(prompter.getInstructions()).toEqual([
+      { kind: "appendHtml", html: "Hi" },
+      { kind: "wait", milliseconds: 500 },
+      {
+        kind: "revealHtml",
+        html: " there",
+        plainLength: 6,
+        wordCount: 1,
+        mode: { kind: "charsPerSecond", rate: 40 },
+      },
+    ]);
+  });
+
   it("records playSoundClip placement via shared recorder", () => {
     const recorder = createPromptInstructionRecorder();
     const prompter = createHtmlPromptRenderer({ recorder });

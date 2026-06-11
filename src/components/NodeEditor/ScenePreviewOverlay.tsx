@@ -42,6 +42,7 @@ export function ScenePreviewOverlay() {
 
   const project = useProjectStore((s) => s.project);
   const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
+  const eventLogCursor = useProjectStore((s) => s.eventLog.cursor);
   const selectedNodeIds = useProjectStore((s) => s.selectedNodeIds);
   const updateNodePrompt = useProjectStore((s) => s.updateNodePrompt);
   const updateNodeSpeaker = useProjectStore((s) => s.updateNodeSpeaker);
@@ -76,9 +77,10 @@ export function ScenePreviewOverlay() {
     handleAudioUnmount,
   } = useEditorPreviewSoundPlayer(project);
 
-  const committedTemplate =
-    draftTemplate ??
-    (node ? getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id) : "");
+  const storeTemplate = node
+    ? getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)
+    : "";
+  const previewTemplate = draftTemplate ?? storeTemplate;
 
   const speaker = node
     ? getNodeSpeakerForLocale(promptsByLocale, locale, storyId, node.id)
@@ -92,13 +94,13 @@ export function ScenePreviewOverlay() {
     if (editingTemplate) return;
 
     let cancelled = false;
-    void renderNodePreviewHtml(committedTemplate, story.globalState, { project }).then((html) => {
+    void renderNodePreviewHtml(previewTemplate, story.globalState, { project }).then((html) => {
       if (!cancelled) setDialogueHtml(html);
     });
     return () => {
       cancelled = true;
     };
-  }, [committedTemplate, draftTemplate, editingTemplate, story.globalState, project]);
+  }, [previewTemplate, draftTemplate, editingTemplate, story.globalState, project]);
 
   useEffect(() => {
     editorPreviewImmediateRef.current = true;
@@ -117,7 +119,7 @@ export function ScenePreviewOverlay() {
     const timer = window.setTimeout(() => {
       void (async () => {
         const templateResult = await renderNodePreviewResult(
-          committedTemplate,
+          previewTemplate,
           story.globalState,
           { project }
         );
@@ -137,7 +139,7 @@ export function ScenePreviewOverlay() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [committedTemplate, speaker, editingTemplate, story.globalState, project, locale]);
+  }, [previewTemplate, speaker, editingTemplate, story.globalState, project, locale]);
 
   useEffect(() => {
     if (!open) {
@@ -400,15 +402,16 @@ export function ScenePreviewOverlay() {
             </label>
           </div>
           <TemplateTextEditor
-            value={committedTemplate}
+            value={storeTemplate}
             onChange={handleTemplateChange}
             onDraftChange={handleDraftChange}
             onBlurCommit={() => flushHistoryCoalesce()}
-            syncKey={`${node.id}:${locale}`}
+            syncKey={`${node.id}:${locale}:${eventLogCursor}`}
+            project={project}
             soundAssets={sounds}
             minHeight={EDITOR_TEXT_MIN_HEIGHT}
             maxHeight={EDITOR_TEXT_MAX_HEIGHT}
-            placeholder='Hello world… Use the toolbar for Format.* tags, or {{ rt.GetString("key") }} for logic.'
+            placeholder='Hello world… Use the toolbar for Format.* tags, or @rt.GetString("key") for logic.'
             style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
           />
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
