@@ -495,12 +495,17 @@ public class MuseLabEngine
 		if (kind == 1) {
 			html = RenderNodePrompt(this.activeLocale, this.activeStoryId, this.currentNodeId);
 			speaker = RenderNodeSpeaker(this.activeLocale, this.activeStoryId, this.currentNodeId);
+		}
+		if (kind == 0 || kind == 1) {
 			RuntimeChoices builtChoices = BuildChoices();
 			choiceCount = builtChoices.GetCount();
 			choices = builtChoices.GetItems();
-			if (this.activeStoryId == "4bc03f21-6d66-4574-b460-8acb7aee194e" && this.currentNodeId == "430bc2d5-0a01-404d-9b83-c5b1a0f14fd2" && choiceCount == 0)
-				isTerminalScene = true;
 		}
+		if (kind == 1
+			&& this.activeStoryId == "4bc03f21-6d66-4574-b460-8acb7aee194e"
+			&& this.currentNodeId == "430bc2d5-0a01-404d-9b83-c5b1a0f14fd2"
+			&& choiceCount == 0)
+			isTerminalScene = true;
 		return RuntimeState.Create(this.activeStoryId, this.currentNodeId, html, speaker, choiceCount, choices, isTerminalScene, this.isEnded);
 	}
 
@@ -551,10 +556,11 @@ public class MuseLabEngine
 
 	string RenderNodeSpeaker(string locale, string storyId, string nodeId)
 	{
+		// Speaker templates must not reuse the prompt prompter; it would append to dialogue markup/instructions.
 		if (locale == "en" && storyId == "4bc03f21-6d66-4574-b460-8acb7aee194e" && nodeId == "36432447-13d2-43e5-90a3-5885d9bb9a4b")
-			return Template_2cdd8587.Render(this.rt, this.prompter, this.format);
+			return "Alice";
 		if (locale == "en" && storyId == "4bc03f21-6d66-4574-b460-8acb7aee194e" && nodeId == "430bc2d5-0a01-404d-9b83-c5b1a0f14fd2")
-			return Template_2cdd8587.Render(this.rt, this.prompter, this.format);
+			return "Alice";
 		return "";
 	}
 

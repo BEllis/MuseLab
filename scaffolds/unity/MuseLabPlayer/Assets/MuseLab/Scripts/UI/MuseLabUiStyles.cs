@@ -4,10 +4,6 @@ namespace MuseLab.UI
 {
     public static class MuseLabUiStyles
     {
-        // TEMP: show placeholder copy instead of engine dialogue while tuning chrome.
-        public const bool UseDialoguePlaceholder = true;
-        public const string DialoguePlaceholderText = "Hello world";
-
         public static readonly Color StageBackground = new(0.04f, 0.04f, 0.07f, 1f);
         public static readonly Color PanelBlue = new(0.77f, 0.87f, 0.94f, 1f);
         public static readonly Color BorderBlue = new(0.12f, 0.35f, 0.54f, 1f);

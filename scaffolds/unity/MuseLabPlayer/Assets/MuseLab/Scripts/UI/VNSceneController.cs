@@ -47,6 +47,7 @@ namespace MuseLab.UI
             EnsureEventSystem();
             BuildStageUi();
             InitializeEngine();
+            ConfigureInstructionPlayer();
             RefreshScene();
         }
 
@@ -105,10 +106,23 @@ namespace MuseLab.UI
             engine.Start();
         }
 
+        void ConfigureInstructionPlayer()
+        {
+            instructionPlayer.Configure(
+                soundManager,
+                dialogueCaption.Dialogue,
+                dialogueCaption.SpeakerText,
+                SpeakerTemplateRenderer.Render,
+                dialogueCaption.SetSpeaker);
+            instructionPlayer.OnPlaybackComplete += OnPlaybackComplete;
+        }
+
         void RefreshScene()
         {
             prompter.BeginRenderPass();
             currentState = engine.GetRuntimeState();
+            if (TryAutoAdvanceFromStartNode())
+                return;
             var instructions = new List<PromptInstruction>(prompter.GetInstructions());
             var node = export.Manifest.FindNode(currentState.GetActiveStoryId(), currentState.GetCurrentNodeId());
 
@@ -169,14 +183,14 @@ namespace MuseLab.UI
             var singleChoice = count == 1 && !hasOptions;
             continueHint.gameObject.SetActive(false);
 
-            if (state.GetIsTerminalScene() && promptComplete)
+            if (singleChoice && promptComplete)
             {
                 continueHint.gameObject.SetActive(true);
                 continueHint.text = "Continue ››";
                 return;
             }
 
-            if (count == 0 || singleChoice) return;
+            if (count == 0) return;
 
             for (var i = 0; i < count; i++)
             {
@@ -206,28 +220,33 @@ namespace MuseLab.UI
             text.text = label;
             text.fontSize = 18;
             text.color = MuseLabUiStyles.TextDark;
+            text.richText = true;
             text.alignment = TextAlignmentOptions.MidlineLeft;
+            TmpFontHelper.ApplyDefaultFont(text);
             var textRt = text.GetComponent<RectTransform>();
             Stretch(textRt);
             textRt.offsetMin = new Vector2(16, 0);
+        }
+
+        bool TryAutoAdvanceFromStartNode()
+        {
+            var storyId = currentState.GetActiveStoryId();
+            var nodeId = currentState.GetCurrentNodeId();
+            if (MuseLabProjectData.GetNodeKind(storyId, nodeId) != 0) return false;
+            if (currentState.GetChoiceCount() != 1) return false;
+            engine.GoToNode(currentState.GetChoice(0).GetTargetNodeId());
+            RefreshScene();
+            return true;
         }
 
         void ApplyDialogue(RuntimeState state, List<PromptInstruction> instructions)
         {
             var html = state.GetCurrentHtml() ?? "";
             var speaker = state.GetCurrentSpeaker() ?? "";
-
-            if (MuseLabUiStyles.UseDialoguePlaceholder)
-            {
-                dialoguePanel.gameObject.SetActive(true);
-                dialogueCaption.SetSpeaker(string.IsNullOrWhiteSpace(speaker) ? "Alice" : speaker);
-                dialogueCaption.DialogueText.text = MuseLabUiStyles.DialoguePlaceholderText;
-                promptComplete = true;
-                return;
-            }
-
-            var hasDialogue = !string.IsNullOrWhiteSpace(MarkupUtil.StripTags(html)) || !string.IsNullOrWhiteSpace(speaker);
-            dialoguePanel.gameObject.SetActive(hasDialogue);
+            var hasDialogue = DialoguePlainText.HasVisibleText(html) || DialoguePlainText.HasVisibleText(speaker);
+            var singleImplicitContinue = state.GetChoiceCount() == 1
+                && string.IsNullOrEmpty(state.GetChoice(0).GetOptionText());
+            dialoguePanel.gameObject.SetActive(hasDialogue || singleImplicitContinue || state.GetIsTerminalScene());
 
             if (!hasDialogue)
             {
@@ -249,6 +268,11 @@ namespace MuseLab.UI
         void HandleTap()
         {
             if (currentState == null) return;
+            if (dialogueCaption.Dialogue.HasMoreToPaginate && !instructionPlayer.AwaitingContinue)
+            {
+                dialogueCaption.Dialogue.Paginate();
+                return;
+            }
             if (instructionPlayer.AwaitingContinue)
             {
                 instructionPlayer.RequestContinue();
@@ -345,7 +369,7 @@ namespace MuseLab.UI
                 MuseLabUiStyles.DialoguePanelGradientMid);
             dialogueBg.type = Image.Type.Simple;
 
-            dialogueCaption = DialogueCaptionBox.Create(dialoguePanel);
+            dialogueCaption = DialogueCaptionBox.Create(dialoguePanel, export.RootPath);
 
             continueHint = CreateTmp(dialoguePanel, "ContinueHint", 16, TextAlignmentOptions.BottomRight);
             continueHint.color = MuseLabUiStyles.TextDark;
@@ -354,13 +378,6 @@ namespace MuseLab.UI
             continueHint.gameObject.SetActive(false);
 
             instructionPlayer = gameObject.AddComponent<PromptInstructionPlayer>();
-            instructionPlayer.Configure(
-                soundManager,
-                dialogueCaption.DialogueText,
-                dialogueCaption.SpeakerText,
-                template => template ?? "",
-                dialogueCaption.SetSpeaker);
-            instructionPlayer.OnPlaybackComplete += OnPlaybackComplete;
 
             endScreen = CreateRect(canvasGo.transform, "EndScreen");
             Stretch(endScreen);

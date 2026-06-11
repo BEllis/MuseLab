@@ -6,7 +6,12 @@ namespace MuseLab.Bridge
     public class UnityMuseLabPromptRenderer : IMuseLabPromptRenderer
     {
         readonly PromptInstructionRecorder recorder = new();
-        readonly RichTextBuilder builder = new();
+        readonly RichTextBuilder builder;
+
+        public UnityMuseLabPromptRenderer(bool disableShake = false)
+        {
+            builder = new RichTextBuilder(disableShake);
+        }
 
         public IReadOnlyList<PromptInstruction> GetInstructions() => recorder.Instructions;
 

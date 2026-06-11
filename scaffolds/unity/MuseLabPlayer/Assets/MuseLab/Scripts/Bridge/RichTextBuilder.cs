@@ -15,7 +15,9 @@ namespace MuseLab.Bridge
         const int ShakeCharVariantCount = 8;
 
         readonly StringBuilder output = new();
-        readonly List<int> fontBlockNestedSpans = new();
+        enum NestedSpanKind { Size, Weight }
+
+        readonly Stack<Stack<NestedSpanKind>> fontBlockStacks = new();
         ShakeMode shakeMode = ShakeMode.None;
         bool disableShake;
 
@@ -50,7 +52,7 @@ namespace MuseLab.Bridge
         public void Clear()
         {
             output.Clear();
-            fontBlockNestedSpans.Clear();
+            fontBlockStacks.Clear();
             shakeMode = ShakeMode.None;
         }
 
@@ -109,26 +111,26 @@ namespace MuseLab.Bridge
                     return disableShake ? EscapeWithNewlines(data.text) : $"<shake phrase=\"1\">{EscapeWithNewlines(data.text)}</shake>";
                 case FormatMarkerKind.FontStyleBegin:
                     if (string.IsNullOrEmpty(data.id)) return "";
-                    fontBlockNestedSpans.Add(0);
+                    fontBlockStacks.Push(new Stack<NestedSpanKind>());
                     return BuildFontOpen(data);
                 case FormatMarkerKind.FontStyleByPathBegin:
                     if (string.IsNullOrEmpty(data.assetName)) return "";
-                    fontBlockNestedSpans.Add(0);
+                    fontBlockStacks.Push(new Stack<NestedSpanKind>());
                     return BuildFontOpen(new FormatMarkerData { id = data.assetName, fontSizePx = data.fontSizePx, fontWeight = data.fontWeight });
                 case FormatMarkerKind.FontStyleEnd:
                     return CloseFontBlock();
                 case FormatMarkerKind.FontSizeBegin:
-                    if (!IsValidFontSize(data.fontSizePx) || fontBlockNestedSpans.Count == 0) return "";
-                    fontBlockNestedSpans[fontBlockNestedSpans.Count - 1]++;
+                    if (!IsValidFontSize(data.fontSizePx) || fontBlockStacks.Count == 0) return "";
+                    fontBlockStacks.Peek().Push(NestedSpanKind.Size);
                     return $"<size={data.fontSizePx}>";
                 case FormatMarkerKind.FontSizeEnd:
-                    return CloseNestedSpan();
+                    return CloseNestedSpan(NestedSpanKind.Size);
                 case FormatMarkerKind.FontWeightBegin:
-                    if (!IsValidFontWeight(data.fontWeight) || fontBlockNestedSpans.Count == 0) return "";
-                    fontBlockNestedSpans[fontBlockNestedSpans.Count - 1]++;
+                    if (!IsValidFontWeight(data.fontWeight) || fontBlockStacks.Count == 0) return "";
+                    fontBlockStacks.Peek().Push(NestedSpanKind.Weight);
                     return $"<style=\"F{data.fontWeight}\">";
                 case FormatMarkerKind.FontWeightEnd:
-                    return CloseNestedSpan();
+                    return CloseNestedSpan(NestedSpanKind.Weight);
                 default:
                     return "";
             }
@@ -144,22 +146,22 @@ namespace MuseLab.Bridge
 
         string CloseFontBlock()
         {
-            if (fontBlockNestedSpans.Count == 0) return "";
-            var nested = fontBlockNestedSpans[fontBlockNestedSpans.Count - 1];
-            fontBlockNestedSpans.RemoveAt(fontBlockNestedSpans.Count - 1);
+            if (fontBlockStacks.Count == 0) return "";
+            var stack = fontBlockStacks.Pop();
             var sb = new StringBuilder();
-            for (var i = 0; i < nested; i++) sb.Append("</style></size>");
+            while (stack.Count > 0)
+                sb.Append(stack.Pop() == NestedSpanKind.Size ? "</size>" : "</style>");
             sb.Append("</font>");
             return sb.ToString();
         }
 
-        string CloseNestedSpan()
+        string CloseNestedSpan(NestedSpanKind expected)
         {
-            if (fontBlockNestedSpans.Count == 0) return "";
-            var nested = fontBlockNestedSpans[fontBlockNestedSpans.Count - 1];
-            if (nested <= 0) return "";
-            fontBlockNestedSpans[fontBlockNestedSpans.Count - 1] = nested - 1;
-            return "</size>";
+            if (fontBlockStacks.Count == 0) return "";
+            var stack = fontBlockStacks.Peek();
+            if (stack.Count == 0 || stack.Peek() != expected) return "";
+            stack.Pop();
+            return expected == NestedSpanKind.Size ? "</size>" : "</style>";
         }
 
         static string MarkerPlainText(FormatMarkerKind kind, FormatMarkerData data) =>
@@ -180,7 +182,14 @@ namespace MuseLab.Bridge
         static string EscapeWithNewlines(string text)
         {
             if (string.IsNullOrEmpty(text)) return "";
-            return Escape(text).Replace("\n", "\n");
+            var escaped = Escape(text).Replace("\n", "\n");
+            return PreserveDoubleSpaces(escaped);
+        }
+
+        static string PreserveDoubleSpaces(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            return text.Replace("  ", " &nbsp;");
         }
 
         static string Escape(string text)

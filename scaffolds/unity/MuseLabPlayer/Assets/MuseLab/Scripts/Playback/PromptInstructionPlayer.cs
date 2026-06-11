@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MuseLab.Audio;
+using MuseLab.UI.Dialogue;
 using TMPro;
 using UnityEngine;
 
@@ -13,18 +14,24 @@ namespace MuseLab.Playback
         public event Action OnPlaybackComplete;
 
         SoundManager soundManager;
-        TMP_Text dialogueText;
+        IDialogueTextView dialogueView;
         TMP_Text speakerText;
         Func<string, string> renderSpeakerTemplate;
         Action<string> onSpeakerChanged;
 
         string visibleMarkup = "";
         string visibleSpeaker = "";
+        string fullMarkupSnapshot = "";
+        IReadOnlyList<PromptInstruction> activeInstructions = Array.Empty<PromptInstruction>();
+
         bool awaitingContinue;
         bool isRevealing;
         bool skipRevealRequested;
+        bool skipLatchActive;
         int linesAtLastContinue;
         int continuationLineInterval = PromptInstructionRules.DefaultContinuationVisualLineInterval;
+
+        PromptExecutionCheckpoint checkpoint;
 
         public bool IsComplete { get; private set; } = true;
         public bool AwaitingContinue => awaitingContinue;
@@ -34,16 +41,16 @@ namespace MuseLab.Playback
 
         public void Configure(
             SoundManager sound,
-            TMP_Text dialogue,
+            IDialogueTextView dialogue,
             TMP_Text speaker,
             Func<string, string> speakerRenderer,
-            Action<string> speakerChanged = null)
+            Action<string> onSpeakerChanged = null)
         {
             soundManager = sound;
-            dialogueText = dialogue;
+            dialogueView = dialogue;
             speakerText = speaker;
             renderSpeakerTemplate = speakerRenderer;
-            onSpeakerChanged = speakerChanged;
+            this.onSpeakerChanged = onSpeakerChanged;
         }
 
         public void StopPlayback()
@@ -51,6 +58,10 @@ namespace MuseLab.Playback
             StopAllCoroutines();
             isRevealing = false;
             awaitingContinue = false;
+            skipLatchActive = false;
+            dialogueView?.SetShowMoreHint(false);
+            dialogueView?.SetShowContinueHint(false);
+            dialogueView?.OnRevealEnded();
         }
 
         public void RequestContinue()
@@ -63,12 +74,42 @@ namespace MuseLab.Playback
             skipRevealRequested = true;
         }
 
+        public void RequestSkipAll(string fullMarkup, string finalSpeaker)
+        {
+            StopPlayback();
+            visibleMarkup = fullMarkup ?? "";
+            visibleSpeaker = finalSpeaker ?? "";
+            foreach (var instruction in activeInstructions)
+            {
+                if (instruction.Kind == PromptInstructionKind.PlaySound && soundManager != null)
+                    soundManager.PlayDelayed(instruction.AssetId, instruction.DelaySeconds, instruction.StartTime, instruction.EndTime);
+            }
+            ApplyText();
+            IsComplete = true;
+            OnPlaybackComplete?.Invoke();
+        }
+
+        public PromptExecutionCheckpoint SaveCheckpoint(int instructionIndex, int revealStep = 0)
+        {
+            checkpoint = new PromptExecutionCheckpoint
+            {
+                InstructionIndex = instructionIndex,
+                VisibleMarkup = visibleMarkup,
+                VisibleSpeaker = visibleSpeaker,
+                RevealStep = revealStep,
+            };
+            return checkpoint;
+        }
+
         public void Play(string fullMarkup, string initialSpeaker, IReadOnlyList<PromptInstruction> instructions)
         {
             StopPlayback();
+            fullMarkupSnapshot = fullMarkup ?? "";
+            activeInstructions = instructions ?? Array.Empty<PromptInstruction>();
+
             if (!PromptInstructionRules.NeedExecutor(instructions))
             {
-                visibleMarkup = fullMarkup ?? "";
+                visibleMarkup = fullMarkupSnapshot;
                 visibleSpeaker = initialSpeaker ?? "";
                 ApplyText();
                 IsComplete = true;
@@ -78,7 +119,7 @@ namespace MuseLab.Playback
 
             IsComplete = false;
             linesAtLastContinue = 0;
-            StartCoroutine(RunInstructions(fullMarkup, initialSpeaker, instructions));
+            StartCoroutine(RunInstructions(fullMarkupSnapshot, initialSpeaker, instructions));
         }
 
         IEnumerator RunInstructions(string fullMarkup, string initialSpeaker, IReadOnlyList<PromptInstruction> instructions)
@@ -99,6 +140,7 @@ namespace MuseLab.Playback
                         baseMarkup += instruction.Html ?? "";
                         visibleMarkup = baseMarkup;
                         ApplyText();
+                        yield return MaybePause();
                         break;
 
                     case PromptInstructionKind.RevealHtml:
@@ -154,6 +196,8 @@ namespace MuseLab.Playback
             ApplyText();
             isRevealing = false;
             awaitingContinue = false;
+            dialogueView?.OnRevealEnded();
+            dialogueView?.SetShowMoreHint(false);
             IsComplete = true;
             OnPlaybackStateChanged?.Invoke(false);
             OnPlaybackComplete?.Invoke();
@@ -162,8 +206,21 @@ namespace MuseLab.Playback
         IEnumerator RevealMarkup(string baseMarkup, PromptInstruction instruction, Action<string> onUpdate)
         {
             isRevealing = true;
+            dialogueView?.OnRevealStarted();
             OnPlaybackStateChanged?.Invoke(true);
             var html = instruction.Html ?? "";
+
+            if (skipLatchActive || skipRevealRequested)
+            {
+                skipRevealRequested = false;
+                skipLatchActive = false;
+                onUpdate(html);
+                isRevealing = false;
+                dialogueView?.OnRevealEnded();
+                OnPlaybackStateChanged?.Invoke(false);
+                yield break;
+            }
+
             var maxStep = instruction.RateKind == RevealRateKind.WordsPerSecond
                 ? Math.Max(instruction.WordCount, 1)
                 : Math.Max(instruction.PlainLength, 1);
@@ -174,7 +231,7 @@ namespace MuseLab.Playback
                 var duration = instruction.DurationMs / 1000f;
                 while (elapsed < duration)
                 {
-                    if (skipRevealRequested) { skipRevealRequested = false; break; }
+                    if (ConsumeSkip(html, onUpdate)) yield break;
                     elapsed += Time.deltaTime;
                     var t = Mathf.Clamp01(elapsed / duration);
                     var partial = instruction.OverTimeKind == RevealOverTimeKind.WordsOverTime
@@ -190,24 +247,14 @@ namespace MuseLab.Playback
                 var step = 0;
                 while (step < maxStep)
                 {
-                    if (skipRevealRequested)
-                    {
-                        skipRevealRequested = false;
-                        onUpdate(html);
-                        break;
-                    }
+                    if (ConsumeSkip(html, onUpdate)) yield break;
                     step++;
                     var partial = instruction.RateKind == RevealRateKind.WordsPerSecond
                         ? MarkupUtil.PrefixForWordCount(html, step)
                         : MarkupUtil.PrefixForPlainLength(html, step);
                     onUpdate(partial);
                     yield return MaybePause();
-                    if (skipRevealRequested)
-                    {
-                        skipRevealRequested = false;
-                        onUpdate(html);
-                        break;
-                    }
+                    if (ConsumeSkip(html, onUpdate)) yield break;
                     var delay = instruction.RateKind == RevealRateKind.WordsPerSecond
                         ? 1f / (float)instruction.Rate
                         : 1f / (float)instruction.Rate;
@@ -218,37 +265,58 @@ namespace MuseLab.Playback
             }
 
             isRevealing = false;
+            dialogueView?.OnRevealEnded();
             OnPlaybackStateChanged?.Invoke(false);
+        }
+
+        bool ConsumeSkip(string html, Action<string> onUpdate)
+        {
+            if (!skipRevealRequested) return false;
+            skipRevealRequested = false;
+            skipLatchActive = true;
+            onUpdate(html);
+            isRevealing = false;
+            dialogueView?.OnRevealEnded();
+            OnPlaybackStateChanged?.Invoke(false);
+            return true;
         }
 
         IEnumerator WaitForContinueGate()
         {
             awaitingContinue = true;
+            dialogueView?.SetShowContinueHint(true);
             OnPlaybackStateChanged?.Invoke(true);
             while (awaitingContinue) yield return null;
-            linesAtLastContinue = MeasureVisualLines(visibleMarkup);
+            dialogueView?.SetShowContinueHint(false);
+            linesAtLastContinue = dialogueView?.LineCount ?? 0;
             OnPlaybackStateChanged?.Invoke(false);
         }
 
         IEnumerator MaybePause()
         {
-            if (dialogueText == null) yield break;
-            var lines = MeasureVisualLines(visibleMarkup);
+            if (dialogueView == null) yield break;
+            yield return WaitForLayoutGate();
+            var lines = dialogueView.LineCount;
             if (lines - linesAtLastContinue < continuationLineInterval) yield break;
+            dialogueView.SetShowMoreHint(true);
             yield return WaitForContinueGate();
+            dialogueView.SetShowMoreHint(false);
         }
 
-        int MeasureVisualLines(string markup)
+        IEnumerator WaitForLayoutGate()
         {
-            if (dialogueText == null) return 0;
-            dialogueText.text = markup ?? "";
-            dialogueText.ForceMeshUpdate();
-            return dialogueText.textInfo.lineCount;
+            if (dialogueView == null) yield break;
+            var markupLen = visibleMarkup?.Length ?? 0;
+            for (var i = 0; i < 120; i++)
+            {
+                if (dialogueView.PlaybackGate.MeasuredForHtmlLength >= markupLen) yield break;
+                yield return null;
+            }
         }
 
         void ApplyText()
         {
-            if (dialogueText != null) dialogueText.text = visibleMarkup ?? "";
+            dialogueView?.SetMarkup(visibleMarkup ?? "");
             if (speakerText != null) speakerText.text = visibleSpeaker ?? "";
             onSpeakerChanged?.Invoke(visibleSpeaker ?? "");
         }

@@ -1,4 +1,6 @@
+using MuseLab.Export;
 using MuseLab.Playback;
+using MuseLab.UI.Dialogue;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,24 +11,24 @@ namespace MuseLab.UI
     {
         GameObject speakerRoot;
         RoundedBorderImage dialogueBoxBorder;
+        MuseLabDialogueText dialogueText;
         TMP_Text speakerText;
-        TMP_Text dialogueText;
 
-        public TMP_Text DialogueText => dialogueText;
+        public MuseLabDialogueText Dialogue => dialogueText;
         public TMP_Text SpeakerText => speakerText;
 
-        public static DialogueCaptionBox Create(RectTransform parent)
+        public static DialogueCaptionBox Create(RectTransform parent, string exportRoot = null)
         {
             var rootGo = new GameObject("DialogueCaption", typeof(RectTransform), typeof(DialogueCaptionBox));
             rootGo.transform.SetParent(parent, false);
             var root = rootGo.GetComponent<RectTransform>();
             Stretch(root);
             var box = rootGo.GetComponent<DialogueCaptionBox>();
-            box.Build(root);
+            box.Build(root, exportRoot);
             return box;
         }
 
-        void Build(RectTransform root)
+        void Build(RectTransform root, string exportRoot)
         {
             var column = CreateRect(root, "Column");
             var columnRt = column.GetComponent<RectTransform>();
@@ -43,7 +45,7 @@ namespace MuseLab.UI
             layout.spacing = -2f;
 
             speakerRoot = BuildSpeakerTab(column.transform);
-            var dialogueBox = BuildDialogueBox(column.transform);
+            var dialogueBox = BuildDialogueBox(column.transform, exportRoot);
             dialogueBoxBorder = dialogueBox.GetComponent<RoundedBorderImage>();
         }
 
@@ -112,7 +114,7 @@ namespace MuseLab.UI
             return rowGo;
         }
 
-        GameObject BuildDialogueBox(Transform parent)
+        GameObject BuildDialogueBox(Transform parent, string exportRoot)
         {
             var boxGo = new GameObject("DialogueBox", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             boxGo.transform.SetParent(parent, false);
@@ -142,21 +144,7 @@ namespace MuseLab.UI
             viewportRt.offsetMin = new Vector2(20, 16);
             viewportRt.offsetMax = new Vector2(-20, -16);
 
-            var dialogueGo = new GameObject("DialogueText", typeof(RectTransform), typeof(TextMeshProUGUI));
-            dialogueGo.transform.SetParent(viewportGo.transform, false);
-            dialogueText = dialogueGo.GetComponent<TextMeshProUGUI>();
-            dialogueText.fontSize = MuseLabUiStyles.DialogueFontSize;
-            dialogueText.lineSpacing = MuseLabUiStyles.DialogueLineSpacing;
-            dialogueText.color = MuseLabUiStyles.TextDark;
-            dialogueText.alignment = TextAlignmentOptions.BottomLeft;
-            dialogueText.textWrappingMode = TextWrappingModes.Normal;
-            dialogueText.overflowMode = TextOverflowModes.Truncate;
-            dialogueText.richText = true;
-            TmpFontHelper.ApplyDefaultFont(dialogueText);
-            dialogueGo.AddComponent<ShakeTextEffect>();
-
-            var dialogueRt = dialogueGo.GetComponent<RectTransform>();
-            Stretch(dialogueRt);
+            dialogueText = MuseLabDialogueText.Create(viewportRt, exportRoot);
 
             return boxGo;
         }
