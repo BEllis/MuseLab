@@ -39,3 +39,25 @@ export function clampPlayerResolution(resolution: AspectRatio): AspectRatio {
   const height = Math.min(4320, Math.max(1, Math.round(resolution.height)));
   return { width, height };
 }
+
+/** Scale a player-resolution stage to fit an available area (matches PlayerView framing). */
+export function computeStagePreviewScale(
+  availableWidth: number,
+  availableHeight: number,
+  resolution: AspectRatio,
+  maxScale = 4,
+): { scale: number; scaledWidth: number; scaledHeight: number } {
+  if (availableWidth <= 0 || availableHeight <= 0) {
+    return { scale: 0, scaledWidth: 0, scaledHeight: 0 };
+  }
+  const scale = Math.min(
+    availableWidth / resolution.width,
+    availableHeight / resolution.height,
+    maxScale,
+  );
+  return {
+    scale,
+    scaledWidth: resolution.width * scale,
+    scaledHeight: resolution.height * scale,
+  };
+}

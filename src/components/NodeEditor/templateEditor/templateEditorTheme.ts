@@ -17,14 +17,6 @@ export const templateEditorTheme = EditorView.theme({
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
     backgroundColor: "var(--app-surface-hover) !important",
   },
-  ".cm-gutters": {
-    backgroundColor: "var(--app-surface)",
-    color: "var(--app-text-muted)",
-    borderRight: "1px solid var(--app-border)",
-  },
-  ".cm-activeLineGutter": {
-    backgroundColor: "var(--app-surface-hover)",
-  },
   ".cm-foldPlaceholder": {
     backgroundColor: "var(--app-surface-hover)",
     color: "var(--app-text-muted)",
@@ -33,5 +25,6 @@ export const templateEditorTheme = EditorView.theme({
     padding: "0 6px",
     fontFamily: "inherit",
     fontSize: "12px",
+    cursor: "pointer",
   },
 });

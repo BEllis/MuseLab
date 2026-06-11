@@ -22,7 +22,8 @@ export type PromptInstruction =
       delaySeconds: number;
       startTime?: number;
       endTime?: number;
-    };
+    }
+  | { kind: "updateSpeaker"; template: string };
 
 type OverTimeItem =
   | { kind: "text"; html: string; plainLength: number; wordCount: number }
@@ -33,7 +34,8 @@ type OverTimeItem =
       startTime?: number;
       endTime?: number;
     }
-  | { kind: "wait"; milliseconds: number };
+  | { kind: "wait"; milliseconds: number }
+  | { kind: "updateSpeaker"; template: string };
 
 type RevealBlockState =
   | { kind: "none" }
@@ -61,6 +63,7 @@ export type PromptInstructionRecorder = {
     startTime: number,
     endTime: number
   ): void;
+  updateSpeaker(template: string): void;
 };
 
 export function countWords(text: string): number {
@@ -129,6 +132,10 @@ function flushOverTimeItems(
     }
     if (item.kind === "wait") {
       instructions.push({ kind: "wait", milliseconds: item.milliseconds });
+      continue;
+    }
+    if (item.kind === "updateSpeaker") {
+      instructions.push({ kind: "updateSpeaker", template: item.template });
       continue;
     }
     const sound: PromptInstruction = {
@@ -261,6 +268,13 @@ export function createPromptInstructionRecorder(): PromptInstructionRecorder {
       if (sound.endTime !== undefined) instruction.endTime = sound.endTime;
       instructions.push(instruction);
     },
+    updateSpeaker(template: string) {
+      if (block.kind === "overTime") {
+        block.items.push({ kind: "updateSpeaker", template });
+        return;
+      }
+      instructions.push({ kind: "updateSpeaker", template });
+    },
   };
 }
 
@@ -270,6 +284,7 @@ export function promptInstructionsNeedExecutor(instructions: PromptInstruction[]
       instruction.kind === "wait" ||
       instruction.kind === "waitForContinue" ||
       instruction.kind === "revealHtml" ||
-      instruction.kind === "playSound"
+      instruction.kind === "playSound" ||
+      instruction.kind === "updateSpeaker"
   );
 }

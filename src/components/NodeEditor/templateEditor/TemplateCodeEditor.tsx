@@ -6,6 +6,7 @@ import { autocompletion } from "@codemirror/autocomplete";
 import type { Project } from "@/core/model/types";
 import { templateEditorTheme } from "./templateEditorTheme";
 import { templateSyntaxHighlighting } from "./templateLanguage";
+import { foldKeymap } from "@codemirror/language";
 import { templateFolding } from "./templateFolding";
 import {
   buildTemplateCompletionModules,
@@ -50,6 +51,7 @@ function buildEditorExtensions(mode: TemplateCodeEditorMode) {
     keymap.of([
       ...defaultKeymap,
       ...historyKeymap,
+      ...(mode === "template" ? foldKeymap : []),
       ...(mode === "singleLine" ? [{ key: "Enter", run: () => true }] : []),
     ]),
     templateEditorTheme,

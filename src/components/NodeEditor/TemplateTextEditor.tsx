@@ -7,6 +7,14 @@ import {
 } from "./templateEditor/TemplateCodeEditor";
 import { applyColorAtCursor } from "./templateEditor/colorCommands";
 import { insertAroundSelection, insertAtCursor } from "./templateEditor/editorCommands";
+import {
+  collapseAllTemplateFolds,
+  expandAllTemplateFolds,
+} from "./templateEditor/templateFoldCommands";
+import {
+  TemplateToolbarDropdown,
+  TemplateToolbarMenuItem,
+} from "./templateEditor/TemplateToolbarDropdown";
 
 const DEFAULT_MIN_HEIGHT = 120;
 const DEFAULT_MAX_HEIGHT = 280;
@@ -32,6 +40,137 @@ const toolbarSeparatorStyle: React.CSSProperties = {
 
 function ToolbarSeparator() {
   return <span style={toolbarSeparatorStyle} aria-hidden />;
+}
+
+const toolbarIconButtonStyle: React.CSSProperties = {
+  width: "28px",
+  height: "28px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  lineHeight: 1,
+};
+
+const ARROW_MARKER = {
+  viewBox: "0 0 10 10",
+  markerWidth: 4,
+  markerHeight: 4,
+  refX: 8,
+  refY: 5,
+  head: "M0 0 L10 5 L0 10 Z",
+} as const;
+
+function CollapseAllIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <defs>
+        <marker
+          id="muselab-template-collapse-arrow"
+          viewBox={ARROW_MARKER.viewBox}
+          refX={ARROW_MARKER.refX}
+          refY={ARROW_MARKER.refY}
+          markerWidth={ARROW_MARKER.markerWidth}
+          markerHeight={ARROW_MARKER.markerHeight}
+          orient="auto"
+        >
+          <path d={ARROW_MARKER.head} fill="currentColor" />
+        </marker>
+      </defs>
+      <line
+        x1="0.75"
+        y1="0.75"
+        x2="5.5"
+        y2="5.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerEnd="url(#muselab-template-collapse-arrow)"
+      />
+      <line
+        x1="13.25"
+        y1="0.75"
+        x2="8.5"
+        y2="5.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerEnd="url(#muselab-template-collapse-arrow)"
+      />
+      <line
+        x1="0.75"
+        y1="13.25"
+        x2="5.5"
+        y2="8.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerEnd="url(#muselab-template-collapse-arrow)"
+      />
+      <line
+        x1="13.25"
+        y1="13.25"
+        x2="8.5"
+        y2="8.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerEnd="url(#muselab-template-collapse-arrow)"
+      />
+    </svg>
+  );
+}
+
+function ExpandAllIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <defs>
+        <marker
+          id="muselab-template-expand-arrow"
+          viewBox={ARROW_MARKER.viewBox}
+          refX={ARROW_MARKER.refX}
+          refY={ARROW_MARKER.refY}
+          markerWidth={ARROW_MARKER.markerWidth}
+          markerHeight={ARROW_MARKER.markerHeight}
+          orient="auto-start-reverse"
+        >
+          <path d={ARROW_MARKER.head} fill="currentColor" />
+        </marker>
+      </defs>
+      <line
+        x1="2"
+        y1="2"
+        x2="5.5"
+        y2="5.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerStart="url(#muselab-template-expand-arrow)"
+      />
+      <line
+        x1="12"
+        y1="2"
+        x2="8.5"
+        y2="5.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerStart="url(#muselab-template-expand-arrow)"
+      />
+      <line
+        x1="2"
+        y1="12"
+        x2="5.5"
+        y2="8.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerStart="url(#muselab-template-expand-arrow)"
+      />
+      <line
+        x1="12"
+        y1="12"
+        x2="8.5"
+        y2="8.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        markerStart="url(#muselab-template-expand-arrow)"
+      />
+    </svg>
+  );
 }
 
 export function TemplateTextEditor({
@@ -193,6 +332,20 @@ export function TemplateTextEditor({
     activeEditorRef.current = "speaker";
   }, []);
 
+  const handleCollapseAll = useCallback(() => {
+    const view = editorRef.current?.getView();
+    if (!view) return;
+    collapseAllTemplateFolds(view);
+    view.focus();
+  }, []);
+
+  const handleExpandAll = useCallback(() => {
+    const view = editorRef.current?.getView();
+    if (!view) return;
+    expandAllTemplateFolds(view);
+    view.focus();
+  }, []);
+
   const soundInsertDisabled = !selectedSoundId || soundAssets.length === 0;
   const showPromptMeta = locales != null && onLocaleChange != null;
 
@@ -253,129 +406,192 @@ export function TemplateTextEditor({
 
           <ToolbarSeparator />
 
-          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Shake:</span>
-          <button
-            type="button"
-            onClick={() =>
-              applyWrap("@Format.ShakeCharsStart()", "@Format.ShakeCharsEnd()")
-            }
-            title="Per-character shake"
-            style={toolbarButtonStyle}
-          >
-            Chars
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              applyWrap("@Format.ShakePhraseStart()", "@Format.ShakePhraseEnd()")
-            }
-            title="Phrase shake"
-            style={toolbarButtonStyle}
-          >
-            Phrase
-          </button>
+          <TemplateToolbarDropdown label="Shake">
+            {(close) => (
+              <>
+                <TemplateToolbarMenuItem
+                  label="Chars"
+                  title="Per-character shake"
+                  onClick={() => {
+                    applyWrap("@Format.ShakeCharsStart()", "@Format.ShakeCharsEnd()");
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="Phrase"
+                  title="Phrase shake"
+                  onClick={() => {
+                    applyWrap("@Format.ShakePhraseStart()", "@Format.ShakePhraseEnd()");
+                    close();
+                  }}
+                />
+              </>
+            )}
+          </TemplateToolbarDropdown>
 
-          <ToolbarSeparator />
+          <TemplateToolbarDropdown label="Reveal">
+            {(close) => (
+              <>
+                <TemplateToolbarMenuItem
+                  label="Chars"
+                  title="Reveal by character"
+                  onClick={() => {
+                    applyWrap(
+                      "@{ prompter.RevealCharsBegin(-1); }",
+                      "@{ prompter.RevealEnd(); }"
+                    );
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="Words"
+                  title="Reveal by word"
+                  onClick={() => {
+                    applyWrap(
+                      "@{ prompter.RevealWordsBegin(-1); }",
+                      "@{ prompter.RevealEnd(); }"
+                    );
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="Chars/time"
+                  title={`Reveal by character over ${REVEAL_OVER_TIME_MS}ms`}
+                  onClick={() => {
+                    applyWrap(
+                      `@{ prompter.RevealCharsOverTimeBegin(${REVEAL_OVER_TIME_MS}); }`,
+                      "@{ prompter.RevealEnd(); }"
+                    );
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="Words/time"
+                  title={`Reveal by word over ${REVEAL_OVER_TIME_MS}ms`}
+                  onClick={() => {
+                    applyWrap(
+                      `@{ prompter.RevealWordsOverTimeBegin(${REVEAL_OVER_TIME_MS}); }`,
+                      "@{ prompter.RevealEnd(); }"
+                    );
+                    close();
+                  }}
+                />
+              </>
+            )}
+          </TemplateToolbarDropdown>
 
-          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Reveal:</span>
-          <button
-            type="button"
-            onClick={() =>
-              applyWrap("@{ prompter.RevealCharsBegin(-1); }", "@{ prompter.RevealEnd(); }")
-            }
-            title="Reveal by character"
-            style={toolbarButtonStyle}
-          >
-            Chars
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              applyWrap("@{ prompter.RevealWordsBegin(-1); }", "@{ prompter.RevealEnd(); }")
-            }
-            title="Reveal by word"
-            style={toolbarButtonStyle}
-          >
-            Words
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              applyWrap(
-                `@{ prompter.RevealCharsOverTimeBegin(${REVEAL_OVER_TIME_MS}); }`,
-                "@{ prompter.RevealEnd(); }"
-              )
-            }
-            title={`Reveal by character over ${REVEAL_OVER_TIME_MS}ms`}
-            style={toolbarButtonStyle}
-          >
-            Chars/time
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              applyWrap(
-                `@{ prompter.RevealWordsOverTimeBegin(${REVEAL_OVER_TIME_MS}); }`,
-                "@{ prompter.RevealEnd(); }"
-              )
-            }
-            title={`Reveal by word over ${REVEAL_OVER_TIME_MS}ms`}
-            style={toolbarButtonStyle}
-          >
-            Words/time
-          </button>
+          <TemplateToolbarDropdown label="Wait">
+            {(close) => (
+              <>
+                <TemplateToolbarMenuItem
+                  label="WaitInMs"
+                  title={`WaitInMs(${DEFAULT_WAIT_MS})`}
+                  onClick={() => {
+                    insertSnippet(`@{ prompter.WaitInMs(${DEFAULT_WAIT_MS}); }`);
+                    close();
+                  }}
+                />
+                <TemplateToolbarMenuItem
+                  label="WaitForContinue"
+                  title="Wait for player to continue"
+                  onClick={() => {
+                    insertSnippet("@{ prompter.WaitForContinue(); }");
+                    close();
+                  }}
+                />
+              </>
+            )}
+          </TemplateToolbarDropdown>
 
-          <ToolbarSeparator />
+          <TemplateToolbarDropdown label="Speaker">
+            {(close) => (
+              <TemplateToolbarMenuItem
+                label="UpdateSpeaker"
+                title='Insert UpdateSpeaker (edit "Maya" after insert)'
+                onClick={() => {
+                  insertSnippet('@{ prompter.UpdateSpeaker("Maya"); }');
+                  close();
+                }}
+              />
+            )}
+          </TemplateToolbarDropdown>
 
-          <button
-            type="button"
-            onClick={() => insertSnippet(`@{ prompter.WaitInMs(${DEFAULT_WAIT_MS}); }`)}
-            title={`WaitInMs(${DEFAULT_WAIT_MS})`}
-            style={toolbarButtonStyle}
-          >
-            WaitInMs
-          </button>
+          <TemplateToolbarDropdown label="Sound">
+            {(close) => (
+              <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <select
+                  value={selectedSoundId}
+                  onChange={(e) => setSelectedSoundId(e.target.value)}
+                  disabled={soundAssets.length === 0}
+                  title="Select sound asset"
+                  style={{
+                    fontSize: "12px",
+                    padding: "4px 6px",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "4px",
+                    background: "var(--app-surface)",
+                    color: "var(--app-text)",
+                    width: "100%",
+                  }}
+                >
+                  <option value="">— Select —</option>
+                  {soundAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="app-context-menu-item"
+                  onClick={() => {
+                    insertSnippet(`@{ rt.PlaySoundClip("${selectedSoundId}", 0, -1, -1); }`);
+                    close();
+                  }}
+                  title="Play sound when the prompt reaches this point"
+                  disabled={soundInsertDisabled}
+                  style={{
+                    borderRadius: "4px",
+                    opacity: soundInsertDisabled ? 0.5 : 1,
+                    cursor: soundInsertDisabled ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Play
+                </button>
+              </div>
+            )}
+          </TemplateToolbarDropdown>
 
-          <ToolbarSeparator />
-
-          <span style={{ fontSize: "12px", color: "var(--app-text-muted)" }}>Sound:</span>
-          <select
-            value={selectedSoundId}
-            onChange={(e) => setSelectedSoundId(e.target.value)}
-            disabled={soundAssets.length === 0}
-            title="Select sound asset"
+          <div
             style={{
-              fontSize: "12px",
-              padding: "4px 6px",
-              border: "1px solid var(--app-border)",
-              borderRadius: "4px",
-              background: "var(--app-surface)",
-              color: "var(--app-text)",
-              maxWidth: "140px",
+              marginLeft: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              flexShrink: 0,
             }}
           >
-            <option value="">— Select —</option>
-            {soundAssets.map((asset) => (
-              <option key={asset.id} value={asset.id}>
-                {asset.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() =>
-              insertSnippet(`@{ rt.PlaySoundClip("${selectedSoundId}", 0, -1, -1); }`)
-            }
-            title="Play sound when the prompt reaches this point"
-            disabled={soundInsertDisabled}
-            style={{
-              ...toolbarButtonStyle,
-              opacity: soundInsertDisabled ? 0.5 : 1,
-              cursor: soundInsertDisabled ? "not-allowed" : "pointer",
-            }}
-          >
-            Play
-          </button>
+            <button
+              type="button"
+              onClick={handleCollapseAll}
+              title="Collapse all inline expressions and code blocks"
+              aria-label="Collapse all inline expressions and code blocks"
+              className="app-icon-button"
+              style={toolbarIconButtonStyle}
+            >
+              <CollapseAllIcon />
+            </button>
+            <button
+              type="button"
+              onClick={handleExpandAll}
+              title="Expand all collapsed expressions and code blocks"
+              aria-label="Expand all collapsed expressions and code blocks"
+              className="app-icon-button"
+              style={toolbarIconButtonStyle}
+            >
+              <ExpandAllIcon />
+            </button>
+          </div>
         </div>
       )}
       {showPromptMeta && (

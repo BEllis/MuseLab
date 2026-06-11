@@ -36,6 +36,14 @@ public class MuseLabPromptRenderer
     {
     }
 
+    public void WaitForContinue()
+    {
+    }
+
+    public void UpdateSpeaker(string template)
+    {
+    }
+
     public string Render()
     {
         return "";

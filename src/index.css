@@ -877,6 +877,11 @@ select,
   animation: muselab-dialogue-hint-fade-in 0.35s ease-out both;
 }
 
+.muselab-dialogue-more-hint {
+  letter-spacing: 1px;
+  animation: muselab-dialogue-hint-fade-in 0.35s ease-out both;
+}
+
 /* Text template shake effects (player + canvas previews) */
 .muselab-shake-phrase {
   display: inline-block;

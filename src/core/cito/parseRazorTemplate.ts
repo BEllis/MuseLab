@@ -10,7 +10,7 @@ import {
 } from "./museLabRazorExtract";
 
 const STATEMENT_PREFIX =
-  /^\s*(?:rt\.(?:SetString|SetBool|SetInt|Emit|PlaySound|PlaySoundTrim|PlaySoundClip|PlaySoundClipByPath|WaitForContinue)|prompter\.(?:WaitInMs|RevealCharsBegin|RevealWordsBegin|RevealCharsOverTimeBegin|RevealWordsOverTimeBegin|RevealEnd))\s*\(/;
+  /^\s*(?:rt\.(?:SetString|SetBool|SetInt|Emit|PlaySound|PlaySoundTrim|PlaySoundClip|PlaySoundClipByPath)|prompter\.(?:WaitInMs|RevealCharsBegin|RevealWordsBegin|RevealCharsOverTimeBegin|RevealWordsOverTimeBegin|RevealEnd|WaitForContinue|UpdateSpeaker))\s*\(/;
 
 export type TemplateSurfaceSegment =
   | { kind: "literal"; value: string }
@@ -20,9 +20,7 @@ export type TemplateSurfaceSegment =
 export type TemplateFoldRange = {
   from: number;
   to: number;
-  kind: "expr" | "if";
-  expr?: string;
-  condition?: string;
+  expr: string;
   isStatement: boolean;
 };
 
@@ -214,24 +212,12 @@ export function collectTemplateFoldRanges(template: string): TemplateFoldRange[]
   tree.iterate({
     enter(node) {
       const text = template.slice(node.from, node.to);
-      if (node.type.name === "IfBlock") {
-        const { condition } = extractIfParts(text);
-        ranges.push({
-          from: node.from,
-          to: node.to,
-          kind: "if",
-          condition: condition.trim(),
-          isStatement: false,
-        });
-        return;
-      }
       if (node.type.name === "OutputExpr") {
         const expr = extractOutputExpr(text).trim();
         if (expr) {
           ranges.push({
             from: node.from,
             to: node.to,
-            kind: "expr",
             expr,
             isStatement: false,
           });
@@ -244,7 +230,6 @@ export function collectTemplateFoldRanges(template: string): TemplateFoldRange[]
           ranges.push({
             from: node.from,
             to: node.to,
-            kind: "expr",
             expr,
             isStatement: false,
           });
@@ -259,7 +244,6 @@ export function collectTemplateFoldRanges(template: string): TemplateFoldRange[]
           ranges.push({
             from: node.from,
             to: node.to,
-            kind: "expr",
             expr: trimmed,
             isStatement: true,
           });

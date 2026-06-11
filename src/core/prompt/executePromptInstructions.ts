@@ -15,14 +15,22 @@ export type PromptExecutionCheckpoint = {
   revealStep?: number;
 };
 
+export type RevealSkipControl = {
+  consumeSkipRequest: () => boolean;
+};
+
 export type ExecutePromptInstructionsOptions = {
   instructions: PromptInstruction[];
   checkpoint?: PromptExecutionCheckpoint;
   onCheckpoint?: (checkpoint: PromptExecutionCheckpoint) => void;
   onHtmlUpdate: (html: string) => void;
+  onSpeakerUpdate?: (html: string) => void;
+  renderSpeakerTemplate?: (template: string) => Promise<string>;
   onPlaySound: PlaySoundCallback;
   shouldPause?: () => boolean;
   waitForContinue?: () => Promise<void>;
+  skipRevealChunk?: RevealSkipControl;
+  onRevealActiveChange?: (active: boolean) => void;
   signal?: AbortSignal;
 };
 
@@ -175,6 +183,124 @@ async function maybePause(
   await waitForContinue();
 }
 
+function consumeSkipRequest(skipRevealChunk: RevealSkipControl | undefined): boolean {
+  return skipRevealChunk?.consumeSkipRequest() ?? false;
+}
+
+async function interruptibleDelay(
+  ms: number,
+  signal: AbortSignal | undefined,
+  shouldInterrupt: () => boolean
+): Promise<void> {
+  if (ms <= 0) return;
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+    if (shouldInterrupt()) return;
+    await sleep(Math.min(16, end - Date.now()), signal);
+  }
+}
+
+async function fastForwardRevealSteps(
+  step: number,
+  maxStep: number,
+  applyStep: (nextStep: number, partialHtml: string) => void,
+  getPartialHtml: (nextStep: number) => string,
+  shouldPause: (() => boolean) | undefined
+): Promise<number> {
+  let nextStep = step;
+  while (nextStep < maxStep) {
+    nextStep += 1;
+    applyStep(nextStep, getPartialHtml(nextStep));
+    await waitForLayout();
+    if (shouldPause?.()) break;
+  }
+  return nextStep;
+}
+
+type RevealStepRunnerOptions = {
+  startStep: number;
+  maxStep: number;
+  getPartialHtml: (step: number) => string;
+  applyStep: (step: number, partialHtml: string) => void;
+  delayAfterStep?: (step: number) => number;
+  shouldPause?: () => boolean;
+  waitForContinue?: () => Promise<void>;
+  skipRevealChunk?: RevealSkipControl;
+  signal?: AbortSignal;
+  startSkipped?: boolean;
+};
+
+async function runRevealSteps(options: RevealStepRunnerOptions): Promise<number> {
+  const {
+    maxStep,
+    getPartialHtml,
+    applyStep,
+    delayAfterStep,
+    shouldPause,
+    waitForContinue,
+    skipRevealChunk,
+    signal,
+  } = options;
+  let step = options.startStep;
+  let skipBurstActive = options.startSkipped ?? false;
+
+  const requestSkipBurst = () => {
+    if (skipBurstActive) return true;
+    if (consumeSkipRequest(skipRevealChunk)) {
+      skipBurstActive = true;
+      return true;
+    }
+    return false;
+  };
+
+  const runSkipBurst = async (fromStep: number) => {
+    skipBurstActive = true;
+    const nextStep = await fastForwardRevealSteps(
+      fromStep,
+      maxStep,
+      applyStep,
+      getPartialHtml,
+      shouldPause
+    );
+    skipBurstActive = false;
+    return nextStep;
+  };
+
+  while (step < maxStep) {
+    if (requestSkipBurst()) {
+      step = await runSkipBurst(step);
+      await maybePause(shouldPause, waitForContinue);
+      continue;
+    }
+
+    step += 1;
+    applyStep(step, getPartialHtml(step));
+    await maybePause(shouldPause, waitForContinue);
+
+    if (requestSkipBurst()) {
+      step = await runSkipBurst(step);
+      await maybePause(shouldPause, waitForContinue);
+      continue;
+    }
+
+    if (step < maxStep) {
+      const delay = delayAfterStep?.(step) ?? 0;
+      if (delay > 0) {
+        await interruptibleDelay(delay, signal, requestSkipBurst);
+        if (requestSkipBurst()) {
+          step = await runSkipBurst(step);
+          await maybePause(shouldPause, waitForContinue);
+        }
+      }
+    }
+  }
+
+  return step;
+}
+
 async function revealHtml(
   baseHtml: string,
   instruction: Extract<PromptInstruction, { kind: "revealHtml" }>,
@@ -183,6 +309,7 @@ async function revealHtml(
     startStep?: number;
     shouldPause?: () => boolean;
     waitForContinue?: () => Promise<void>;
+    skipRevealChunk?: RevealSkipControl;
     signal?: AbortSignal;
   }
 ): Promise<RevealProgress> {
@@ -198,49 +325,61 @@ async function revealHtml(
     onHtmlUpdate(visibleHtml);
   };
 
+  const startSkipped = consumeSkipRequest(options.skipRevealChunk);
+
+  const runnerOptions = {
+    startStep,
+    shouldPause: options.shouldPause,
+    waitForContinue: options.waitForContinue,
+    skipRevealChunk: options.skipRevealChunk,
+    signal: options.signal,
+    applyStep,
+    startSkipped,
+  };
+
   if (mode.kind === "charsOverTime") {
-    const steps = Math.max(plainLength, 1);
-    const delay = mode.durationMs / steps;
-    for (let step = Math.max(startStep + 1, 1); step <= steps; step += 1) {
-      applyStep(step, htmlPrefixForPlainLength(html, step));
-      await maybePause(options.shouldPause, options.waitForContinue);
-      if (step < steps) await sleep(delay, options.signal);
-    }
-    applyStep(steps, html);
-    return { visibleHtml: nextHtml, revealStep: steps };
+    const maxStep = Math.max(plainLength, 1);
+    const delay = mode.durationMs / maxStep;
+    revealStep = await runRevealSteps({
+      ...runnerOptions,
+      maxStep,
+      getPartialHtml: (step) => htmlPrefixForPlainLength(html, step),
+      delayAfterStep: () => delay,
+    });
+    applyStep(maxStep, html);
+    return { visibleHtml: nextHtml, revealStep: maxStep };
   }
 
   if (mode.kind === "wordsOverTime") {
-    const steps = Math.max(wordCount, 1);
-    const delay = mode.durationMs / steps;
-    for (let step = Math.max(startStep + 1, 1); step <= steps; step += 1) {
-      applyStep(step, htmlPrefixForWordCount(html, step));
-      await maybePause(options.shouldPause, options.waitForContinue);
-      if (step < steps) await sleep(delay, options.signal);
-    }
-    applyStep(steps, html);
-    return { visibleHtml: nextHtml, revealStep: steps };
+    const maxStep = Math.max(wordCount, 1);
+    const delay = mode.durationMs / maxStep;
+    revealStep = await runRevealSteps({
+      ...runnerOptions,
+      maxStep,
+      getPartialHtml: (step) => htmlPrefixForWordCount(html, step),
+      delayAfterStep: () => delay,
+    });
+    applyStep(maxStep, html);
+    return { visibleHtml: nextHtml, revealStep: maxStep };
   }
 
   if (mode.kind === "charsPerSecond") {
-    for (let step = Math.max(startStep + 1, 1); step <= plainLength; step += 1) {
-      applyStep(step, htmlPrefixForPlainLength(html, step));
-      await maybePause(options.shouldPause, options.waitForContinue);
-      if (step < plainLength) {
-        await sleep(revealStepDelayMs(mode, 1), options.signal);
-      }
-    }
+    revealStep = await runRevealSteps({
+      ...runnerOptions,
+      maxStep: plainLength,
+      getPartialHtml: (step) => htmlPrefixForPlainLength(html, step),
+      delayAfterStep: () => revealStepDelayMs(mode, 1),
+    });
     onHtmlUpdate(nextHtml);
     return { visibleHtml: nextHtml, revealStep: plainLength };
   }
 
-  for (let step = Math.max(startStep + 1, 1); step <= wordCount; step += 1) {
-    applyStep(step, htmlPrefixForWordCount(html, step));
-    await maybePause(options.shouldPause, options.waitForContinue);
-    if (step < wordCount) {
-      await sleep(revealStepDelayMs(mode, 1), options.signal);
-    }
-  }
+  revealStep = await runRevealSteps({
+    ...runnerOptions,
+    maxStep: wordCount,
+    getPartialHtml: (step) => htmlPrefixForWordCount(html, step),
+    delayAfterStep: () => revealStepDelayMs(mode, 1),
+  });
   onHtmlUpdate(nextHtml);
   return { visibleHtml: nextHtml, revealStep: wordCount };
 }
@@ -253,9 +392,13 @@ export async function executePromptInstructions(
     checkpoint,
     onCheckpoint,
     onHtmlUpdate,
+    onSpeakerUpdate,
+    renderSpeakerTemplate,
     onPlaySound,
     shouldPause,
     waitForContinue,
+    skipRevealChunk,
+    onRevealActiveChange,
     signal,
   } = options;
 
@@ -316,12 +459,19 @@ export async function executePromptInstructions(
     }
 
     if (instruction.kind === "revealHtml") {
-      const progress = await revealHtml(visibleHtml, instruction, onHtmlUpdate, {
-        startStep: activeRevealStep,
-        shouldPause,
-        waitForContinue,
-        signal,
-      });
+      onRevealActiveChange?.(true);
+      let progress: RevealProgress;
+      try {
+        progress = await revealHtml(visibleHtml, instruction, onHtmlUpdate, {
+          startStep: activeRevealStep,
+          shouldPause,
+          waitForContinue,
+          skipRevealChunk,
+          signal,
+        });
+      } finally {
+        onRevealActiveChange?.(false);
+      }
       visibleHtml = progress.visibleHtml;
       instructionIndex += 1;
       activeRevealStep = undefined;
@@ -345,8 +495,32 @@ export async function executePromptInstructions(
       instructionIndex += 1;
       activeRevealStep = undefined;
       saveCheckpoint(instructionIndex, visibleHtml, undefined);
+      continue;
+    }
+
+    if (instruction.kind === "updateSpeaker") {
+      await maybePause(shouldPause, waitForContinue);
+      if (renderSpeakerTemplate && onSpeakerUpdate) {
+        onSpeakerUpdate(await renderSpeakerTemplate(instruction.template));
+      }
+      instructionIndex += 1;
+      activeRevealStep = undefined;
+      saveCheckpoint(instructionIndex, visibleHtml, undefined);
     }
   }
+}
+
+export async function renderFinalSpeakerHtml(
+  instructions: PromptInstruction[],
+  initialSpeakerHtml: string,
+  renderSpeakerTemplate: (template: string) => Promise<string>
+): Promise<string> {
+  let speakerHtml = initialSpeakerHtml;
+  for (const instruction of instructions) {
+    if (instruction.kind !== "updateSpeaker") continue;
+    speakerHtml = await renderSpeakerTemplate(instruction.template);
+  }
+  return speakerHtml;
 }
 
 export function collectRemainingPlaySounds(

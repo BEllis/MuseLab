@@ -1,7 +1,41 @@
-import { codeFolding, foldGutter, foldService } from "@codemirror/language";
+import { codeFolding, foldService, unfoldEffect } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { collectTemplateFoldRanges } from "@/core/cito/parseTemplateSurface";
-import { expressionFoldLabel } from "./expressionLabel";
+import { templateFoldAffordances } from "./templateFoldAffordances";
+
+const COLLAPSED_FOLD_LABEL = "...";
+
+type TemplateFoldPlaceholder = {
+  from: number;
+  to: number;
+};
+
+function prepareTemplateFoldPlaceholder(
+  _state: EditorState,
+  { from, to }: { from: number; to: number }
+): TemplateFoldPlaceholder {
+  return { from, to };
+}
+
+function templateFoldPlaceholderDOM(
+  view: EditorView,
+  _onclick: (event: Event) => void,
+  prepared: TemplateFoldPlaceholder | null
+): HTMLElement {
+  const element = document.createElement("span");
+  element.className = "cm-foldPlaceholder";
+  element.textContent = COLLAPSED_FOLD_LABEL;
+  element.setAttribute("role", "button");
+  element.setAttribute("aria-label", "Expand expression");
+  element.title = "Expand";
+  element.onclick = (event) => {
+    event.preventDefault();
+    if (!prepared) return;
+    view.dispatch({ effects: unfoldEffect.of({ from: prepared.from, to: prepared.to }) });
+  };
+  return element;
+}
 
 function foldRangeAt(state: EditorState, pos: number) {
   const ranges = collectTemplateFoldRanges(state.doc.toString());
@@ -16,14 +50,17 @@ function foldRangeAt(state: EditorState, pos: number) {
   return {
     from: best.from,
     to: best.to,
-    placeholder: expressionFoldLabel(best),
+    placeholder: COLLAPSED_FOLD_LABEL,
   };
 }
 
 export function templateFolding() {
   return [
-    codeFolding(),
-    foldGutter(),
+    codeFolding({
+      preparePlaceholder: prepareTemplateFoldPlaceholder,
+      placeholderDOM: templateFoldPlaceholderDOM,
+    }),
     foldService.of((state, from, to) => foldRangeAt(state, from) ?? foldRangeAt(state, to)),
+    ...templateFoldAffordances(),
   ];
 }

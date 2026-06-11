@@ -46,4 +46,22 @@ describe("createPromptRendererBridge", () => {
       { kind: "appendHtml", html: "done" },
     ]);
   });
+
+  it("queues UpdateSpeaker for sequential prompt playback", () => {
+    const renderer = createHtmlPromptRenderer();
+    const prompter = createPromptRendererBridge(renderer);
+
+    prompter.updateSpeaker("Maya");
+
+    expect(renderer.getInstructions()).toEqual([{ kind: "updateSpeaker", template: "Maya" }]);
+  });
+
+  it("queues WaitForContinue for sequential prompt playback", () => {
+    const renderer = createHtmlPromptRenderer();
+    const prompter = createPromptRendererBridge(renderer);
+
+    prompter.waitForContinue();
+
+    expect(renderer.getInstructions()).toEqual([{ kind: "waitForContinue" }]);
+  });
 });

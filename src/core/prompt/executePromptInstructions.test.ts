@@ -164,6 +164,183 @@ describe("executePromptInstructions", () => {
     expect(updates.at(-1)).toBe("Before After");
   });
 
+  it("skips reveal animation for the current chunk up to the viewport limit", async () => {
+    const updates: string[] = [];
+    let pauseAfterWords = 2;
+    let continuePlayback: (() => void) | null = null;
+    let skipRequested = false;
+
+    const run = executePromptInstructions({
+      instructions: [
+        {
+          kind: "revealHtml",
+          html: "one two three four five",
+          plainLength: 23,
+          wordCount: 5,
+          mode: { kind: "wordsPerSecond", rate: 1 },
+        },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+      shouldPause: () => (updates.at(-1)?.trim().split(/\s+/).length ?? 0) >= pauseAfterWords,
+      waitForContinue: () =>
+        new Promise<void>((resolve) => {
+          continuePlayback = resolve;
+        }),
+      skipRevealChunk: {
+        consumeSkipRequest: () => {
+          if (!skipRequested) return false;
+          skipRequested = false;
+          return true;
+        },
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(updates.at(-1)).toBe("one");
+
+    skipRequested = true;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(updates.at(-1)).toBe("one two");
+    expect(continuePlayback).not.toBeNull();
+
+    pauseAfterWords = Number.POSITIVE_INFINITY;
+    continuePlayback?.();
+    await run;
+
+    expect(updates.at(-1)).toBe("one two three four five");
+  });
+
+  it("carries skip across consecutive reveal chunks", async () => {
+    const updates: string[] = [];
+    let skipRequested = false;
+    let skipLatched = false;
+
+    const run = executePromptInstructions({
+      instructions: [
+        {
+          kind: "revealHtml",
+          html: "Hello ",
+          plainLength: 6,
+          wordCount: 1,
+          mode: { kind: "wordsPerSecond", rate: 1 },
+        },
+        {
+          kind: "revealHtml",
+          html: "<b>world</b>",
+          plainLength: 11,
+          wordCount: 1,
+          mode: { kind: "wordsPerSecond", rate: 1 },
+        },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+      skipRevealChunk: {
+        consumeSkipRequest: () => {
+          if (skipRequested) {
+            skipRequested = false;
+            skipLatched = true;
+          }
+          return skipLatched;
+        },
+      },
+    });
+
+    skipRequested = true;
+    await run;
+
+    expect(updates.at(-1)).toBe("Hello <b>world</b>");
+  });
+
+  it("applies a pending skip request when reveal begins", async () => {
+    const updates: string[] = [];
+    let skipRequested = true;
+
+    await executePromptInstructions({
+      instructions: [
+        { kind: "wait", milliseconds: 1 },
+        {
+          kind: "revealHtml",
+          html: "one two three",
+          plainLength: 11,
+          wordCount: 3,
+          mode: { kind: "wordsPerSecond", rate: 1 },
+        },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+      skipRevealChunk: {
+        consumeSkipRequest: () => {
+          if (!skipRequested) return false;
+          skipRequested = false;
+          return true;
+        },
+      },
+    });
+
+    expect(updates.at(-1)).toBe("one two three");
+  });
+
+  it("does not skip appendHtml playback when skip is requested outside reveal", async () => {
+    const updates: string[] = [];
+    let skipRequested = false;
+
+    await executePromptInstructions({
+      instructions: [
+        { kind: "appendHtml", html: "Hello" },
+        { kind: "wait", milliseconds: 1 },
+        { kind: "appendHtml", html: " World" },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onPlaySound: () => {},
+      skipRevealChunk: {
+        consumeSkipRequest: () => {
+          if (!skipRequested) return false;
+          skipRequested = false;
+          return true;
+        },
+      },
+    });
+
+    skipRequested = true;
+    expect(updates).toEqual(["Hello", "Hello World"]);
+  });
+
+  it("updates speaker when playback reaches updateSpeaker instruction", async () => {
+    const updates: string[] = [];
+    const speakerUpdates: string[] = [];
+    let allowPlayback = false;
+    let continuePlayback: (() => void) | null = null;
+
+    const run = executePromptInstructions({
+      instructions: [
+        { kind: "appendHtml", html: "Hello" },
+        { kind: "updateSpeaker", template: "Maya" },
+        { kind: "appendHtml", html: " there" },
+      ],
+      onHtmlUpdate: (html) => updates.push(html),
+      onSpeakerUpdate: (html) => speakerUpdates.push(html),
+      renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
+      onPlaySound: () => {},
+      shouldPause: () => !allowPlayback,
+      waitForContinue: () =>
+        new Promise<void>((resolve) => {
+          continuePlayback = resolve;
+        }),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(updates).toEqual(["Hello"]);
+    expect(speakerUpdates).toEqual([]);
+
+    allowPlayback = true;
+    continuePlayback?.();
+    await run;
+
+    expect(speakerUpdates).toEqual(["<b>Maya</b>"]);
+    expect(updates.at(-1)).toBe("Hello there");
+  });
+
   it("continues after wait before more appendHtml", async () => {
     const updates: string[] = [];
 

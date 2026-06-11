@@ -16,9 +16,13 @@ import {
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import { renderNodePreviewResult } from "@/core/view/sceneStage";
 import {
-  fitAspectRatioInBox,
-  getProjectThumbnailAspectRatio,
-} from "@/core/view/thumbnailAspectRatio";
+  wrapStoryPromptTemplate,
+  wrapStorySpeakerTemplate,
+} from "@/core/template/storyTemplateWrap";
+import {
+  computeStagePreviewScale,
+  getProjectPlayerResolution,
+} from "@/core/view/playerResolution";
 
 const GRAPH_PREVIEW_INSET = 16;
 const EDITOR_DOCK_HEIGHT_RATIO = 0.4;
@@ -56,9 +60,7 @@ export function ScenePreviewOverlay() {
       : null;
 
   const locale = previewLocale ?? getDefaultLocale(project);
-  const thumbnailAspectRatio = getProjectThumbnailAspectRatio(project);
-  const thumbnailAspectWidth = thumbnailAspectRatio.width;
-  const thumbnailAspectHeight = thumbnailAspectRatio.height;
+  const playerResolution = getProjectPlayerResolution(project);
   const sounds = project.assets
     .filter((a) => a.type === "sound")
     .map((a) => ({ id: a.id, name: a.name }));
@@ -66,7 +68,11 @@ export function ScenePreviewOverlay() {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const editorPreviewImmediateRef = useRef(true);
-  const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
+  const [previewFrame, setPreviewFrame] = useState<{
+    scale: number;
+    scaledWidth: number;
+    scaledHeight: number;
+  } | null>(null);
 
   const [editorPreviewRender, setEditorPreviewRender] = useState<EditorPreviewRender | null>(null);
   const [playbackKey, setPlaybackKey] = useState(0);
@@ -106,12 +112,16 @@ export function ScenePreviewOverlay() {
     const timer = window.setTimeout(() => {
       void (async () => {
         const templateResult = await renderNodePreviewResult(
-          previewTemplate,
+          wrapStoryPromptTemplate(story, previewTemplate),
           story.globalState,
           { project }
         );
         const speakerResult = speaker
-          ? await renderNodePreviewResult(speaker, story.globalState, { project })
+          ? await renderNodePreviewResult(
+              wrapStorySpeakerTemplate(story, speaker),
+              story.globalState,
+              { project }
+            )
           : { html: "", instructions: [] };
         if (cancelled) return;
         setEditorPreviewRender({
@@ -126,11 +136,24 @@ export function ScenePreviewOverlay() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, node, previewTemplate, speaker, editingTemplate, story.globalState, project, locale]);
+  }, [
+    open,
+    node,
+    previewTemplate,
+    speaker,
+    editingTemplate,
+    story.globalState,
+    story.promptStartTemplate,
+    story.promptEndTemplate,
+    story.speakerStartTemplate,
+    story.speakerEndTemplate,
+    project,
+    locale,
+  ]);
 
   useEffect(() => {
     if (!open) {
-      setPreviewSize(null);
+      setPreviewFrame(null);
       return;
     }
 
@@ -140,12 +163,18 @@ export function ScenePreviewOverlay() {
     const updateSize = () => {
       const availableWidth = el.clientWidth - GRAPH_PREVIEW_INSET * 2;
       const availableHeight = el.clientHeight - GRAPH_PREVIEW_INSET * 2;
-      const next = fitAspectRatioInBox(availableWidth, availableHeight, {
-        width: thumbnailAspectWidth,
-        height: thumbnailAspectHeight,
-      });
-      setPreviewSize((prev) => {
-        if (prev && prev.width === next.width && prev.height === next.height) {
+      const next = computeStagePreviewScale(
+        availableWidth,
+        availableHeight,
+        playerResolution,
+      );
+      setPreviewFrame((prev) => {
+        if (
+          prev &&
+          prev.scale === next.scale &&
+          prev.scaledWidth === next.scaledWidth &&
+          prev.scaledHeight === next.scaledHeight
+        ) {
           return prev;
         }
         return next;
@@ -156,7 +185,7 @@ export function ScenePreviewOverlay() {
     const observer = new ResizeObserver(updateSize);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [open, thumbnailAspectWidth, thumbnailAspectHeight]);
+  }, [open, playerResolution.height, playerResolution.width]);
 
   useEffect(() => {
     if (!open) return;
@@ -255,14 +284,18 @@ export function ScenePreviewOverlay() {
           justifyContent: "center",
         }}
       >
-        {previewSize && previewSize.width > 0 && previewSize.height > 0 && editorPreviewRender && (
+        {previewFrame &&
+          previewFrame.scale > 0 &&
+          previewFrame.scaledWidth > 0 &&
+          previewFrame.scaledHeight > 0 &&
+          editorPreviewRender && (
           <div
             onClick={stopEditorClick}
             onMouseDown={stopEditorClick}
             style={{
               position: "relative",
-              width: previewSize.width,
-              height: previewSize.height,
+              width: previewFrame.scaledWidth,
+              height: previewFrame.scaledHeight,
               borderRadius: "8px",
               overflow: "hidden",
               boxShadow: "0 8px 32px var(--app-shadow)",
@@ -288,21 +321,35 @@ export function ScenePreviewOverlay() {
             >
               Replay Scene
             </button>
-            <SceneStagePreview
-              key={`${node.id}:${locale}:${playbackKey}`}
-              project={project}
-              story={story}
-              storyId={storyId}
-              promptsByLocale={promptsByLocale}
-              node={node}
-              locale={locale}
-              variant="full"
-              dialogueHtml={editorPreviewRender.dialogueHtml}
-              dialogueSpeaker={editorPreviewRender.dialogueSpeaker}
-              promptInstructions={editorPreviewRender.promptInstructions}
-              onPlaySound={playSound}
-              style={{ width: "100%", height: "100%" }}
-            />
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: playerResolution.width,
+                height: playerResolution.height,
+                transform: `scale(${previewFrame.scale})`,
+                transformOrigin: "top left",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <SceneStagePreview
+                key={`${node.id}:${locale}:${playbackKey}`}
+                project={project}
+                story={story}
+                storyId={storyId}
+                promptsByLocale={promptsByLocale}
+                node={node}
+                locale={locale}
+                variant="full"
+                dialogueHtml={editorPreviewRender.dialogueHtml}
+                dialogueSpeaker={editorPreviewRender.dialogueSpeaker}
+                promptInstructions={editorPreviewRender.promptInstructions}
+                onPlaySound={playSound}
+                style={{ flex: 1 }}
+              />
+            </div>
             <EditorPreviewSoundPlayer
               project={project}
               assetIds={onDemandAssetIds}

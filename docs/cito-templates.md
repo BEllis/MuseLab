@@ -11,8 +11,9 @@ MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (
 | `@{ rt.SetBool("flag", true); }` | Set state (side effect; no visible output) |
 | `@{ rt.Emit("event"); }` | Fire a runtime event |
 | `@{ rt.PlaySoundClip("asset-id", 0, -1, -1); }` | Queue a sound clip when the prompt reaches this point |
-| `@{ rt.WaitForContinue(); }` | Pause and show a continue hint until the player clicks |
 | `@{ prompter.WaitInMs(500); }` | Pause 500 ms before continuing the prompt |
+| `@{ prompter.WaitForContinue(); }` | Pause and show a continue hint until the player clicks |
+| `@{ prompter.UpdateSpeaker("Maya"); }` | Replace the speaker name at this point in playback |
 | `@{ prompter.RevealCharsBegin(-1); }` … `@{ prompter.RevealEnd(); }` | Reveal following text character-by-character |
 | `@{ prompter.RevealWordsBegin(-1); }` … `@{ prompter.RevealEnd(); }` | Reveal following text word-by-word |
 | `@{ prompter.RevealCharsOverTimeBegin(2000); }` … `@{ prompter.RevealEnd(); }` | Reveal text over 2 seconds (by character) |
@@ -61,7 +62,6 @@ Leave empty to always show the choice.
 | `PlaySoundTrim(assetId, startTime, endTime)` | Play a trimmed sound segment immediately |
 | `PlaySoundClip(assetId, delaySeconds, startTime, endTime)` | Queue a sound clip at this point in the prompt stream |
 | `PlaySoundClipByPath(groupPath, assetName, delaySeconds, startTime, endTime)` | Queue a sound clip resolved from an Assets folder path |
-| `WaitForContinue()` | Pause playback and show a continue hint until the player clicks |
 
 Sentinel values for clip playback:
 
@@ -80,6 +80,8 @@ These instructions run **in order** during player playback. Designer thumbnails 
 | `RevealCharsOverTimeBegin(durationMs)` | Reveal the block from Begin to End over `durationMs` (by character) |
 | `RevealWordsOverTimeBegin(durationMs)` | Reveal the block from Begin to End over `durationMs` (by word) |
 | `RevealEnd()` | End a reveal block; following text appears instantly |
+| `WaitForContinue()` | Pause playback and show a continue hint until the player clicks |
+| `UpdateSpeaker(template)` | Replace the speaker name at this point in playback |
 
 Example:
 

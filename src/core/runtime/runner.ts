@@ -9,6 +9,10 @@ import { isJumpNode, isSceneNode, isStartNode } from "../model/nodeTypes";
 import { resolveJumpTargetStoryId } from "../model/nodeNames";
 import { getStory } from "../model/project";
 import { runTemplate, evaluateCondition, type RunTemplateResult } from "../template/engine";
+import {
+  wrapStoryPromptTemplate,
+  wrapStorySpeakerTemplate,
+} from "../template/storyTemplateWrap";
 import type { TemplateContext } from "../cito/runtimeBridge";
 import type { PromptInstruction } from "../prompt/promptInstructions";
 
@@ -192,11 +196,9 @@ export function createRunner(
     if (!currentNodeId) return { html: "", instructions: [] };
     const node = getCurrentNode();
     if (!node || !isSceneNode(node)) return { html: "", instructions: [] };
-    const textTemplate = getNodeTextTemplateForLocale(
-      promptsByLocale,
-      activeLocale,
-      activeStoryId,
-      currentNodeId
+    const textTemplate = wrapStoryPromptTemplate(
+      activeStory,
+      getNodeTextTemplateForLocale(promptsByLocale, activeLocale, activeStoryId, currentNodeId)
     );
     return runTemplate(textTemplate, context, { project });
   }
@@ -212,7 +214,9 @@ export function createRunner(
       currentNodeId
     );
     if (!speaker) return "";
-    const result = await runTemplate(speaker, context, { project });
+    const result = await runTemplate(wrapStorySpeakerTemplate(activeStory, speaker), context, {
+      project,
+    });
     return result.html;
   }
 

@@ -35,7 +35,18 @@ export type ProjectPatch = Partial<
 };
 
 export type StoryPatch = Partial<
-  Pick<Story, "name" | "entryNodeId" | "globalState" | "groupId" | "sortOrder">
+  Pick<
+    Story,
+    | "name"
+    | "entryNodeId"
+    | "globalState"
+    | "groupId"
+    | "sortOrder"
+    | "promptStartTemplate"
+    | "promptEndTemplate"
+    | "speakerStartTemplate"
+    | "speakerEndTemplate"
+  >
 > & {
   attributes?: Attributes | null;
 };

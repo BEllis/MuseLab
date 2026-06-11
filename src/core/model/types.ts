@@ -147,6 +147,14 @@ export interface Story {
   groupId?: string;
   /** Sibling order within a folder or at the project root. */
   sortOrder?: number;
+  /** Template prepended to every scene prompt before rendering. */
+  promptStartTemplate?: string;
+  /** Template appended to every scene prompt before rendering. */
+  promptEndTemplate?: string;
+  /** Template prepended to every speaker name before rendering. */
+  speakerStartTemplate?: string;
+  /** Template appended to every speaker name before rendering. */
+  speakerEndTemplate?: string;
   /** Optional custom export metadata. */
   attributes?: Attributes;
 }

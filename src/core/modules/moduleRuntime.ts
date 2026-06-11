@@ -90,6 +90,8 @@ const noopTimingMethods = {
   revealCharsOverTimeBegin: () => undefined,
   revealWordsOverTimeBegin: () => undefined,
   revealEnd: () => undefined,
+  waitForContinue: () => undefined,
+  updateSpeaker: () => undefined,
 };
 
 export function createPromptRenderer(

@@ -2,6 +2,19 @@ export function shouldResetDialogueLinePage(previousHtml: string, nextHtml: stri
   return nextHtml.length < previousHtml.length || !nextHtml.startsWith(previousHtml);
 }
 
+/** Append an inline "..." hint after the last word in rendered dialogue HTML. */
+export function appendInlineDialogueMoreHint(html: string): string {
+  if (!html.trim()) return html;
+  const hint = '<span class="muselab-dialogue-more-hint">...</span>';
+  const trimmed = html.trimEnd();
+  const closeMatch = trimmed.match(/<\/(p|div|li|h[1-6])>$/i);
+  if (closeMatch) {
+    const closeTag = closeMatch[0];
+    return `${trimmed.slice(0, -closeTag.length)} ${hint}${closeTag}`;
+  }
+  return `${trimmed} ${hint}`;
+}
+
 export function countLinesThatFit(
   lineOffsets: number[],
   contentHeight: number,
@@ -23,13 +36,42 @@ export function countLinesThatFit(
   return Math.max(1, count);
 }
 
+/** Top offset of the visible window in a bottom-anchored dialogue viewport. */
+export function getDialogueAlignTop(
+  lineOffsets: number[],
+  contentHeight: number,
+  startLineIndex: number,
+  viewportHeightPx: number,
+  followTail: boolean,
+): number {
+  if (viewportHeightPx <= 0) return 0;
+
+  if (followTail) {
+    return Math.max(0, contentHeight - viewportHeightPx);
+  }
+
+  return lineOffsets[startLineIndex] ?? 0;
+}
+
+/** Downward translateY for bottom-anchored content when showing earlier pages. */
+export function getDialogueScrollTranslate(
+  alignTop: number,
+  contentHeight: number,
+  viewportHeightPx: number,
+): number {
+  if (viewportHeightPx <= 0) return 0;
+  return Math.max(0, contentHeight - viewportHeightPx - alignTop);
+}
+
 export function getDialoguePageState(
   lineOffsets: number[],
   contentHeight: number,
   startLineIndex: number,
   viewportHeightPx: number,
+  followTail = false,
 ): {
-  visibleTop: number;
+  alignTop: number;
+  scrollTranslate: number;
   linesOnPage: number;
   hasMoreToPaginate: boolean;
 } {
@@ -39,10 +81,17 @@ export function getDialoguePageState(
     startLineIndex,
     viewportHeightPx,
   );
-  const visibleTop = lineOffsets[startLineIndex] ?? 0;
+  const alignTop = getDialogueAlignTop(
+    lineOffsets,
+    contentHeight,
+    startLineIndex,
+    viewportHeightPx,
+    followTail,
+  );
+  const scrollTranslate = getDialogueScrollTranslate(alignTop, contentHeight, viewportHeightPx);
   const nextStartLine = startLineIndex + linesOnPage;
   const hasMoreToPaginate = nextStartLine < lineOffsets.length;
-  return { visibleTop, linesOnPage, hasMoreToPaginate };
+  return { alignTop, scrollTranslate, linesOnPage, hasMoreToPaginate };
 }
 
 export function clampDialogueStartLine(lineOffsets: number[], startLineIndex: number): number {
@@ -51,6 +100,17 @@ export function clampDialogueStartLine(lineOffsets: number[], startLineIndex: nu
 }
 
 /** Start line of the last page that still fits in the viewport. */
+/** True when revealed content no longer fits on the first dialogue page. */
+export function shouldPauseRevealPlayback(
+  lineOffsets: number[],
+  contentHeight: number,
+  viewportHeightPx: number,
+): boolean {
+  if (viewportHeightPx <= 0) return false;
+  const { linesOnPage } = getDialoguePageState(lineOffsets, contentHeight, 0, viewportHeightPx);
+  return linesOnPage < lineOffsets.length;
+}
+
 export function getLastPageStartLine(
   lineOffsets: number[],
   contentHeight: number,

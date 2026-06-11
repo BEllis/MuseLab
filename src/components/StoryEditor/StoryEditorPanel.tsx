@@ -5,6 +5,7 @@ import { getNodeDisplayName } from "@/core/model/nodeNames";
 import { countSceneNodes, getStartNodes } from "@/core/model/nodeTypes";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
 import { InspectorPanelHeader, InspectorPanelId } from "../InspectorPanelMeta";
+import { StoryTemplateWrapFields } from "./StoryTemplateWrapFields";
 
 function StatRow({ label, value }: { label: string; value: number | string }) {
   return (
@@ -102,6 +103,15 @@ export function StoryEditorPanel() {
           </p>
         )}
       </div>
+
+      <StoryTemplateWrapFields
+        story={story}
+        project={project}
+        onFieldChange={(field, value) =>
+          updateStory(story.id, { [field]: value }, { mergeKey: `story-field:${story.id}:${field}` })
+        }
+        flushHistoryCoalesce={flushHistoryCoalesce}
+      />
 
       <AttributesEditor
         attributes={story.attributes}

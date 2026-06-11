@@ -16,6 +16,7 @@ import type { Project, Story, StoryNode } from "@/core/model/types";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import {
   clampPlayerResolution,
+  computeStagePreviewScale,
   CUSTOM_PLAYER_RESOLUTION_KEY,
   findPlayerResolutionPresetKey,
   getProjectPlayerResolution,
@@ -265,13 +266,11 @@ function PlayerViewInner({
       ? customHeight
       : (STANDARD_PLAYER_RESOLUTIONS.find((r) => r.key === resolutionKey)?.height ?? 720);
 
-  const scale = Math.min(
-    contentAreaSize.width / frameWidth,
-    contentAreaSize.height / frameHeight,
-    4
+  const { scale, scaledWidth, scaledHeight } = computeStagePreviewScale(
+    contentAreaSize.width,
+    contentAreaSize.height,
+    { width: frameWidth, height: frameHeight },
   );
-  const scaledWidth = frameWidth * scale;
-  const scaledHeight = frameHeight * scale;
 
   const handleResolutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const key = e.target.value;
@@ -375,6 +374,7 @@ function PlayerViewInner({
             }}
           >
             <PlayerStage
+              key={`${node.id}:${tick}`}
               project={project}
               story={activeStory}
               storyId={runner.activeStoryId}
@@ -438,6 +438,7 @@ function PlayerStage({
       variant="full"
       dialogueHtml={runtime.currentHtml}
       dialogueSpeaker={runtime.currentSpeaker}
+      templateState={runtime.state}
       promptInstructions={runtime.promptInstructions}
       onPlaySound={(assetId, options) => {
         window.__playerPlaySound?.(assetId, options);

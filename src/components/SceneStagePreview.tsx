@@ -1,3 +1,4 @@
+// @refresh reset
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Project, Story, StoryNode } from "@/core/model/types";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
@@ -13,6 +14,7 @@ import {
   hasVisibleRichText,
   renderNodePreviewHtmlForLocale,
   renderNodeSpeakerForLocale,
+  renderSpeakerTemplateForStory,
   type SceneStageChoice,
 } from "@/core/view/sceneStage";
 import type { PromptsByLocale } from "@/core/locale/prompts";
@@ -35,9 +37,9 @@ import {
   type AspectRatio,
 } from "@/core/view/thumbnailAspectRatio";
 import {
+  appendInlineDialogueMoreHint,
   clampDialogueStartLine,
   getDialoguePageState,
-  getLastPageStartLine,
   measureVisualLineOffsets,
   shouldResetDialogueLinePage,
 } from "@/core/view/dialogueLinePagination";
@@ -52,6 +54,7 @@ type SceneStagePreviewProps = {
   variant?: "compact" | "full";
   dialogueHtml?: string;
   dialogueSpeaker?: string;
+  templateState?: Record<string, unknown>;
   promptInstructions?: PromptInstruction[];
   onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
   choices?: SceneStageChoice[];
@@ -76,6 +79,7 @@ export function SceneStagePreview({
   variant = "compact",
   dialogueHtml,
   dialogueSpeaker,
+  templateState,
   promptInstructions = [],
   onPlaySound,
   choices: choicesProp,
@@ -125,7 +129,7 @@ export function SceneStagePreview({
       promptsByLocale,
       node.id,
       locale,
-      { project, disableShake }
+      { disableShake }
     ).then((next) => {
       if (!cancelled) setPreviewHtml(next);
     });
@@ -147,7 +151,7 @@ export function SceneStagePreview({
       promptsByLocale,
       node.id,
       locale,
-      { project, disableShake }
+      { disableShake }
     ).then((next) => {
       if (!cancelled) setPreviewSpeaker(next);
     });
@@ -157,10 +161,18 @@ export function SceneStagePreview({
   }, [dialogueSpeaker, story, storyId, project, promptsByLocale, node.id, locale, disableShake]);
 
   const html = dialogueHtml ?? previewHtml;
-  const speakerHtml = dialogueSpeaker ?? previewSpeaker;
+  const initialSpeakerHtml = dialogueSpeaker ?? previewSpeaker;
+  const templateRuntimeState = templateState ?? story.globalState;
+  const renderSpeakerTemplate = useCallback(
+    (template: string) =>
+      renderSpeakerTemplateForStory(story, template, templateRuntimeState, {
+        project,
+        disableShake,
+      }),
+    [story, templateRuntimeState, project, disableShake]
+  );
   const choices = choicesProp ?? previewChoices;
-  const hasDialogueContent = hasVisibleRichText(html) || hasVisibleRichText(speakerHtml);
-  const hasSpeaker = hasVisibleRichText(speakerHtml);
+  const hasDialogueContent = hasVisibleRichText(html) || hasVisibleRichText(initialSpeakerHtml);
   const hasOptions = choices.some((choice) => choice.optionText);
   const compact = variant === "compact";
   const usePromptExecutor =
@@ -323,20 +335,31 @@ export function SceneStagePreview({
         {usePromptExecutor ? (
           <PromptInstructionExecutor
             fullHtml={html}
+            initialSpeakerHtml={initialSpeakerHtml}
             instructions={promptInstructions}
+            renderSpeakerTemplate={renderSpeakerTemplate}
             playbackGateRef={playbackGateRef}
             onPlaySound={onPlaySound}
             onComplete={handlePromptComplete}
             onSkipChange={handlePromptSkipChange}
           >
-            {({ visibleHtml, isComplete, isAwaitingContinue, resume }) => (
+            {({
+              visibleHtml,
+              visibleSpeakerHtml,
+              isComplete,
+              isAwaitingContinue,
+              isRevealing,
+              resume,
+              skipRevealChunk,
+            }) => (
               <DialogueCaptionBox
                 compact={compact}
-                hasSpeaker={hasSpeaker}
-                speakerHtml={speakerHtml}
+                hasSpeaker={hasVisibleRichText(visibleSpeakerHtml)}
+                speakerHtml={visibleSpeakerHtml}
                 speakerTabStyle={speakerTabStyle}
                 dialogueHtml={visibleHtml}
                 linePaginationEnabled={!compact && (isComplete || isAwaitingContinue)}
+                isRevealing={!isComplete && isRevealing}
                 isAwaitingContinue={!isComplete && isAwaitingContinue}
                 onPlaybackGateChange={handlePlaybackGateChange}
                 showContinueHint={
@@ -347,6 +370,8 @@ export function SceneStagePreview({
                   if (!isComplete) {
                     if (isAwaitingContinue) {
                       resume();
+                    } else {
+                      skipRevealChunk();
                     }
                     return;
                   }
@@ -364,8 +389,8 @@ export function SceneStagePreview({
         ) : (
           <DialogueCaptionBox
             compact={compact}
-            hasSpeaker={hasSpeaker}
-            speakerHtml={speakerHtml}
+            hasSpeaker={hasVisibleRichText(initialSpeakerHtml)}
+            speakerHtml={initialSpeakerHtml}
             speakerTabStyle={speakerTabStyle}
             dialogueHtml={html}
             linePaginationEnabled={interactionsEnabled}
@@ -482,43 +507,10 @@ function ContinueHint({
   );
 }
 
-function MoreTextHint({
-  compact,
-  style,
-}: {
-  compact: boolean;
-  style?: React.CSSProperties;
-}) {
+function DialogueCaptionHint({ compact }: { compact: boolean }) {
   return (
-    <span
-      style={{
-        color: "#0f172a",
-        fontSize: compact ? "5px" : "16px",
-        lineHeight: 1,
-        fontFamily: "inherit",
-        letterSpacing: compact ? "0.5px" : "1px",
-        ...style,
-      }}
-    >
-      ...
-    </span>
-  );
-}
-
-function DialogueCaptionHint({
-  compact,
-  kind,
-}: {
-  compact: boolean;
-  kind: "more" | "continue";
-}) {
-  return (
-    <div key={kind} className="muselab-dialogue-hint">
-      {kind === "more" ? (
-        <MoreTextHint compact={compact} />
-      ) : (
-        <ContinueHint compact={compact} tone="dark" />
-      )}
+    <div className="muselab-dialogue-hint">
+      <ContinueHint compact={compact} tone="dark" />
     </div>
   );
 }
@@ -530,6 +522,7 @@ function DialogueCaptionBox({
   speakerTabStyle,
   dialogueHtml,
   linePaginationEnabled = true,
+  isRevealing = false,
   isAwaitingContinue = false,
   onPlaybackGateChange,
   showContinueHint,
@@ -542,6 +535,7 @@ function DialogueCaptionBox({
   speakerTabStyle: React.CSSProperties;
   dialogueHtml: string;
   linePaginationEnabled?: boolean;
+  isRevealing?: boolean;
   isAwaitingContinue?: boolean;
   onPlaybackGateChange?: (gate: DialoguePlaybackGate) => void;
   showContinueHint: boolean;
@@ -558,9 +552,7 @@ function DialogueCaptionBox({
   const [contentHeight, setContentHeight] = useState(0);
   const [contentViewportHeightPx, setContentViewportHeightPx] = useState(0);
   startLineIndexRef.current = startLineIndex;
-  const hintMayShow =
-    !compact && (linePaginationEnabled || showContinueHint || isAwaitingContinue);
-  const hintReservePx = dialogueHintReservePx(compact, hintMayShow);
+  const hintReservePx = dialogueHintReservePx(compact, !compact && showContinueHint);
 
   useEffect(() => {
     if (shouldResetDialogueLinePage(previousHtmlRef.current, dialogueHtml)) {
@@ -593,21 +585,33 @@ function DialogueCaptionBox({
       setStartLineIndex(nextStartLine);
       if (!compact && onPlaybackGateChange) {
         const hasOffscreenLines = nextStartLine + nextLinesOnPage < offsets.length;
+        const shouldPausePlayback =
+          nextContentViewportHeight > 0 && isRevealing && hasOffscreenLines;
         onPlaybackGateChange({
           totalLines: offsets.length,
           linesOnPage: nextLinesOnPage,
           startLineIndex: nextStartLine,
           hasOffscreenLines,
-          shouldPausePlayback: hasOffscreenLines,
+          shouldPausePlayback,
+          measuredForHtmlLength: dialogueHtml.length,
         });
       }
     },
-    [compact, hintReservePx, onPlaybackGateChange],
+    [compact, dialogueHtml, hintReservePx, isRevealing, onPlaybackGateChange],
+  );
+
+  const followTail = isRevealing && !isAwaitingContinue;
+  const { scrollTranslate, linesOnPage, hasMoreToPaginate } = getDialoguePageState(
+    lineOffsets,
+    contentHeight,
+    startLineIndex,
+    contentViewportHeightPx,
+    followTail,
   );
 
   useLayoutEffect(() => {
     measureLines();
-  }, [dialogueHtml, compact, hintReservePx, measureLines]);
+  }, [dialogueHtml, measureLines]);
 
   useEffect(() => {
     const viewportEl = viewportRef.current;
@@ -618,32 +622,26 @@ function DialogueCaptionBox({
     observer.observe(viewportEl);
     return () => observer.disconnect();
   }, [measureLines]);
-
-  const { visibleTop, linesOnPage, hasMoreToPaginate } = getDialoguePageState(
-    lineOffsets,
-    contentHeight,
-    startLineIndex,
-    contentViewportHeightPx,
-  );
   const canPaginate = linePaginationEnabled && hasMoreToPaginate;
   const showMoreHint = canPaginate || isAwaitingContinue;
+  const showInlineMoreHint = !compact && showMoreHint && !showContinueHint;
+  const displayDialogueHtml = showInlineMoreHint
+    ? appendInlineDialogueMoreHint(dialogueHtml)
+    : dialogueHtml;
   const canInteract =
     !compact && (interactive || canPaginate || isAwaitingContinue || !!onActivate);
 
   const handleActivate = () => {
-    if (canPaginate) {
-      if (isAwaitingContinue) {
-        const lastPageStart = getLastPageStartLine(
-          lineOffsets,
-          contentHeight,
-          contentViewportHeightPx,
-          startLineIndex,
-        );
-        setStartLineIndex(lastPageStart);
-        measureLines(lastPageStart);
-        onActivate?.();
-        return;
+    if (isAwaitingContinue) {
+      if (isRevealing) {
+        const nextStart = startLineIndex + linesOnPage;
+        setStartLineIndex(nextStart);
+        measureLines(nextStart);
       }
+      onActivate?.();
+      return;
+    }
+    if (canPaginate) {
       const nextStart = startLineIndex + linesOnPage;
       setStartLineIndex(nextStart);
       measureLines(nextStart);
@@ -684,6 +682,9 @@ function DialogueCaptionBox({
           style={{
             ...vnDialogueScrollStyle(compact, hintReservePx),
             lineHeight,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-end",
           }}
         >
           <div
@@ -703,18 +704,18 @@ function DialogueCaptionBox({
           />
           <div
             style={{
-              transform: `translateY(-${visibleTop}px)`,
+              flexShrink: 0,
+              ...(scrollTranslate > 0 && {
+                transform: `translateY(${scrollTranslate}px)`,
+              }),
             }}
           >
-            <div dangerouslySetInnerHTML={{ __html: dialogueHtml }} />
+            <div dangerouslySetInnerHTML={{ __html: displayDialogueHtml }} />
           </div>
         </div>
-        {(showMoreHint || showContinueHint) && (
+        {showContinueHint && (
           <div style={vnDialogueHintCornerStyle(compact)}>
-            <DialogueCaptionHint
-              compact={compact}
-              kind={showMoreHint ? "more" : "continue"}
-            />
+            <DialogueCaptionHint compact={compact} />
           </div>
         )}
       </div>

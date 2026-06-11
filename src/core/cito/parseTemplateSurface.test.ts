@@ -37,7 +37,8 @@ describe("parseTemplateSurface", () => {
       { kind: "expr", value: "prompter.WaitInMs(500)", isStatement: true, isOutput: false },
     ]);
     expect(isStatementExpression("rt.PlaySoundClip(\"sfx\", 0, -1, -1)")).toBe(true);
-    expect(isStatementExpression("rt.WaitForContinue()")).toBe(true);
+    expect(isStatementExpression("prompter.WaitForContinue()")).toBe(true);
+    expect(isStatementExpression('prompter.UpdateSpeaker("Maya")')).toBe(true);
     expect(isStatementExpression("Format.BoldStart()")).toBe(false);
   });
 
@@ -92,19 +93,19 @@ describe("collectRazorCodeRanges", () => {
 });
 
 describe("collectTemplateFoldRanges", () => {
-  it("returns source ranges for expressions and if blocks", () => {
-    const template = 'A @rt.GetString("n") @if (rt.GetBool("f")) { B }';
+  it("returns source ranges for inline expressions and code blocks", () => {
+    const template = 'A @rt.GetString("n") @{ prompter.WaitInMs(500); }';
     const ranges = collectTemplateFoldRanges(template);
     expect(ranges).toHaveLength(2);
     expect(ranges[0]).toMatchObject({
-      kind: "expr",
       expr: 'rt.GetString("n")',
       from: 2,
       to: 20,
+      isStatement: false,
     });
     expect(ranges[1]).toMatchObject({
-      kind: "if",
-      condition: 'rt.GetBool("f")',
+      expr: "prompter.WaitInMs(500)",
+      isStatement: true,
     });
   });
 });

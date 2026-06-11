@@ -1,11 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendInlineDialogueMoreHint,
   clampDialogueStartLine,
   countLinesThatFit,
+  getDialogueAlignTop,
   getDialoguePageState,
+  getDialogueScrollTranslate,
   getLastPageStartLine,
+  shouldPauseRevealPlayback,
   shouldResetDialogueLinePage,
 } from "./dialogueLinePagination";
+
+describe("appendInlineDialogueMoreHint", () => {
+  it("appends the hint inside a trailing block tag", () => {
+    expect(appendInlineDialogueMoreHint("<p>Hello world</p>")).toBe(
+      '<p>Hello world <span class="muselab-dialogue-more-hint">...</span></p>',
+    );
+  });
+
+  it("appends the hint after inline content", () => {
+    expect(appendInlineDialogueMoreHint("Hello")).toBe(
+      'Hello <span class="muselab-dialogue-more-hint">...</span>',
+    );
+  });
+
+  it("leaves empty html unchanged", () => {
+    expect(appendInlineDialogueMoreHint("   ")).toBe("   ");
+  });
+});
 
 describe("shouldResetDialogueLinePage", () => {
   it("resets when content is replaced", () => {
@@ -39,6 +61,34 @@ describe("countLinesThatFit", () => {
   });
 });
 
+describe("getDialogueAlignTop", () => {
+  const lineOffsets = [0, 20, 40, 60, 80, 100];
+  const contentHeight = 120;
+  const viewportHeight = 60;
+
+  it("follows the reveal tail when content overflows", () => {
+    expect(
+      getDialogueAlignTop(lineOffsets, contentHeight, 0, viewportHeight, true),
+    ).toBe(60);
+  });
+
+  it("starts paginated pages from the page top", () => {
+    expect(
+      getDialogueAlignTop(lineOffsets, contentHeight, 3, viewportHeight, false),
+    ).toBe(60);
+    expect(
+      getDialogueAlignTop(lineOffsets, contentHeight, 0, viewportHeight, false),
+    ).toBe(0);
+  });
+});
+
+describe("getDialogueScrollTranslate", () => {
+  it("shifts earlier pages down inside a bottom-anchored viewport", () => {
+    expect(getDialogueScrollTranslate(0, 120, 60)).toBe(60);
+    expect(getDialogueScrollTranslate(60, 120, 60)).toBe(0);
+  });
+});
+
 describe("getDialoguePageState", () => {
   const lineOffsets = [0, 20, 40, 60, 80, 100];
   const contentHeight = 120;
@@ -46,7 +96,8 @@ describe("getDialoguePageState", () => {
 
   it("shows the first page", () => {
     expect(getDialoguePageState(lineOffsets, contentHeight, 0, viewportHeight)).toEqual({
-      visibleTop: 0,
+      alignTop: 0,
+      scrollTranslate: 60,
       linesOnPage: 3,
       hasMoreToPaginate: true,
     });
@@ -54,18 +105,44 @@ describe("getDialoguePageState", () => {
 
   it("shows a later page", () => {
     expect(getDialoguePageState(lineOffsets, contentHeight, 3, viewportHeight)).toEqual({
-      visibleTop: 60,
+      alignTop: 60,
+      scrollTranslate: 0,
       linesOnPage: 3,
       hasMoreToPaginate: false,
     });
   });
 
+  it("keeps the reveal tail pinned to the bottom", () => {
+    expect(getDialoguePageState(lineOffsets, contentHeight, 0, viewportHeight, true)).toEqual({
+      alignTop: 60,
+      scrollTranslate: 0,
+      linesOnPage: 3,
+      hasMoreToPaginate: true,
+    });
+  });
+
   it("handles empty offsets", () => {
     expect(getDialoguePageState([0], 0, 0, 60)).toEqual({
-      visibleTop: 0,
+      alignTop: 0,
+      scrollTranslate: 0,
       linesOnPage: 1,
       hasMoreToPaginate: false,
     });
+  });
+});
+
+describe("shouldPauseRevealPlayback", () => {
+  const lineOffsets = [0, 20, 40, 60, 80, 100];
+  const contentHeight = 120;
+  const viewportHeight = 60;
+
+  it("does not pause while all lines fit on the first page", () => {
+    expect(shouldPauseRevealPlayback([0, 20, 40], 60, 60)).toBe(false);
+  });
+
+  it("pauses once content overflows the first page", () => {
+    expect(shouldPauseRevealPlayback(lineOffsets, contentHeight, viewportHeight)).toBe(true);
+    expect(shouldPauseRevealPlayback([0, 20, 40, 60, 80], 100, 60)).toBe(true);
   });
 });
 

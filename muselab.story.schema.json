@@ -546,6 +546,22 @@
             }
           }
         },
+        "promptStartTemplate": {
+          "type": "string",
+          "description": "Template prepended to every scene prompt before rendering."
+        },
+        "promptEndTemplate": {
+          "type": "string",
+          "description": "Template appended to every scene prompt before rendering."
+        },
+        "speakerStartTemplate": {
+          "type": "string",
+          "description": "Template prepended to every speaker name before rendering."
+        },
+        "speakerEndTemplate": {
+          "type": "string",
+          "description": "Template appended to every speaker name before rendering."
+        },
         "attributes": {
           "$ref": "#/$defs/attributes",
           "description": "Optional story export metadata."

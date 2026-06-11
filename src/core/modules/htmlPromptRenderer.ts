@@ -23,6 +23,8 @@ export type PromptRenderer = {
   revealCharsOverTimeBegin(durationMs: number): void;
   revealWordsOverTimeBegin(durationMs: number): void;
   revealEnd(): void;
+  waitForContinue(): void;
+  updateSpeaker(template: string): void;
   render(): string;
   getInstructions(): PromptInstruction[];
 };
@@ -173,6 +175,12 @@ export function createHtmlPromptRenderer(
     revealEnd() {
       recorder.revealEnd();
     },
+    waitForContinue() {
+      recorder.waitForContinue();
+    },
+    updateSpeaker(template: string) {
+      recorder.updateSpeaker(template);
+    },
     render() {
       return parts.join("");
     },
@@ -195,6 +203,8 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     revealCharsOverTimeBegin: (durationMs: number) => renderer.revealCharsOverTimeBegin(durationMs),
     revealWordsOverTimeBegin: (durationMs: number) => renderer.revealWordsOverTimeBegin(durationMs),
     revealEnd: () => renderer.revealEnd(),
+    waitForContinue: () => renderer.waitForContinue(),
+    updateSpeaker: (template: string) => renderer.updateSpeaker(template),
     render: () => renderer.render(),
     AddLiteral: (text: string) => renderer.addLiteral(text),
     AppendResult: (value: unknown) => renderer.appendResult(value),
@@ -205,6 +215,8 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     RevealCharsOverTimeBegin: (durationMs: number) => renderer.revealCharsOverTimeBegin(durationMs),
     RevealWordsOverTimeBegin: (durationMs: number) => renderer.revealWordsOverTimeBegin(durationMs),
     RevealEnd: () => renderer.revealEnd(),
+    WaitForContinue: () => renderer.waitForContinue(),
+    UpdateSpeaker: (template: string) => renderer.updateSpeaker(template),
     Render: () => renderer.render(),
   };
 }

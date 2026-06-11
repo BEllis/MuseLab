@@ -36,7 +36,6 @@ export type MuseLabRuntimeBridge = {
     startTime: number,
     endTime: number
   ) => void;
-  waitForContinue: () => void;
 };
 
 function readString(state: Record<string, unknown>, key: string): string {
@@ -115,13 +114,6 @@ export function createMuseLabRuntimeBridge(context: TemplateContext): MuseLabRun
     playSoundClipByPath: (groupPath, assetName, delaySeconds, startTime, endTime) => {
       const resolvedId = resolveSoundAssetId(context.project, groupPath, assetName);
       schedulePlaySound(context, resolvedId, delaySeconds, startTime, endTime);
-    },
-    waitForContinue: () => {
-      const recorder = context.instructionRecorder;
-      if (!recorder) {
-        throw new Error("WaitForContinue requires the default prompt instruction recorder");
-      }
-      recorder.waitForContinue();
     },
   };
 }

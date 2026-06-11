@@ -7,6 +7,10 @@ import {
   getNodeTextTemplateForLocale,
 } from "@/core/locale/prompts";
 import { evaluateCondition, runTemplate, type RunTemplateResult } from "@/core/template/engine";
+import {
+  wrapStoryPromptTemplate,
+  wrapStorySpeakerTemplate,
+} from "@/core/template/storyTemplateWrap";
 import type { TemplateContext } from "@/core/cito/runtimeBridge";
 
 export type SceneStageChoice = {
@@ -108,11 +112,9 @@ export async function renderNodePreviewHtmlForLocale(
   options: RenderNodePreviewLocaleOptions = {}
 ): Promise<string> {
   const activeLocale = locale ?? getDefaultLocale(project);
-  const textTemplate = getNodeTextTemplateForLocale(
-    promptsByLocale,
-    activeLocale,
-    storyId,
-    nodeId
+  const textTemplate = wrapStoryPromptTemplate(
+    story,
+    getNodeTextTemplateForLocale(promptsByLocale, activeLocale, storyId, nodeId)
   );
   return renderNodePreviewHtml(textTemplate, story.globalState, { ...options, project });
 }
@@ -129,5 +131,18 @@ export async function renderNodeSpeakerForLocale(
   const activeLocale = locale ?? getDefaultLocale(project);
   const speaker = getNodeSpeakerForLocale(promptsByLocale, activeLocale, storyId, nodeId);
   if (!speaker) return "";
-  return renderNodePreviewHtml(speaker, story.globalState, { ...options, project });
+  return renderSpeakerTemplateForStory(story, speaker, story.globalState, {
+    ...options,
+    project,
+  });
+}
+
+export async function renderSpeakerTemplateForStory(
+  story: Pick<Story, "speakerStartTemplate" | "speakerEndTemplate">,
+  template: string,
+  state: Story["globalState"],
+  options: RenderNodePreviewOptions
+): Promise<string> {
+  if (!template.trim()) return "";
+  return renderNodePreviewHtml(wrapStorySpeakerTemplate(story, template), state, options);
 }
