@@ -37,6 +37,7 @@ describe("parseTemplateSurface", () => {
       { kind: "expr", value: "prompter.WaitInMs(500)", isStatement: true, isOutput: false },
     ]);
     expect(isStatementExpression("rt.PlaySoundClip(\"sfx\", 0, -1, -1)")).toBe(true);
+    expect(isStatementExpression("rt.WaitForContinue()")).toBe(true);
     expect(isStatementExpression("Format.BoldStart()")).toBe(false);
   });
 

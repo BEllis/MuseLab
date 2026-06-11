@@ -3,6 +3,12 @@ import { createHtmlPromptRenderer, createPromptRendererBridge } from "./htmlProm
 import { createFormatMarkerRuntime } from "./formatMarkerRuntime";
 
 describe("createHtmlPromptRenderer", () => {
+  it("preserves multiple spaces in literals as nbsp", () => {
+    const prompter = createHtmlPromptRenderer();
+    prompter.addLiteral("a  b");
+    expect(prompter.render()).toBe("a&nbsp;&nbsp;b");
+  });
+
   it("renders literals and format markers", () => {
     const format = createFormatMarkerRuntime();
     const prompter = createHtmlPromptRenderer();

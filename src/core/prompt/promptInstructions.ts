@@ -15,6 +15,7 @@ export type PromptInstruction =
   | { kind: "appendHtml"; html: string }
   | { kind: "revealHtml"; html: string; plainLength: number; wordCount: number; mode: RevealMode }
   | { kind: "wait"; milliseconds: number }
+  | { kind: "waitForContinue" }
   | {
       kind: "playSound";
       assetId: string;
@@ -48,6 +49,7 @@ export type PromptInstructionRecorder = {
   appendHtml(html: string): void;
   appendRevealText(html: string, plainText: string): void;
   wait(milliseconds: number): void;
+  waitForContinue(): void;
   revealCharsBegin(charsPerSecond: number): void;
   revealWordsBegin(wordsPerSecond: number): void;
   revealCharsOverTimeBegin(durationMs: number): void;
@@ -181,6 +183,13 @@ export function createPromptInstructionRecorder(): PromptInstructionRecorder {
       }
       instructions.push({ kind: "wait", milliseconds: ms });
     },
+    waitForContinue() {
+      if (block.kind === "overTime") {
+        flushOverTimeItems(block, instructions);
+        block = { kind: "none" };
+      }
+      instructions.push({ kind: "waitForContinue" });
+    },
     revealCharsBegin(charsPerSecond: number) {
       if (block.kind === "overTime") {
         flushOverTimeItems(block, instructions);
@@ -259,6 +268,7 @@ export function promptInstructionsNeedExecutor(instructions: PromptInstruction[]
   return instructions.some(
     (instruction) =>
       instruction.kind === "wait" ||
+      instruction.kind === "waitForContinue" ||
       instruction.kind === "revealHtml" ||
       instruction.kind === "playSound"
   );

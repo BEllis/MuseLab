@@ -41,19 +41,99 @@ export const compactVnButtonStyle: CSSProperties = {
   borderRadius: "3px",
 };
 
-export const vnSpeakerStyle: CSSProperties = {
-  position: "absolute",
-  top: "8px",
-  left: "12px",
-  fontWeight: 700,
+export const vnSpeakerTabStyle: CSSProperties = {
+  display: "inline-block",
+  maxWidth: "100%",
+  marginLeft: "12px",
+  marginBottom: "-2px",
+  background: "#c5dff0",
+  border: "2px solid #1e5a8a",
+  borderBottom: "none",
+  borderRadius: "12px 12px 0 0",
+  padding: "4px 14px",
+  color: "#1e5a8a",
   fontSize: "14px",
   lineHeight: 1.2,
-  color: "#1e5a8a",
 };
 
-export const compactVnSpeakerStyle: CSSProperties = {
-  ...vnSpeakerStyle,
-  top: "1px",
-  left: "3px",
+export const compactVnSpeakerTabStyle: CSSProperties = {
+  ...vnSpeakerTabStyle,
+  marginLeft: "4px",
+  marginBottom: "-1px",
+  borderWidth: "1px",
+  borderRadius: "4px 4px 0 0",
+  padding: "0 4px",
   fontSize: "4px",
+  lineHeight: 1.25,
 };
+
+export function vnDialogueBoxStyle(compact: boolean): CSSProperties {
+  return compact ? compactVnBoxStyle : vnBoxStyle;
+}
+
+/** Fixed dialogue body height; scales with stage via inherited font size / compact mode. */
+export const vnDialogueBoxHeight = "9em";
+export const compactVnDialogueBoxHeight = "3.6em";
+
+export function vnDialogueBoxChromeStyle(compact: boolean): CSSProperties {
+  const height = compact ? compactVnDialogueBoxHeight : vnDialogueBoxHeight;
+  return {
+    ...vnDialogueBoxStyle(compact),
+    position: "relative",
+    height,
+    minHeight: height,
+    overflow: "hidden",
+  };
+}
+
+/** Vertical space reserved at the bottom of the text viewport for corner hints. */
+export const DIALOGUE_HINT_RESERVE_PX = 22;
+export const COMPACT_DIALOGUE_HINT_RESERVE_PX = 6;
+
+export function dialogueHintReservePx(compact: boolean, hintMayShow: boolean): number {
+  if (!hintMayShow) return 0;
+  return compact ? COMPACT_DIALOGUE_HINT_RESERVE_PX : DIALOGUE_HINT_RESERVE_PX;
+}
+
+export function dialogueContentHeightPx(
+  viewportClientHeight: number,
+  compact: boolean,
+  hintReservePx: number,
+): number {
+  const verticalPadding = compact ? 0 : 4;
+  return Math.max(0, viewportClientHeight - verticalPadding - hintReservePx);
+}
+
+/** Viewport for dialogue body text inside the caption box. */
+export function vnDialogueScrollStyle(compact: boolean, hintReservePx = 0): CSSProperties {
+  const edgePadding = compact ? 0 : 2;
+  return {
+    height: "100%",
+    boxSizing: "border-box",
+    overflow: "hidden",
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
+    position: "relative",
+    ...(compact
+      ? {}
+      : {
+          paddingTop: edgePadding,
+          paddingRight: 6,
+          paddingLeft: 6,
+          paddingBottom: edgePadding + hintReservePx,
+        }),
+  };
+}
+
+/** Bottom-right corner container for caption hints; does not span the dialogue width. */
+export function vnDialogueHintCornerStyle(compact: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    right: compact ? 3 : 12,
+    bottom: compact ? 1 : 6,
+    width: "max-content",
+    maxWidth: compact ? "40%" : "50%",
+    zIndex: 1,
+    pointerEvents: "none",
+  };
+}

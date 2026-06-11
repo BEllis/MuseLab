@@ -51,4 +51,8 @@ public class MuseLabRuntime
     public void PlaySoundClipByPath(string groupPath, string assetName, double delaySeconds, double startTime, double endTime)
     {
     }
+
+    public void WaitForContinue()
+    {
+    }
 }

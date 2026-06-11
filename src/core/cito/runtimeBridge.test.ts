@@ -54,6 +54,24 @@ describe("MuseLab runtime bridge sound scheduling", () => {
     ]);
   });
 
+  it("queues WaitForContinue for sequential prompt playback", () => {
+    const project = projectWithSound();
+    const recorder = createPromptInstructionRecorder();
+    const rt = createMuseLabRuntimeBridge({
+      state: {},
+      project,
+      setState: () => {},
+      emit: () => {},
+      call: () => undefined,
+      playSound: () => {},
+      instructionRecorder: recorder,
+    });
+
+    rt.waitForContinue();
+
+    expect(recorder.instructions).toEqual([{ kind: "waitForContinue" }]);
+  });
+
   it("falls back to immediate playSound when no instruction recorder is available", () => {
     const project = projectWithSound();
     const played: Array<{ assetId: string; options?: { startTime?: number; endTime?: number } }> =

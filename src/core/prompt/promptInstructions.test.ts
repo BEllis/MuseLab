@@ -26,6 +26,19 @@ describe("createPromptInstructionRecorder", () => {
     ]);
   });
 
+  it("records waitForContinue as a standalone instruction", () => {
+    const recorder = createPromptInstructionRecorder();
+    recorder.appendRevealText("Hi", "Hi");
+    recorder.waitForContinue();
+    recorder.appendRevealText(" there", " there");
+
+    expect(recorder.instructions).toEqual([
+      { kind: "appendHtml", html: "Hi" },
+      { kind: "waitForContinue" },
+      { kind: "appendHtml", html: " there" },
+    ]);
+  });
+
   it("records wait inside an active rate reveal block", () => {
     const recorder = createPromptInstructionRecorder();
     recorder.revealCharsBegin(-1);

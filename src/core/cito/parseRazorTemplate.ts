@@ -10,7 +10,7 @@ import {
 } from "./museLabRazorExtract";
 
 const STATEMENT_PREFIX =
-  /^\s*(?:rt\.(?:SetString|SetBool|SetInt|Emit|PlaySound|PlaySoundTrim|PlaySoundClip|PlaySoundClipByPath)|prompter\.(?:WaitInMs|RevealCharsBegin|RevealWordsBegin|RevealCharsOverTimeBegin|RevealWordsOverTimeBegin|RevealEnd))\s*\(/;
+  /^\s*(?:rt\.(?:SetString|SetBool|SetInt|Emit|PlaySound|PlaySoundTrim|PlaySoundClip|PlaySoundClipByPath|WaitForContinue)|prompter\.(?:WaitInMs|RevealCharsBegin|RevealWordsBegin|RevealCharsOverTimeBegin|RevealWordsOverTimeBegin|RevealEnd))\s*\(/;
 
 export type TemplateSurfaceSegment =
   | { kind: "literal"; value: string }

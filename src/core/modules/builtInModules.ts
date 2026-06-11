@@ -99,6 +99,13 @@ const RUNTIME_METHODS: ModuleMethod[] = [
       "Queue a sound clip at this point in the prompt stream. Use delaySeconds 0 to play when the player reaches this instruction; use startTime/endTime -1 for the full clip.",
   },
   {
+    name: "WaitForContinue",
+    parameters: [],
+    returnType: "void",
+    description:
+      "Pause prompt playback and show a continue hint until the player clicks to proceed.",
+  },
+  {
     name: "PlaySoundClipByPath",
     parameters: [
       { name: "groupPath", type: "string" },

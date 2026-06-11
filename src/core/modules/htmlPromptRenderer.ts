@@ -4,6 +4,7 @@ import {
   type PromptInstruction,
   type PromptInstructionRecorder,
 } from "@/core/prompt/promptInstructions";
+import { escapeHtml, literalTextToHtml } from "@/core/template/literalTextToHtml";
 
 const SHAKE_CHAR_VARIANT_COUNT = 8;
 
@@ -28,18 +29,6 @@ export type PromptRenderer = {
 
 type ShakeMode = "none" | "chars" | "phrase";
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function plainTextToHtml(text: string): string {
-  return escapeHtml(text).replace(/\n/g, "<br>");
-}
-
 function shakeCharsHtml(text: string): string {
   let html = "";
   for (const char of text) {
@@ -58,13 +47,13 @@ function shakeCharsHtml(text: string): string {
 }
 
 function shakePhraseHtml(text: string): string {
-  return `<span class="muselab-shake-phrase">${escapeHtml(text).replace(/\n/g, "<br>")}</span>`;
+  return `<span class="muselab-shake-phrase">${literalTextToHtml(text)}</span>`;
 }
 
 function literalToHtml(text: string, shakeMode: ShakeMode, disableShake: boolean): string {
   if (!text) return "";
   if (disableShake || shakeMode === "none") {
-    return plainTextToHtml(text);
+    return literalTextToHtml(text);
   }
   if (shakeMode === "chars") {
     return shakeCharsHtml(text);
@@ -99,11 +88,11 @@ function markerToHtml(marker: FormatMarker, disableShake: boolean): string {
       return disableShake ? "" : "</span>";
     case "shakeCharsText":
       return disableShake
-        ? plainTextToHtml(marker.text ?? "")
+        ? literalTextToHtml(marker.text ?? "")
         : shakeCharsHtml(marker.text ?? "");
     case "shakePhraseText":
       return disableShake
-        ? plainTextToHtml(marker.text ?? "")
+        ? literalTextToHtml(marker.text ?? "")
         : shakePhraseHtml(marker.text ?? "");
     default:
       return "";

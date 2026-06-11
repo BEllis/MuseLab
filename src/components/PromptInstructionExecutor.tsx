@@ -1,18 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import { promptInstructionsNeedExecutor } from "@/core/prompt/promptInstructions";
-import { executePromptInstructions } from "@/core/prompt/executePromptInstructions";
+import {
+  executePromptInstructions,
+  type PromptExecutionCheckpoint,
+} from "@/core/prompt/executePromptInstructions";
+
+export type DialoguePlaybackGate = {
+  totalLines: number;
+  linesOnPage: number;
+  startLineIndex: number;
+  hasOffscreenLines: boolean;
+  shouldPausePlayback: boolean;
+};
 
 export type PromptInstructionExecutorProps = {
   fullHtml: string;
   instructions: PromptInstruction[];
+  playbackGateRef?: RefObject<DialoguePlaybackGate | undefined>;
   onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
   onComplete?: () => void;
   onSkipChange?: (skipped: boolean) => void;
   children: (props: {
     visibleHtml: string;
     isComplete: boolean;
+    isAwaitingContinue: boolean;
     skip: () => void;
+    resume: () => void;
   }) => React.ReactNode;
 };
 
@@ -23,6 +37,7 @@ export function shouldUsePromptExecutor(instructions: PromptInstruction[]): bool
 export function PromptInstructionExecutor({
   fullHtml,
   instructions,
+  playbackGateRef,
   onPlaySound,
   onComplete,
   onSkipChange,
@@ -30,8 +45,10 @@ export function PromptInstructionExecutor({
 }: PromptInstructionExecutorProps) {
   const [visibleHtml, setVisibleHtml] = useState("");
   const [isComplete, setIsComplete] = useState(false);
+  const [isAwaitingContinue, setIsAwaitingContinue] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const playedSoundsRef = useRef<Set<number>>(new Set());
+  const checkpointRef = useRef<PromptExecutionCheckpoint | null>(null);
+  const continueResolverRef = useRef<(() => void) | null>(null);
   const onCompleteRef = useRef(onComplete);
   const onPlaySoundRef = useRef(onPlaySound);
   const onSkipChangeRef = useRef(onSkipChange);
@@ -53,10 +70,27 @@ export function PromptInstructionExecutor({
     }
   }, []);
 
+  const waitForContinue = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      setIsAwaitingContinue(true);
+      continueResolverRef.current = () => {
+        setIsAwaitingContinue(false);
+        continueResolverRef.current = null;
+        resolve();
+      };
+    });
+  }, []);
+
+  const resume = useCallback(() => {
+    continueResolverRef.current?.();
+  }, []);
+
   const skip = useCallback(() => {
     abortRef.current?.abort();
+    continueResolverRef.current?.();
     setVisibleHtml(fullHtml);
     setIsComplete(true);
+    setIsAwaitingContinue(false);
     onSkipChangeRef.current?.(true);
     runSounds(instructions.filter((instruction) => instruction.kind === "playSound"));
     onCompleteRef.current?.();
@@ -64,10 +98,12 @@ export function PromptInstructionExecutor({
 
   useEffect(() => {
     abortRef.current?.abort();
+    continueResolverRef.current?.();
     const controller = new AbortController();
     abortRef.current = controller;
-    playedSoundsRef.current = new Set();
+    checkpointRef.current = null;
     setIsComplete(false);
+    setIsAwaitingContinue(false);
     onSkipChangeRef.current?.(false);
 
     if (!shouldUsePromptExecutor(instructions)) {
@@ -83,16 +119,23 @@ export function PromptInstructionExecutor({
 
     void executePromptInstructions({
       instructions,
+      checkpoint: checkpointRef.current ?? undefined,
+      onCheckpoint: (checkpoint) => {
+        checkpointRef.current = checkpoint;
+      },
       signal: controller.signal,
       onHtmlUpdate: setVisibleHtml,
       onPlaySound: (assetId, options) => {
         onPlaySoundRef.current?.(assetId, options);
       },
+      shouldPause: () => playbackGateRef?.current?.shouldPausePlayback ?? false,
+      waitForContinue,
     })
       .then(() => {
         if (!controller.signal.aborted) {
           setVisibleHtml(fullHtml);
           setIsComplete(true);
+          setIsAwaitingContinue(false);
           onCompleteRef.current?.();
         }
       })
@@ -103,8 +146,19 @@ export function PromptInstructionExecutor({
 
     return () => {
       controller.abort();
+      continueResolverRef.current?.();
     };
-  }, [fullHtml, instructionsKey]);
+  }, [fullHtml, instructionsKey, waitForContinue]);
 
-  return <>{children({ visibleHtml, isComplete, skip })}</>;
+  return (
+    <>
+      {children({
+        visibleHtml,
+        isComplete,
+        isAwaitingContinue,
+        skip,
+        resume,
+      })}
+    </>
+  );
 }
