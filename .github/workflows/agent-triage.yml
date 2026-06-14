@@ -1,7 +1,16 @@
 name: Run Backlog Manager
 on:
   workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to process. Leave empty to process all open issues.
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      issue_number:
+        required: false
+        type: string
 
 jobs:
   triage:
@@ -34,4 +43,4 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_TRIAGE: google/gemini-2.5-flash
-        run: python scripts/agents/triage_agent.py
+        run: python scripts/agents/triage_agent.py "${{ inputs.issue_number }}"

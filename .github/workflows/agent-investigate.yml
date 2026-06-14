@@ -1,7 +1,16 @@
 name: Run Investigation Agent
 on:
   workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to process. Leave empty to process the next eligible issue.
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      issue_number:
+        required: false
+        type: string
 
 jobs:
   investigate:
@@ -34,4 +43,4 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_INVESTIGATE: anthropic/claude-sonnet-4
-        run: python scripts/agents/investigation_agent.py
+        run: python scripts/agents/investigation_agent.py "${{ inputs.issue_number }}"

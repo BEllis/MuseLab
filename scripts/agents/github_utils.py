@@ -41,6 +41,7 @@ def ensure_labels_exist():
         "value:medium": {"color": "006b75", "description": "Medium value for the product offering"},
         "value:low": {"color": "cfd3d7", "description": "Low value for the product offering"},
         # Workflow/Planning
+        "approved": {"color": "2cbe4e", "description": "Human-approved for designer and implementation agents"},
         "agent:planned": {"color": "bfdadc", "description": "Design plan has been written by agent"},
         "plan:signoff": {"color": "2cbe4e", "description": "Human has reviewed and signed off on the plan"},
         # Status

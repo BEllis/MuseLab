@@ -84,13 +84,19 @@ Build, test, and manual verification steps.
 
 
 def main():
+    raw_issue_number = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    target_issue_number = int(raw_issue_number) if raw_issue_number else None
+
     issues = github_utils.list_issues(state="open")
+    if target_issue_number is not None:
+        issues = [issue for issue in issues if issue["number"] == target_issue_number]
 
     eligible_issues = []
     for issue in issues:
         labels = {label["name"] for label in issue.get("labels", [])}
         if (
-            "agent:ready" in labels
+            "approved" in labels
+            and "agent:ready" in labels
             and "agent:planned" not in labels
             and "epic" not in labels
             and "needs:human" not in labels
@@ -99,10 +105,13 @@ def main():
             eligible_issues.append(issue)
 
     if not eligible_issues:
-        agent_log(
-            "No eligible issues found for Designer Agent "
-            "(requires 'agent:ready' and no 'agent:planned')."
-        )
+        if target_issue_number is None:
+            agent_log(
+                "No eligible issues found for Designer Agent "
+                "(requires 'approved', 'agent:ready', and no 'agent:planned')."
+            )
+        else:
+            agent_log(f"Issue #{target_issue_number} is not eligible for Designer Agent.")
         return
 
     agent_log(

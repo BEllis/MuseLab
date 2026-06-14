@@ -16,6 +16,7 @@ from openrouter_client import chat_structured
 
 AGENT_ASSESSMENT_TAG = "<!-- agent-assessment -->"
 CONFORMANCE_WARNING_TAG = "<!-- conformance-warning -->"
+LABEL_DECISION_TAG = "<!-- label-decision -->"
 
 MANAGED_RISK_LABELS = ("risk:low", "risk:medium", "risk:high")
 MANAGED_TYPE_LABELS = (
@@ -101,6 +102,7 @@ class BacklogClassification(pydantic.BaseModel):
 class RunReport:
     issues_inspected: int = 0
     labels_added: list[str] = field(default_factory=list)
+    label_decision_comments: int = 0
     assessments_updated: int = 0
     conformance_warnings: int = 0
     issues_closed: int = 0
@@ -400,6 +402,54 @@ def normalize_assessment_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip())
 
 
+def label_decision_reason(label: str, classification: BacklogClassification) -> str:
+    if label.startswith("risk:"):
+        return (
+            f"`{label}` because the issue was assessed as `{classification.risk}` risk. "
+            f"{classification.reason}"
+        )
+    if label.startswith("type:"):
+        return (
+            f"`{label}` because the work fits the `{classification.issue_type}` category. "
+            f"{classification.reason}"
+        )
+    if label in MANAGED_ROUTING_LABELS:
+        return (
+            f"`{label}` because the routing decision is `{classification.routing}`. "
+            f"{classification.reason}"
+        )
+    if label == "epic":
+        return (
+            "`epic` because the issue appears to span multiple deliverables, requires "
+            "breakdown, or needs research/product input before implementation."
+        )
+    if label.startswith("priority:") or label.startswith("value:"):
+        return f"`{label}` based on triage assessment. {classification.reason}"
+    return f"`{label}` based on triage assessment. {classification.reason}"
+
+
+def post_label_decision_comment(
+    issue_num: int,
+    labels_added: list[str],
+    classification: BacklogClassification,
+    report: RunReport,
+) -> None:
+    if not labels_added:
+        return
+
+    lines = [
+        LABEL_DECISION_TAG,
+        "## Triage label decision",
+        "",
+        "I added the following label(s):",
+    ]
+    for label in labels_added:
+        lines.append(f"- {label_decision_reason(label, classification)}")
+
+    if github_utils.add_issue_comment(issue_num, "\n".join(lines)):
+        report.label_decision_comments += 1
+
+
 def sync_epic_checklist(issue_num: int, body: str) -> str:
     checklist_pattern = re.compile(r'^(\s*[-*]\s*\[\s*[ xX]?\s*\]\s*)(.+)$', re.MULTILINE)
     updated_lines = []
@@ -513,8 +563,9 @@ def apply_managed_labels_additively(
         labels_to_add.append("epic")
 
     if labels_to_add:
-        github_utils.update_issue_labels(issue_num, add_labels=labels_to_add)
-        report.labels_added.extend(f"#{issue_num}:{label}" for label in labels_to_add)
+        if github_utils.update_issue_labels(issue_num, add_labels=labels_to_add):
+            report.labels_added.extend(f"#{issue_num}:{label}" for label in labels_to_add)
+            post_label_decision_comment(issue_num, labels_to_add, classification, report)
 
     updated = set(current_labels)
     updated.update(labels_to_add)
@@ -580,11 +631,14 @@ def enforce_epic_routing_labels(
     if not removes and not adds:
         return current_labels
 
-    github_utils.update_issue_labels(
+    labels_updated = github_utils.update_issue_labels(
         issue_num,
         add_labels=adds or None,
         remove_labels=removes or None,
     )
+    if labels_updated and adds:
+        report.labels_added.extend(f"#{issue_num}:{label}" for label in adds)
+        post_label_decision_comment(issue_num, adds, classification, report)
     report.epic_routing_corrections += 1
     return labels
 
@@ -743,6 +797,7 @@ def print_run_report(report: RunReport) -> None:
     print("\n=== Backlog Manager Run Report ===")
     print(f"Issues inspected: {report.issues_inspected}")
     print(f"Labels added: {len(report.labels_added)}")
+    print(f"Label decision comments posted: {report.label_decision_comments}")
     print(f"Agent assessments updated: {report.assessments_updated}")
     print(f"Conformance warnings posted: {report.conformance_warnings}")
     print(f"Issues closed from merged PRs: {report.issues_closed}")
@@ -763,15 +818,21 @@ def print_run_report(report: RunReport) -> None:
     print("Recommended next action: review needs:human items and agent:investigate queue")
 
 
-def run_backlog_triage() -> int:
+def run_backlog_triage(issue_number: int | None = None) -> int:
     print("Ensuring backlog labels exist...")
     if not github_utils.ensure_labels_exist():
         print("Failed to ensure labels exist.")
         return 1
 
     issues = github_utils.list_issues(state="open")
+    if issue_number is not None:
+        issues = [issue for issue in issues if issue["number"] == issue_number]
+
     if not issues:
-        print("No open issues to triage.")
+        if issue_number is None:
+            print("No open issues to triage.")
+        else:
+            print(f"No open issue found for triage issue #{issue_number}.")
         return 0
 
     repo_context = load_repo_context()

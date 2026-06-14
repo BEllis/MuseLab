@@ -14,7 +14,9 @@ from backlog_manager import run_backlog_triage
 
 
 def main() -> int:
-    return run_backlog_triage()
+    raw_issue_number = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    issue_number = int(raw_issue_number) if raw_issue_number else None
+    return run_backlog_triage(issue_number=issue_number)
 
 
 if __name__ == "__main__":

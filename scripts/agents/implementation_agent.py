@@ -82,22 +82,36 @@ Use run_command for git, pnpm, and gh operations. Stop only after the PR is crea
 
 
 def main():
+    raw_issue_number = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    target_issue_number = int(raw_issue_number) if raw_issue_number else None
+
     issues = github_utils.list_issues(state="open")
+    if target_issue_number is not None:
+        issues = [issue for issue in issues if issue["number"] == target_issue_number]
+
     status_info = github_utils.get_codebase_status()
 
     eligible_issues = []
     for issue in issues:
         labels = {label["name"] for label in issue.get("labels", [])}
-        if "agent:ready" in labels and "plan:signoff" in labels and "epic" not in labels:
+        if (
+            "approved" in labels
+            and "agent:ready" in labels
+            and "plan:signoff" in labels
+            and "epic" not in labels
+        ):
             state_relation = github_utils.get_issue_relations(issue["number"], status_info)
             if state_relation == "none":
                 eligible_issues.append(issue)
 
     if not eligible_issues:
-        print(
-            "No eligible issues found for Implementation Agent "
-            "(requires 'agent:ready', 'plan:signoff', and no branch/PR)."
-        )
+        if target_issue_number is None:
+            print(
+                "No eligible issues found for Implementation Agent "
+                "(requires 'approved', 'agent:ready', 'plan:signoff', and no branch/PR)."
+            )
+        else:
+            print(f"Issue #{target_issue_number} is not eligible for Implementation Agent.")
         return
 
     print(f"Found {len(eligible_issues)} eligible issue(s); processing one fresh session per run.")

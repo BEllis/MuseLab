@@ -1,7 +1,16 @@
 name: Run Designer Agent
 on:
   workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to process. Leave empty to process the next eligible issue.
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      issue_number:
+        required: false
+        type: string
 
 jobs:
   design:
@@ -35,4 +44,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_DESIGN: anthropic/claude-sonnet-4
           OPENROUTER_TIMEOUT_DESIGN: "600"
-        run: python scripts/agents/designer_agent.py
+        run: python scripts/agents/designer_agent.py "${{ inputs.issue_number }}"

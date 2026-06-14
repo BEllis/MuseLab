@@ -114,7 +114,13 @@ Tasks:
 
 
 def main():
+    raw_issue_number = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    target_issue_number = int(raw_issue_number) if raw_issue_number else None
+
     issues = github_utils.list_issues(state="open")
+    if target_issue_number is not None:
+        issues = [issue for issue in issues if issue["number"] == target_issue_number]
+
     status_info = github_utils.get_codebase_status()
 
     eligible_issues = []
@@ -126,10 +132,13 @@ def main():
                 eligible_issues.append(issue)
 
     if not eligible_issues:
-        print(
-            "No eligible issues found for Investigation Agent "
-            "(requires 'agent:investigate' and no branch/PR)."
-        )
+        if target_issue_number is None:
+            print(
+                "No eligible issues found for Investigation Agent "
+                "(requires 'agent:investigate' and no branch/PR)."
+            )
+        else:
+            print(f"Issue #{target_issue_number} is not eligible for Investigation Agent.")
         return
 
     print(f"Found {len(eligible_issues)} eligible issue(s); processing one fresh session per run.")
