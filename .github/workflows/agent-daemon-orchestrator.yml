@@ -5,23 +5,17 @@ on:
   workflow_dispatch: # Allow manual trigger of the full pipeline
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
+  actions: write
 
 jobs:
-  triage:
-    uses: ./.github/workflows/agent-triage.yml
-    secrets: inherit
-  investigate:
-    needs: triage
-    uses: ./.github/workflows/agent-investigate.yml
-    secrets: inherit
-  design:
-    needs: investigate
-    uses: ./.github/workflows/agent-design.yml
-    secrets: inherit
-  implement:
-    needs: design
-    uses: ./.github/workflows/agent-implement.yml
-    secrets: inherit
+  orchestrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run agent pipeline as separate workflows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/agents/trigger_agent_pipeline.sh "${{ github.ref_name }}"
