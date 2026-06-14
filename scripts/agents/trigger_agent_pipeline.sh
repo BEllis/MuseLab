@@ -6,6 +6,7 @@ MAX_ITERATIONS="${MAX_AGENT_PIPELINE_ITERATIONS:-50}"
 
 AGENTS=(
   triage:agent-triage.yml
+  epic:agent-epic.yml
   investigate:agent-investigate.yml
   design:agent-design.yml
   implement:agent-implement.yml

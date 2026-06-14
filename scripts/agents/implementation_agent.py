@@ -36,7 +36,7 @@ def process_issue(issue):
     codebase_context = gather_codebase_context(title, body)
 
     prompt = f"""
-Implement the approved plan for issue #{issue_num}.
+Implement the signed-off plan for issue #{issue_num}.
 
 Issue #{issue_num}: {title}
 
@@ -88,6 +88,7 @@ def main():
     issues = github_utils.list_issues(state="open")
     if target_issue_number is not None:
         issues = [issue for issue in issues if issue["number"] == target_issue_number]
+    issues = github_utils.filter_project_todo_issues(issues)
 
     status_info = github_utils.get_codebase_status()
 
@@ -95,8 +96,7 @@ def main():
     for issue in issues:
         labels = {label["name"] for label in issue.get("labels", [])}
         if (
-            "approved" in labels
-            and "agent:ready" in labels
+            "agent:ready" in labels
             and "plan:signoff" in labels
             and "epic" not in labels
         ):
@@ -108,7 +108,7 @@ def main():
         if target_issue_number is None:
             print(
                 "No eligible issues found for Implementation Agent "
-                "(requires 'approved', 'agent:ready', 'plan:signoff', and no branch/PR)."
+                "(requires project Todo, 'agent:ready', 'plan:signoff', and no branch/PR)."
             )
         else:
             print(f"Issue #{target_issue_number} is not eligible for Implementation Agent.")

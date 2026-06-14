@@ -120,6 +120,7 @@ def main():
     issues = github_utils.list_issues(state="open")
     if target_issue_number is not None:
         issues = [issue for issue in issues if issue["number"] == target_issue_number]
+    issues = github_utils.filter_project_todo_issues(issues)
 
     status_info = github_utils.get_codebase_status()
 

@@ -106,6 +106,7 @@ class RunReport:
     assessments_updated: int = 0
     conformance_warnings: int = 0
     issues_closed: int = 0
+    project_status_updates: int = 0
     agent_ready_marked: int = 0
     needs_human_marked: int = 0
     agent_investigate_marked: int = 0
@@ -460,15 +461,19 @@ def sync_epic_checklist(issue_num: int, body: str) -> str:
         if match:
             prefix = match.group(1)
             task_text = match.group(2).strip()
-            has_issue_ref = re.search(r"#\s*\d+", task_text) or "issues/" in task_text
-            if not has_issue_ref:
+            issue_refs = [int(item) for item in re.findall(r"#\s*(\d+)", task_text)]
+            if issue_refs:
+                for child_issue_num in issue_refs:
+                    if child_issue_num != issue_num:
+                        github_utils.add_sub_issue(issue_num, child_issue_num)
+            elif "issues/" not in task_text:
                 print(f"Epic #{issue_num}: creating sub-issue for checklist item '{task_text}'")
                 sub_issue_num = github_utils.create_github_issue(
                     f"[SUB-TASK] {task_text}",
                     f"Part of Epic #{issue_num}.",
-                    labels=["epic"],
                 )
                 if sub_issue_num:
+                    github_utils.add_sub_issue(issue_num, sub_issue_num)
                     status_char = "x" if "x" in prefix.lower() else " "
                     list_bullet = "-" if "-" in prefix else "*"
                     leading_ws = prefix[: prefix.find(list_bullet)]
@@ -485,6 +490,21 @@ def sync_epic_checklist(issue_num: int, body: str) -> str:
     new_body = "\n".join(updated_lines)
     github_utils.update_issue_body(issue_num, new_body)
     return new_body
+
+
+def sync_declared_epic_parent_links(issue_num: int, body: str) -> None:
+    """Links issues that declare an epic parent in their body as actual sub-issues."""
+    parent_patterns = (
+        r"Tracks under\s+#\s*(\d+)",
+        r"Part of Epic\s+#\s*(\d+)",
+    )
+    parent_numbers: set[int] = set()
+    for pattern in parent_patterns:
+        parent_numbers.update(int(item) for item in re.findall(pattern, body, re.IGNORECASE))
+
+    for parent_issue_num in sorted(parent_numbers):
+        if parent_issue_num != issue_num:
+            github_utils.add_sub_issue(parent_issue_num, issue_num)
 
 
 def classify_issue(
@@ -695,6 +715,22 @@ def sync_issue_with_pull_requests(
     return labels
 
 
+def project_status_for_pr_state(pr_state: str) -> str:
+    if pr_state == "merged":
+        return github_utils.PROJECT_DONE_STATUS
+    if pr_state in {"open_pr", "branch_exists"}:
+        return github_utils.PROJECT_IN_PROGRESS_STATUS
+    return github_utils.PROJECT_TODO_STATUS
+
+
+def sync_issue_project_status(issue_num: int, pr_state: str, report: RunReport) -> None:
+    if github_utils.update_project_issue_status(
+        issue_num,
+        project_status_for_pr_state(pr_state),
+    ):
+        report.project_status_updates += 1
+
+
 def maybe_post_conformance_warning(
     issue_num: int,
     is_epic: bool,
@@ -749,6 +785,8 @@ def triage_issue(issue: dict, repo_context: str, status_info: dict, report: RunR
     is_labeled_epic = "epic" in current_labels or title.upper().startswith("[EPIC]")
     if is_labeled_epic:
         body = sync_epic_checklist(issue_num, body)
+    else:
+        sync_declared_epic_parent_links(issue_num, body)
 
     classification = classify_issue(title, body, current_labels, repo_context, issue_num)
     print(f"Classification: {classification.model_dump()}")
@@ -782,6 +820,7 @@ def triage_issue(issue: dict, repo_context: str, status_info: dict, report: RunR
     updated_labels = sync_issue_with_pull_requests(
         issue_num, updated_labels, pr_state, report
     )
+    sync_issue_project_status(issue_num, pr_state, report)
 
     if "agent:ready" in updated_labels:
         report.agent_ready_marked += 1
@@ -801,6 +840,7 @@ def print_run_report(report: RunReport) -> None:
     print(f"Agent assessments updated: {report.assessments_updated}")
     print(f"Conformance warnings posted: {report.conformance_warnings}")
     print(f"Issues closed from merged PRs: {report.issues_closed}")
+    print(f"Project status updates: {report.project_status_updates}")
     print(f"Issues marked agent:ready: {report.agent_ready_marked}")
     print(f"Issues marked needs:human: {report.needs_human_marked}")
     print(f"Issues marked agent:investigate: {report.agent_investigate_marked}")

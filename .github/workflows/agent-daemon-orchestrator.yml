@@ -5,6 +5,7 @@ on:
 permissions:
   contents: read
   actions: write
+  repository-projects: write
 
 jobs:
   orchestrate:
@@ -16,4 +17,5 @@ jobs:
       - name: Run agent pipeline as separate workflows
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         run: bash scripts/agents/trigger_agent_pipeline.sh "${{ github.ref_name }}"

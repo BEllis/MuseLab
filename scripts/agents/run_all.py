@@ -21,14 +21,17 @@ def main():
     
     # 1. Backlog manager: classify issues, post assessments, sync PR state
     run_script("triage_agent.py")
+
+    # 2. Epic Manager: breaks epic-labelled issues into high-level child issues
+    run_script("epic_manager_agent.py")
     
-    # 2. Investigation Agent: Investigates agent:investigate tickets (reproduces bugs or researches options)
+    # 3. Investigation Agent: Investigates agent:investigate tickets (reproduces bugs or researches options)
     run_script("investigation_agent.py")
     
-    # 3. Designer Agent: Picks up agent:ready tickets and writes design implementation plans
+    # 4. Designer Agent: Picks up project Todo agent:ready tickets and writes design implementation plans
     run_script("designer_agent.py")
     
-    # 4. Implementation Agent: Picks up signed-off plans and implements them, opening a PR
+    # 5. Implementation Agent: Picks up project Todo signed-off plans and opens a PR
     run_script("implementation_agent.py")
     
     print("\n=======================================================")

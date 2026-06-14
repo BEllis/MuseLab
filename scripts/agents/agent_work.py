@@ -51,11 +51,19 @@ def investigate_has_work(issue: dict, status_info: dict) -> bool:
     )
 
 
+def epic_has_work(issue: dict) -> bool:
+    labels = labels_for(issue)
+    return (
+        "epic" in labels
+        and "epic:planned" not in labels
+        and "needs:human" not in labels
+    )
+
+
 def design_has_work(issue: dict) -> bool:
     labels = labels_for(issue)
     return (
-        "approved" in labels
-        and "agent:ready" in labels
+        "agent:ready" in labels
         and "agent:planned" not in labels
         and "epic" not in labels
         and "needs:human" not in labels
@@ -66,8 +74,7 @@ def design_has_work(issue: dict) -> bool:
 def implement_has_work(issue: dict, status_info: dict) -> bool:
     labels = labels_for(issue)
     return (
-        "approved" in labels
-        and "agent:ready" in labels
+        "agent:ready" in labels
         and "plan:signoff" in labels
         and "epic" not in labels
         and github_utils.get_issue_relations(issue["number"], status_info) == "none"
@@ -79,12 +86,19 @@ def next_issue_number(agent_name: str) -> int | None:
     if not issues:
         return None
 
+    if agent_name != "triage":
+        issues = github_utils.filter_project_todo_issues(issues)
+        if not issues:
+            return None
+
     status_info = None
     if agent_name in {"investigate", "implement"}:
         status_info = github_utils.get_codebase_status()
 
     for issue in issues:
         if agent_name == "triage" and triage_has_work(issue):
+            return issue["number"]
+        if agent_name == "epic" and epic_has_work(issue):
             return issue["number"]
         if agent_name == "investigate" and investigate_has_work(issue, status_info or {}):
             return issue["number"]
@@ -97,7 +111,7 @@ def next_issue_number(agent_name: str) -> int | None:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Usage: agent_work.py <triage|investigate|design|implement>", file=sys.stderr)
+        print("Usage: agent_work.py <triage|epic|investigate|design|implement>", file=sys.stderr)
         return 2
 
     issue_number = next_issue_number(sys.argv[1])

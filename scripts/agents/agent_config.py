@@ -4,6 +4,7 @@ AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DEFAULT_MODELS = {
     "triage": "google/gemini-2.5-flash",
+    "epic": "anthropic/claude-sonnet-4",
     "investigate": "anthropic/claude-sonnet-4",
     "design": "anthropic/claude-sonnet-4",
     "implement": "anthropic/claude-sonnet-4",
@@ -11,6 +12,7 @@ DEFAULT_MODELS = {
 
 DEFAULT_TIMEOUTS = {
     "triage": 120.0,
+    "epic": 600.0,
     "investigate": 300.0,
     "design": 600.0,
     "implement": 900.0,

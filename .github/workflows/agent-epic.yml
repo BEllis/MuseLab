@@ -1,9 +1,9 @@
-name: Run Implementation Agent
+name: Run Epic Manager Agent
 on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: Issue number to process. Leave empty to process the next eligible issue.
+        description: Issue number to process. Leave empty to process the next eligible epic.
         required: false
         type: string
   workflow_call:
@@ -13,7 +13,7 @@ on:
         type: string
 
 jobs:
-  implement:
+  epic:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,21 +34,16 @@ jobs:
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-      - name: Configure git author
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Install Dependencies
         run: |
           pip install -r scripts/agents/requirements.txt
 
-      - name: Run Implementation Agent
+      - name: Run Epic Manager Agent
         env:
           PYTHONUNBUFFERED: "1"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
-          OPENROUTER_MODEL_IMPLEMENT: anthropic/claude-sonnet-4
-          OPENROUTER_TIMEOUT_IMPLEMENT: "900"
-        run: python scripts/agents/implementation_agent.py "${{ inputs.issue_number }}"
+          OPENROUTER_MODEL_EPIC: anthropic/claude-sonnet-4
+          OPENROUTER_TIMEOUT_EPIC: "600"
+        run: python scripts/agents/epic_manager_agent.py "${{ inputs.issue_number }}"

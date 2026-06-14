@@ -90,13 +90,13 @@ def main():
     issues = github_utils.list_issues(state="open")
     if target_issue_number is not None:
         issues = [issue for issue in issues if issue["number"] == target_issue_number]
+    issues = github_utils.filter_project_todo_issues(issues)
 
     eligible_issues = []
     for issue in issues:
         labels = {label["name"] for label in issue.get("labels", [])}
         if (
-            "approved" in labels
-            and "agent:ready" in labels
+            "agent:ready" in labels
             and "agent:planned" not in labels
             and "epic" not in labels
             and "needs:human" not in labels
@@ -108,7 +108,7 @@ def main():
         if target_issue_number is None:
             agent_log(
                 "No eligible issues found for Designer Agent "
-                "(requires 'approved', 'agent:ready', and no 'agent:planned')."
+                "(requires project Todo, 'agent:ready', and no 'agent:planned')."
             )
         else:
             agent_log(f"Issue #{target_issue_number} is not eligible for Designer Agent.")
