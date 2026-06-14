@@ -18,11 +18,11 @@ Version 0.1
 
 **Designer** – Node-based flow editor with scene nodes, assets, and text templates.
 
-![Designer](web/assets/designer-screenshot.png)
+![Designer](web/muselab/assets/designer-screenshot.png)
 
 **Player** – Visual novel–style play view with dialogue box, actors, and choices.
 
-![Player](web/assets/player-screenshot.png)
+![Player](web/muselab/assets/player-screenshot.png)
 
 ## Features
 
@@ -40,7 +40,7 @@ Version 0.1
 
 ### Option 1: Run from source (web or desktop)
 
-You need **Node.js 18 or newer** (and npm) installed. For template evaluation in the desktop app, you also need the **.NET 6 SDK** and the **cito** git submodule (`git submodule update --init --recursive`, then `npm run build:cito`).
+You need **Node.js 18 or newer** and **pnpm 10+** installed. For template evaluation in the desktop app, you also need the **.NET 6 SDK** and the **cito** git submodule (`git submodule update --init --recursive`, then `pnpm build:cito`).
 
 1. Clone the repository and go into the project folder:
    ```bash
@@ -49,7 +49,7 @@ You need **Node.js 18 or newer** (and npm) installed. For template evaluation in
    ```
 2. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 
 You can then run MuseLab in the browser or as a desktop app (see [Getting Started](#getting-started)).
@@ -62,35 +62,47 @@ If a desktop release is provided for your platform, download and run the install
 
 ### Running the app
 
-- **In the browser:** Run `npm run dev`, then open the URL shown (e.g. `http://localhost:5173`). Use the Designer to build your story and click **Play** to open the player. Offline/PWA caching is enabled only in the production web deploy (`npm run build:web-deploy`), not in dev mode.
-- **Desktop app:** Run `npm run electron:dev`. Use **File → New / Save / Load** to manage project files.
+- **In the browser:** Run `pnpm dev`, then open the URL shown (e.g. `http://localhost:5173`). Use the Designer to build your story and click **Play** to open the player. Offline/PWA caching is enabled only in the production web deploy (`pnpm deploy`), not in dev mode.
+- **Desktop app:** Run `pnpm electron:dev`. Use **File → New / Save / Load** to manage project files.
 
 ### Creating your first story
 
 1. **Open the Designer** – You start on the flow canvas. Click **Add scene** to create your first node.
-2. **Add more scenes** – Create more nodes and connect them: drag from a node’s edge to another node to create a link.
+2. **Add more scenes** – Create more nodes and connect them: drag from a node's edge to another node to create a link.
 3. **Edit a scene** – Select a node. In the side panel you can:
    - Set a **label** (for your reference).
    - Choose a **backdrop** image.
    - Add **actors** (character images). You can add multiple; they appear at the bottom of the play area.
    - Add **sounds** and set whether they start on load, loop, or trim to a time range.
    - Write the **text template** – your dialogue and narrative. Use Cito in `{{ }}` blocks, e.g. `{{ rt.GetString("name") }}`. See [docs/cito-templates.md](docs/cito-templates.md).
-4. **Set up choices** – Select an edge (the line between two nodes). You can add **option text** (what the player sees, e.g. “Go left”) and an optional **Cito condition** (e.g. `rt.GetBool("hasKey")`) so the choice only appears when true.
+4. **Set up choices** – Select an edge (the line between two nodes). You can add **option text** (what the player sees, e.g. "Go left") and an optional **Cito condition** (e.g. `rt.GetBool("hasKey")`) so the choice only appears when true.
 5. **Add assets** – In the assets panel, add backdrops, actors, and sounds. Then assign them to your nodes.
-6. **Play** – Click **Play** to open the player. The entry scene is the sole root node (no incoming edges), or the story’s designated `entryNodeId`. Click through dialogue and choices to test your story.
+6. **Play** – Click **Play** to open the player. The entry scene is the sole root node (no incoming edges), or the story's designated `entryNodeId`. Click through dialogue and choices to test your story.
 
 ### Player tips
 
 - In the player header you can change **Resolution** to see how your story looks at different sizes. Use **Custom** to enter a specific width and height.
-- When there’s only one path forward and no choice text, the dialogue box shows **Continue >>**; you can also click anywhere on the dialogue to advance.
+- When there's only one path forward and no choice text, the dialogue box shows **Continue >>**; you can also click anywhere on the dialogue to advance.
 - Use **Designer** in the player header to return to the editor.
 
 ### File menu (desktop app)
 
-- **New** (Ctrl/Cmd+N) – Start a new project. You’ll be prompted to save first if there are unsaved changes.
+- **New** (Ctrl/Cmd+N) – Start a new project. You'll be prompted to save first if there are unsaved changes.
 - **Save** (Ctrl/Cmd+S) – Save the project as a `.mlvn` file.
 - **Load** (Ctrl/Cmd+O) – Open a saved `.mlvn` project (or legacy `.json` for migration).
 - **Quit** – Close the app.
+
+## Monorepo
+
+This repository is a pnpm + Turborepo monorepo. Run all commands from the repo root:
+
+| Package | Path | Purpose |
+|---------|------|---------|
+| `@muselab/designer` | `apps/designer/` | Web + Electron visual novel designer |
+| `@muselab/web-muselab` | `web/muselab/` | Static marketing site |
+| `@muselab/site` | `infra/muselab-site/` | Cloudflare deploy bundle + Worker |
+| `@muselab/shared` | `packages/shared/` | Shared TypeScript modules |
+| Unity scaffold | `scaffolds/unity/MuseLab/` | Unity 6 player runtime |
 
 ## License
 

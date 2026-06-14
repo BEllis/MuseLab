@@ -1,0 +1,12 @@
+{
+  "name": "@muselab/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./schemaMenuManifest": "./schemaMenuManifest.ts"
+  },
+  "scripts": {
+    "build": "echo \"@muselab/shared: no build step\""
+  }
+}

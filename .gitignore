@@ -5,11 +5,16 @@ node_modules/
 dist/
 dist-deploy/
 dist-electron/
+apps/designer/dist/
+apps/designer/dist-electron/
+apps/designer/release/
+infra/muselab-site/dist-deploy/
 out/
 *.local
 
 # Vite
 .vite/
+.turbo/
 
 # TypeScript
 *.tsbuildinfo
@@ -43,11 +48,11 @@ Thumbs.db
 release/
 *.blockmap
 tools/cito/
-wasm/cito/bin/
-wasm/cito/obj/
+apps/designer/wasm/cito/bin/
+apps/designer/wasm/cito/obj/
 tmp/
 
 # Optional: keep if you want to ignore local project files
 # *.muselab
 .opencode
-scaffolds/unity/MuseLabPlayer/Assets/StreamingAssets
+scaffolds/unity/MuseLab/Assets/StreamingAssets

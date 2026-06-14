@@ -11,10 +11,18 @@ if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.
   exit 1
 fi
 
-OLD_VERSION="$(node -p "require('./package.json').version")"
+OLD_VERSION="$(node -p "require('./apps/designer/package.json').version")"
 
-echo "Package: ${OLD_VERSION} -> ${NEW_VERSION}"
+echo "Designer: ${OLD_VERSION} -> ${NEW_VERSION}"
 
-npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
+node -e "
+const fs = require('fs');
+const paths = ['package.json', 'apps/designer/package.json'];
+for (const file of paths) {
+  const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+  pkg.version = process.argv[1];
+  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
+}
+" "$NEW_VERSION"
 
 echo "Version bump complete."

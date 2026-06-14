@@ -8,7 +8,7 @@ Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) 
 
 | Step | Plan item | Status | Notes |
 |------|-----------|--------|------|
-| 1 | Scaffold: Vite + React + TS, Electron | Done | Single package, `npm run dev` (web), `npm run electron:dev` (desktop) |
+| 1 | Scaffold: Vite + React + TS, Electron | Done | `@muselab/designer` in `apps/designer/`; `pnpm dev` (web), `pnpm electron:dev` (desktop) |
 | 2 | Core model: types, project, save/load | Done | `src/core/model/`, Zustand store; `.mlvn` zip archives + legacy JSON import |
 | 3 | AntV X6: custom node, native edges, persist positions | Done | `FlowCanvas`, `StoryNode`, `src/x6/`; project is source of truth |
 | 4 | Node editor: backdrop, actors, sounds, template | Done | `NodeEditorPanel` with sound config, locale prompts, speaker field |
@@ -26,42 +26,23 @@ All planned steps are implemented. Post-plan work includes multi-story projects,
 
 ```
 MuseLab/
+├── apps/
+│   └── designer/            # @muselab/designer — React + Electron app
+│       ├── src/             # Designer, Player, core model, cito compile
+│       ├── electron/        # Main process, preload, IPC
+│       └── muselab.*.schema.json
+├── web/muselab/             # Static marketing site
+├── packages/shared/         # @muselab/shared
+├── infra/muselab-site/      # Cloudflare Worker + deploy bundle
+├── scaffolds/unity/MuseLab/ # Unity 6 player scaffold
 ├── docs/
-│   ├── PLAN.md              # Original plan (historical)
-│   ├── PROJECT_STATUS.md    # This file
-│   ├── cito-templates.md    # Cito template syntax reference
-│   └── prompts/             # AI agent prompts (e.g. story generator)
-├── electron/
-│   ├── main.ts              # Window, menu, IPC: file dialogs, cito transpile, .mlvn
-│   ├── preload.ts           # contextBridge: electronAPI
-│   ├── citoTranspile.ts     # Invoke bundled cito subprocess
-│   ├── assetProtocol.ts     # asset:// URL handler
-│   └── userSettings.ts      # Persisted theme preference
-├── scripts/
-│   └── build-cito.sh        # Build third_party/cito → tools/cito/
-├── src/
-│   ├── cito/                # MuseLabRuntime.ci, Format.ci (cito compile stubs)
-│   ├── core/
-│   │   ├── assets/          # resolver, hydration, web storage, default backdrop
-│   │   ├── cito/            # compileTemplate, compileCondition, transpile, formatRuntime
-│   │   ├── history/         # Undo/redo for project edits
-│   │   ├── locale/          # Locale tags, prompts.<locale>.json read/write
-│   │   ├── model/           # Project, Story, StoryNode, StoryEdge, Asset
-│   │   ├── project/         # .mlvn archive pack/unpack, file actions
-│   │   ├── runtime/         # runner.ts – player state, choices, template run
-│   │   ├── template/        # engine.ts, sanitize.ts
-│   │   └── view/            # theme, player resolution, scene stage helpers
-│   ├── components/          # FlowCanvas, panels, StoryNode, MenuBar, etc.
-│   ├── x6/                  # X6 graph config, shape registration, project sync
-│   ├── views/               # DesignerView, PlayerView
-│   ├── store/               # projectStore, themeStore, aboutStore
-│   └── hooks/               # useAssetUrl, useActiveStory
+│   ├── PLAN.md
+│   ├── PROJECT_STATUS.md
+│   ├── cito-templates.md
+│   └── prompts/
 ├── third_party/cito/        # Marco012/cito (git submodule)
 ├── tools/cito/              # Built transpiler output (gitignored)
-├── muselab.story.schema.json
-├── muselab.prompts.schema.json
-├── muselab.bundle.schema.json
-├── muselab.mlvn.schema.json
+├── package.json             # Root workspace (pnpm + turbo)
 └── README.md
 ```
 
@@ -69,14 +50,14 @@ MuseLab/
 
 ## How to run
 
-- **Web:** `npm run dev` → Designer at `/`, Player at `/play`. Save/load via browser download and file picker (`.mlvn` or legacy `.json`).
-- **Web deploy (PWA):** `npm run build:web-deploy` → `dist-deploy/` with service worker precaching app shell + Cito WASM for offline use at `/designer/` after first visit.
-- **Build:** `npm run build` → `dist/` (web).
-- **Electron:** `npm run electron:dev` → native file dialogs, cito transpilation, `asset://` URLs.
-- **Tests:** `npm run test` (Vitest).
-- **Cito transpiler:** `npm run build:cito` (requires .NET 6 SDK and `third_party/cito` submodule).
+- **Web:** `pnpm dev` → Designer at `/`, Player at `/play`. Save/load via browser download and file picker (`.mlvn` or legacy `.json`).
+- **Web deploy (PWA):** `pnpm deploy` (or site build script) → `infra/muselab-site/dist-deploy/` with service worker precaching app shell + Cito WASM for offline use at `/designer/` after first visit.
+- **Build:** `pnpm build` → `apps/designer/dist/` (web).
+- **Electron:** `pnpm electron:dev` → native file dialogs, cito transpilation, `asset://` URLs.
+- **Tests:** `pnpm test` (Vitest).
+- **Cito transpiler:** `pnpm build:cito` (requires .NET 6 SDK and `third_party/cito` submodule).
 
-Template evaluation requires Electron (cito runs in the main process). Browser-only `npm run dev` cannot evaluate Cito templates.
+Template evaluation requires Electron (cito runs in the main process). Browser-only `pnpm dev` cannot evaluate Cito templates.
 
 ---
 

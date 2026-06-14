@@ -1,0 +1,13 @@
+{
+  "name": "@muselab/site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "bash scripts/build-web-deploy.sh",
+    "deploy": "pnpm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.98.0"
+  }
+}

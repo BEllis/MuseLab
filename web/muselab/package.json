@@ -1,0 +1,8 @@
+{
+  "name": "@muselab/web-muselab",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "echo \"@muselab/web-muselab: static site, no build step\""
+  }
+}

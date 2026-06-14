@@ -24,10 +24,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
 
       - name: Validate version
         id: meta
@@ -50,7 +56,7 @@ jobs:
         run: bash scripts/bump-version.sh "${{ steps.meta.outputs.version }}"
 
       - name: Run tests
-        run: npm ci && npm test
+        run: pnpm install --frozen-lockfile && pnpm test
 
       - name: Commit, tag, and push
         env:
@@ -58,7 +64,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
+          git add package.json apps/designer/package.json pnpm-lock.yaml
           if git diff --cached --quiet; then
             echo "No version changes to commit" >&2
             exit 1

@@ -1,0 +1,44 @@
+# Dependencies and caches
+node_modules
+**/node_modules
+.pnpm-store
+.turbo
+
+# Build outputs (rebuilt inside the image)
+dist
+dist-deploy
+dist-electron
+**/dist
+**/dist-deploy
+!infra/muselab-site/dist-deploy
+!infra/muselab-site/dist-deploy/**
+**/dist-electron
+**/release
+
+# VCS and IDE
+.git
+.gitmodules
+.github
+.cursor
+.idea
+.vscode
+
+# Desktop / native tooling not needed for the web image
+scaffolds
+third_party
+tools
+apps/designer/electron
+apps/designer/release
+apps/designer/wasm/cito/bin
+apps/designer/wasm/cito/obj
+apps/designer/dist
+apps/designer/dist-electron
+
+# Docs and misc
+docs
+*.md
+!web/muselab/**/*.md
+LICENSE
+tmp
+.env
+.env.*

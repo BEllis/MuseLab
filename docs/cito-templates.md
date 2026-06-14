@@ -72,7 +72,7 @@ MuseLab ships three built-in modules. In templates they are bound as:
 
 ### Runtime (`rt`)
 
-Story state is keyed by string. Keys are shared across scenes in the active story.
+Story state is keyed by string. Keys are shared across scenes and stories in a play session.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -294,22 +294,22 @@ Older MuseLab projects used Handlebars-style `{{ … }}` syntax. That path has b
 
 1. Install [.NET 6 SDK](https://dotnet.microsoft.com/download).
 2. Initialize cito submodule: `git submodule update --init --recursive`
-3. Build the transpiler: `npm run build:cito`
+3. Build the transpiler: `pnpm build:cito`
 
-Cito transpilation runs in the **Electron main process**. Browser-only `npm run dev` cannot evaluate templates; use `npm run electron:dev`.
+Cito transpilation runs in the **Electron main process**. Browser-only `pnpm dev` cannot evaluate templates; use `pnpm electron:dev`.
 
-When editing the Razor grammar, run `npm run build:razor-grammar` to regenerate the Lezer parser.
+When editing the Razor grammar, run `pnpm --filter @muselab/designer run build:razor-grammar` to regenerate the Lezer parser.
 
 ---
 
 ## Architecture (for contributors)
 
-- [`src/core/cito/museLabRazor.grammar`](../src/core/cito/museLabRazor.grammar) — Lezer grammar (shared by parser and CodeMirror)
-- [`src/core/cito/parseRazorTemplate.ts`](../src/core/cito/parseRazorTemplate.ts) — Lezer tree walk → template segments
-- [`src/core/cito/compileTemplate.ts`](../src/core/cito/compileTemplate.ts) — parse Razor → `.ci` `Render` method
-- [`src/core/cito/compileCondition.ts`](../src/core/cito/compileCondition.ts) — wrap edge conditions in `Eval`
-- [`src/core/modules/builtInModules.ts`](../src/core/modules/builtInModules.ts) — built-in API definitions
-- [`electron/citoTranspile.ts`](../electron/citoTranspile.ts) — invoke cito subprocess
-- [`src/core/template/engine.ts`](../src/core/template/engine.ts) — compile, transpile, execute, sanitize
+- [`apps/designer/src/core/cito/museLabRazor.grammar`](../apps/designer/src/core/cito/museLabRazor.grammar) — Lezer grammar (shared by parser and CodeMirror)
+- [`apps/designer/src/core/cito/parseRazorTemplate.ts`](../apps/designer/src/core/cito/parseRazorTemplate.ts) — Lezer tree walk → template segments
+- [`apps/designer/src/core/cito/compileTemplate.ts`](../apps/designer/src/core/cito/compileTemplate.ts) — parse Razor → `.ci` `Render` method
+- [`apps/designer/src/core/cito/compileCondition.ts`](../apps/designer/src/core/cito/compileCondition.ts) — wrap edge conditions in `Eval`
+- [`apps/designer/src/core/modules/builtInModules.ts`](../apps/designer/src/core/modules/builtInModules.ts) — built-in API definitions
+- [`apps/designer/electron/citoTranspile.ts`](../apps/designer/electron/citoTranspile.ts) — invoke cito subprocess
+- [`apps/designer/src/core/template/engine.ts`](../apps/designer/src/core/template/engine.ts) — compile, transpile, execute, sanitize
 
 Future export can run `cito -o out.py template.ci` (or other targets) on the same stored Cito source.

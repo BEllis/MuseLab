@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "muselab",
+  "compatibility_date": "2025-06-08",
+  "main": "worker/index.ts",
+  "build": {
+    "command": "pnpm run build"
+  },
+  "assets": {
+    "directory": "./dist-deploy",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  }
+}
