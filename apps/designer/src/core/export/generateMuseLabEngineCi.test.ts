@@ -85,4 +85,35 @@ describe("generateMuseLabEngineCi", () => {
     expect(ci).toContain("if (index == 1)");
     expect(ci).not.toMatch(/if \(index == "[0-9]+"\)/);
   });
+
+  it("emits jump target lookups and per-story missing global state defaults", () => {
+    const project = makeExportProject();
+    project.stories.push({
+      id: "story-2",
+      name: "Side",
+      entryNodeId: "start-2",
+      globalState: { trust: 0 },
+      nodes: [
+        { id: "start-2", type: "start", position: { x: 0, y: 0 }, label: "Side" },
+        {
+          id: "jump-1",
+          type: "jump",
+          position: { x: 100, y: 0 },
+          jumpTargetStoryId: "story-2",
+          jumpTargetStartNodeId: "start-2",
+        },
+      ],
+      edges: [{ id: "edge-jump", sourceNodeId: "start-2", targetNodeId: "jump-1" }],
+    });
+
+    const ci = generateMuseLabEngineCi({
+      project,
+      promptsByLocale: createEmptyPromptsByLocale(project.locales),
+    });
+
+    expect(ci).toContain("GetJumpTargetStoryId");
+    expect(ci).toContain("GetJumpTargetStartNodeId");
+    expect(ci).toContain('rt.SetInt("trust", 0);');
+    expect(ci).toContain("ApplyMissingStoryGlobalStateDefaults");
+  });
 });

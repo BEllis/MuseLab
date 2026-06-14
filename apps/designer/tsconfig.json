@@ -20,6 +20,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "muselab.*.schema.json"],
+  "include": ["src", "e2e", "scripts", "playwright.config.ts", "muselab.*.schema.json"],
   "exclude": ["src/**/*.test.ts"]
 }

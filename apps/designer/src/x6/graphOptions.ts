@@ -1,15 +1,14 @@
 import type { Options, ValidateConnectionArgs } from "@antv/x6";
 import { Shape } from "@antv/x6";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
-import { isJumpNode, isSceneNode, isStartNode } from "@/core/model/nodeTypes";
 import {
-  FREE_IN_PORT,
   STORY_EDGE_SHAPE,
   isEndNodeId,
   isOutPort,
   isSyntheticEndEdgeId,
   magnetPortId,
 } from "./constants";
+import { validateStoryConnection } from "./validateStoryConnection";
 import { autoEdgeRouter, storyEdgeConnector } from "./edgeConfig";
 
 function getDomainNode(nodeId: string) {
@@ -69,29 +68,16 @@ export function createGraphOptions(container: HTMLElement): Options {
 
         const resolvedSourcePort =
           sourcePort ?? (sourceMagnet ? magnetPortId(sourceMagnet) : null);
-        if (!isOutPort(resolvedSourcePort)) return false;
-
-        const sourceNode = getDomainNode(sourceCell.id);
-        if (!sourceNode || (!isStartNode(sourceNode) && !isSceneNode(sourceNode))) {
-          return false;
-        }
-
-        if (!targetCell) return true;
-
-        if (sourceCell.id === targetCell.id) return false;
-        if (isEndNodeId(sourceCell.id) || isEndNodeId(targetCell.id)) return false;
-
         const resolvedTargetPort =
           targetPort ?? (targetMagnet ? magnetPortId(targetMagnet) : null);
 
-        if (resolvedTargetPort !== FREE_IN_PORT) return false;
-
-        const targetNode = getDomainNode(targetCell.id);
-        if (!targetNode) return false;
-
-        if (!isSceneNode(targetNode) && !isJumpNode(targetNode)) return false;
-
-        return true;
+        return validateStoryConnection({
+          sourceNodeId: sourceCell.id,
+          targetNodeId: targetCell?.id ?? null,
+          sourcePort: resolvedSourcePort,
+          targetPort: resolvedTargetPort,
+          lookupNode: getDomainNode,
+        });
       },
     },
     interacting(cellView) {

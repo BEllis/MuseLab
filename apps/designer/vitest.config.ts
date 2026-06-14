@@ -4,8 +4,10 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  publicDir: path.resolve(__dirname, "public"),
   test: {
     environment: "node",
+    exclude: ["e2e/**", "**/node_modules/**"],
   },
   resolve: {
     alias: {

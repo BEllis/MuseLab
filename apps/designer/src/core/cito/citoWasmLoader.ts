@@ -64,6 +64,22 @@ const WASM_TRANSPILERS: Record<
 
 let transpileLib: DotNetExports["Foxoft"]["Ci"]["TranspileLib"] | null = null;
 let initPromise: Promise<void> | null = null;
+let testLocationHref: string | null = null;
+
+/** Align WASM asset resolution with Vitest's dev-server origin. */
+export function configureCitoWasmTestEnvironment(locationHref: string): void {
+  testLocationHref = locationHref;
+}
+
+function wasmLocationHref(): string {
+  if (testLocationHref) {
+    return testLocationHref;
+  }
+  if (typeof window === "undefined") {
+    throw new Error("window is unavailable");
+  }
+  return window.location.href;
+}
 
 function citoWasmBaseUrl(): string {
   const base = import.meta.env.BASE_URL;
@@ -75,7 +91,7 @@ function citoFrameworkBaseUrl(): string {
 }
 
 function citoFrameworkAbsoluteUrl(): string {
-  return new URL(citoFrameworkBaseUrl(), window.location.href).href;
+  return new URL(citoFrameworkBaseUrl(), wasmLocationHref()).href;
 }
 
 export function resolveWasmAssetUrl(
@@ -231,4 +247,5 @@ export async function transpileCiSourceWithWasm(
 export function resetCitoWasmForTests(): void {
   transpileLib = null;
   initPromise = null;
+  testLocationHref = null;
 }

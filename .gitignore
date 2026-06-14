@@ -52,6 +52,12 @@ apps/designer/wasm/cito/bin/
 apps/designer/wasm/cito/obj/
 tmp/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Optional: keep if you want to ignore local project files
 # *.muselab
 .opencode
