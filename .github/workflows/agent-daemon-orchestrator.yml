@@ -1,0 +1,22 @@
+name: Agent Backlog Orchestrator Daemon
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Run every 30 minutes
+  workflow_dispatch: # Allow manual trigger of the full pipeline
+
+jobs:
+  triage:
+    uses: ./.github/workflows/agent-triage.yml
+    secrets: inherit
+  investigate:
+    needs: triage
+    uses: ./.github/workflows/agent-investigate.yml
+    secrets: inherit
+  design:
+    needs: investigate
+    uses: ./.github/workflows/agent-design.yml
+    secrets: inherit
+  implement:
+    needs: design
+    uses: ./.github/workflows/agent-implement.yml
+    secrets: inherit

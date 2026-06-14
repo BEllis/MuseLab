@@ -1,0 +1,36 @@
+name: Run Triage Agent
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install Dependencies
+        run: |
+          pip install -r scripts/agents/requirements.txt
+
+      - name: Run Triage Agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_MODEL_TRIAGE: google/gemini-2.5-flash
+        run: python scripts/agents/triage_agent.py
