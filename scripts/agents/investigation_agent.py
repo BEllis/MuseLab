@@ -9,6 +9,7 @@ load_dotenv()
 
 import pydantic
 from agent_config import model_for_agent
+from agent_session import create_session_id, pick_primary_issue, with_fresh_session_instructions
 from codebase_context import gather_codebase_context
 from openrouter_client import chat_structured
 
@@ -65,12 +66,13 @@ Tasks:
 
     result = chat_structured(
         model=model_for_agent("investigate"),
-        system=(
+        system=with_fresh_session_instructions(
             "You are an expert investigation agent for a TypeScript/React/Electron monorepo. "
             "Be concrete and reference files from the provided context when possible."
         ),
         user=prompt,
         response_model=InvestigationResult,
+        session_id=create_session_id("investigate", issue_num),
     )
     result_data = result.model_dump()
 
@@ -129,12 +131,16 @@ def main():
         )
         return
 
-    print(f"Found {len(eligible_issues)} issue(s) ready for investigation.")
-    for issue in eligible_issues:
-        try:
-            process_issue(issue)
-        except Exception as exc:
-            print(f"Error investigating issue #{issue['number']}: {exc}")
+    print(f"Found {len(eligible_issues)} eligible issue(s); processing one fresh session per run.")
+    issue = pick_primary_issue(eligible_issues)
+    if not issue:
+        return
+
+    print(f"Processing one issue in a fresh session: #{issue['number']}")
+    try:
+        process_issue(issue)
+    except Exception as exc:
+        print(f"Error investigating issue #{issue['number']}: {exc}")
 
 
 if __name__ == "__main__":

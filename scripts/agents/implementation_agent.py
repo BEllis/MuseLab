@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent_config import model_for_agent, resolve_repo_root
+from agent_session import create_session_id, pick_primary_issue, with_fresh_session_instructions
 from agent_tools import IMPLEMENTATION_TOOLS, execute_tool
 from codebase_context import gather_codebase_context
 from openrouter_client import chat_with_tools
@@ -63,7 +64,7 @@ Use run_command for git, pnpm, and gh operations. Stop only after the PR is crea
 
     final_output = chat_with_tools(
         model=model_for_agent("implement"),
-        system=(
+        system=with_fresh_session_instructions(
             "You are an expert implementation agent for the MuseLab monorepo. "
             "Make minimal, correct changes, run verification, and open a PR."
         ),
@@ -72,6 +73,7 @@ Use run_command for git, pnpm, and gh operations. Stop only after the PR is crea
         execute_tool=execute_tool,
         max_rounds=40,
         temperature=0.1,
+        session_id=create_session_id("implement", issue_num),
     )
 
     print(f"\nImplementation Agent completed for #{issue_num}. Output:\n{final_output}\n")
@@ -97,12 +99,16 @@ def main():
         )
         return
 
-    print(f"Found {len(eligible_issues)} issue(s) ready for implementation.")
-    for issue in eligible_issues:
-        try:
-            process_issue(issue)
-        except Exception as exc:
-            print(f"Error implementing issue #{issue['number']}: {exc}")
+    print(f"Found {len(eligible_issues)} eligible issue(s); processing one fresh session per run.")
+    issue = pick_primary_issue(eligible_issues)
+    if not issue:
+        return
+
+    print(f"Processing one issue in a fresh session: #{issue['number']}")
+    try:
+        process_issue(issue)
+    except Exception as exc:
+        print(f"Error implementing issue #{issue['number']}: {exc}")
 
 
 if __name__ == "__main__":

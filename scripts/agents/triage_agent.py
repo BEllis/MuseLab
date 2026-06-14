@@ -10,6 +10,7 @@ load_dotenv()
 
 import pydantic
 from agent_config import model_for_agent
+from agent_session import create_session_id, with_fresh_session_instructions
 from openrouter_client import chat_structured
 
 class TriageClassification(pydantic.BaseModel):
@@ -83,14 +84,17 @@ Triage criteria:
 - VALUE: high, medium, or low.
 """
 
+    session_id = create_session_id("triage", issue_num)
+    print(f"Starting fresh triage session: {session_id}")
     triage_info = chat_structured(
         model=model_for_agent("triage"),
-        system=(
+        system=with_fresh_session_instructions(
             "You are an expert triage agent for GitHub issues. "
             "Return accurate labels and a short explanation."
         ),
         user=prompt,
         response_model=TriageClassification,
+        session_id=session_id,
     )
     triage_data = triage_info.model_dump()
     print(f"Classification result: {triage_data}")

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent_config import model_for_agent
+from agent_session import create_session_id, pick_primary_issue, with_fresh_session_instructions
 from codebase_context import gather_codebase_context
 from openrouter_client import chat_text
 
@@ -49,12 +50,13 @@ Build, test, and manual verification steps.
 
     plan_content = chat_text(
         model=model_for_agent("design"),
-        system=(
+        system=with_fresh_session_instructions(
             "You are an expert designer agent for the MuseLab monorepo. "
             "Produce concrete, file-specific plans without placeholders."
         ),
         user=prompt,
         temperature=0.2,
+        session_id=create_session_id("design", issue_num),
     )
 
     if not plan_content or len(plan_content.strip()) < 50:
@@ -91,12 +93,16 @@ def main():
         )
         return
 
-    print(f"Found {len(eligible_issues)} issue(s) ready for design planning.")
-    for issue in eligible_issues:
-        try:
-            process_issue(issue)
-        except Exception as exc:
-            print(f"Error processing issue #{issue['number']}: {exc}")
+    print(f"Found {len(eligible_issues)} eligible issue(s); processing one fresh session per run.")
+    issue = pick_primary_issue(eligible_issues)
+    if not issue:
+        return
+
+    print(f"Processing one issue in a fresh session: #{issue['number']}")
+    try:
+        process_issue(issue)
+    except Exception as exc:
+        print(f"Error processing issue #{issue['number']}: {exc}")
 
 
 if __name__ == "__main__":

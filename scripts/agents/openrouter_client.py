@@ -62,12 +62,15 @@ def chat(
     tool_choice: str | dict[str, Any] | None = None,
     response_model: type[T] | None = None,
     temperature: float = 0.2,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
     }
+    if session_id:
+        payload["user"] = session_id
     if tools:
         payload["tools"] = tools
         payload["tool_choice"] = tool_choice or "auto"
@@ -104,6 +107,7 @@ def chat_text(
     system: str,
     user: str,
     temperature: float = 0.2,
+    session_id: str | None = None,
 ) -> str:
     data = chat(
         model=model,
@@ -112,6 +116,7 @@ def chat_text(
             {"role": "user", "content": user},
         ],
         temperature=temperature,
+        session_id=session_id,
     )
     return _extract_message_content(data)
 
@@ -123,6 +128,7 @@ def chat_structured(
     user: str,
     response_model: type[T],
     temperature: float = 0.1,
+    session_id: str | None = None,
 ) -> T:
     try:
         data = chat(
@@ -133,6 +139,7 @@ def chat_structured(
             ],
             response_model=response_model,
             temperature=temperature,
+            session_id=session_id,
         )
         content = _extract_message_content(data)
         return response_model.model_validate_json(content)
@@ -146,6 +153,7 @@ def chat_structured(
             system=system,
             user=repair_prompt,
             temperature=0.0,
+            session_id=session_id,
         )
         return response_model.model_validate_json(content)
 
@@ -159,6 +167,7 @@ def chat_with_tools(
     execute_tool,
     max_rounds: int = 40,
     temperature: float = 0.2,
+    session_id: str | None = None,
 ) -> str:
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system},
@@ -172,6 +181,7 @@ def chat_with_tools(
             tools=tools,
             tool_choice="auto",
             temperature=temperature,
+            session_id=session_id,
         )
         message = data["choices"][0]["message"]
         messages.append(message)
