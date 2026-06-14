@@ -101,14 +101,17 @@ def main():
             and "epic" not in labels
         ):
             state_relation = github_utils.get_issue_relations(issue["number"], status_info)
-            if state_relation == "none":
+            if (
+                state_relation == "none"
+                and not github_utils.has_unresolved_dependencies(issue)
+            ):
                 eligible_issues.append(issue)
 
     if not eligible_issues:
         if target_issue_number is None:
             print(
                 "No eligible issues found for Implementation Agent "
-                "(requires project Todo, 'agent:ready', 'plan:signoff', and no branch/PR)."
+                "(requires project Todo, 'agent:ready', 'plan:signoff', no branch/PR, and no unresolved dependencies)."
             )
         else:
             print(f"Issue #{target_issue_number} is not eligible for Implementation Agent.")

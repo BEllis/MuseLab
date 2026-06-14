@@ -24,14 +24,17 @@ def main():
 
     # 2. Epic Manager: breaks epic-labelled issues into high-level child issues
     run_script("epic_manager_agent.py")
+
+    # 3. Dependency Tracker: identifies blocking issue dependencies
+    run_script("dependency_tracker_agent.py")
     
-    # 3. Investigation Agent: Investigates agent:investigate tickets (reproduces bugs or researches options)
+    # 4. Investigation Agent: Investigates agent:investigate tickets (reproduces bugs or researches options)
     run_script("investigation_agent.py")
     
-    # 4. Designer Agent: Picks up project Todo agent:ready tickets and writes design implementation plans
+    # 5. Designer Agent: Picks up project Todo agent:ready tickets and writes design implementation plans
     run_script("designer_agent.py")
     
-    # 5. Implementation Agent: Picks up project Todo signed-off plans and opens a PR
+    # 6. Implementation Agent: Picks up project Todo signed-off plans and opens a PR
     run_script("implementation_agent.py")
     
     print("\n=======================================================")

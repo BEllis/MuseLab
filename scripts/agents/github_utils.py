@@ -11,6 +11,9 @@ PROJECT_IN_PROGRESS_STATUS = os.environ.get(
     "MUSELAB_PROJECT_IN_PROGRESS_STATUS", "In Progress"
 )
 PROJECT_DONE_STATUS = os.environ.get("MUSELAB_PROJECT_DONE_STATUS", "Done")
+DEPENDENCY_ASSESSMENT_TAG = "<!-- dependency-assessment -->"
+DEPENDENCY_COMMENT_TAG = "<!-- dependency-comment -->"
+DEPENDENCY_SECTION_TAG = "<!-- issue-dependencies -->"
 
 def run_cmd(args, cwd=None):
     """Helper to run a shell command and return output, stdout, stderr, and exit code."""
@@ -317,12 +320,77 @@ def get_issue_details(issue_number):
     """Retrieves full details of a specific issue, including comments."""
     res = run_cmd([
         "gh", "issue", "view", str(issue_number),
-        "--json", "number,title,body,labels,comments"
+        "--json", "number,title,body,labels,comments,state"
     ])
     if not res["success"]:
         print(f"Error viewing issue #{issue_number}: {res['stderr']}")
         return None
     return json.loads(res["stdout"])
+
+def issue_is_completed(issue_number):
+    details = get_issue_details(issue_number)
+    if not details:
+        return False
+    return details.get("state", "").upper() == "CLOSED"
+
+def dependency_numbers_from_body(body):
+    """Extracts dependency issue numbers from the managed Dependencies section."""
+    if not body:
+        return set()
+    section = ""
+    if DEPENDENCY_SECTION_TAG in body:
+        _, after_tag = body.split(DEPENDENCY_SECTION_TAG, 1)
+        section = re.split(r"\n##\s+", after_tag, maxsplit=1)[0]
+    else:
+        match = re.search(r"(?ims)^## Dependencies\s*(.*?)(?=^##\s+|\Z)", body)
+        if match:
+            section = match.group(1)
+    return {int(item) for item in re.findall(r"#\s*(\d+)", section)}
+
+def has_unresolved_dependencies(issue):
+    deps = dependency_numbers_from_body(issue.get("body") or "")
+    if not deps:
+        return False
+    return any(not issue_is_completed(dep) for dep in deps)
+
+def dependency_assessment_exists(issue):
+    body = issue.get("body") or ""
+    if DEPENDENCY_ASSESSMENT_TAG in body or DEPENDENCY_SECTION_TAG in body:
+        return True
+    for comment in issue.get("comments", []) or []:
+        if DEPENDENCY_COMMENT_TAG in (comment.get("body") or ""):
+            return True
+    return False
+
+def append_dependency_assessment_marker(body):
+    if DEPENDENCY_ASSESSMENT_TAG in (body or ""):
+        return body or ""
+    body = (body or "").rstrip()
+    return f"{body}\n\n{DEPENDENCY_ASSESSMENT_TAG}\n" if body else f"{DEPENDENCY_ASSESSMENT_TAG}\n"
+
+def upsert_dependency_section(body, dependencies):
+    """Adds or replaces the managed Dependencies section in an issue body."""
+    body = body or ""
+    lines = [
+        "## Dependencies",
+        DEPENDENCY_SECTION_TAG,
+        DEPENDENCY_ASSESSMENT_TAG,
+    ]
+    for dependency in dependencies:
+        issue_number = dependency["issue_number"]
+        reason = dependency["reason"].strip()
+        lines.append(f"- [ ] Depends on #{issue_number}: {reason}")
+    section = "\n".join(lines).rstrip() + "\n"
+
+    if DEPENDENCY_SECTION_TAG in body:
+        pattern = re.compile(
+            rf"(?ms)^## Dependencies\s*\n{re.escape(DEPENDENCY_SECTION_TAG)}.*?(?=^##\s+|\Z)"
+        )
+        updated = pattern.sub(section.rstrip() + "\n\n", body)
+        return updated.rstrip() + "\n"
+
+    body = body.rstrip()
+    return f"{body}\n\n{section}" if body else section
 
 def add_issue_comment(issue_number, body):
     """Adds a comment to an issue."""

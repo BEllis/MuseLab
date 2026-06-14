@@ -129,14 +129,14 @@ def main():
         labels = {label["name"] for label in issue.get("labels", [])}
         if "agent:investigate" in labels:
             state_relation = github_utils.get_issue_relations(issue["number"], status_info)
-            if state_relation == "none":
+            if state_relation == "none" and not github_utils.has_unresolved_dependencies(issue):
                 eligible_issues.append(issue)
 
     if not eligible_issues:
         if target_issue_number is None:
             print(
                 "No eligible issues found for Investigation Agent "
-                "(requires 'agent:investigate' and no branch/PR)."
+                "(requires 'agent:investigate', no branch/PR, and no unresolved dependencies)."
             )
         else:
             print(f"Issue #{target_issue_number} is not eligible for Investigation Agent.")

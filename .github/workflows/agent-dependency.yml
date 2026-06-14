@@ -1,0 +1,49 @@
+name: Run Dependency Tracker Agent
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to process. Leave empty to process the next eligible issue.
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      issue_number:
+        required: false
+        type: string
+
+jobs:
+  dependency:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      repository-projects: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install Dependencies
+        run: |
+          pip install -r scripts/agents/requirements.txt
+
+      - name: Run Dependency Tracker Agent
+        env:
+          PYTHONUNBUFFERED: "1"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          OPENROUTER_MODEL_DEPENDENCY: anthropic/claude-sonnet-4
+          OPENROUTER_TIMEOUT_DEPENDENCY: "300"
+        run: python scripts/agents/dependency_tracker_agent.py "${{ inputs.issue_number }}"

@@ -101,6 +101,7 @@ def main():
             and "epic" not in labels
             and "needs:human" not in labels
             and "agent:investigate" not in labels
+            and not github_utils.has_unresolved_dependencies(issue)
         ):
             eligible_issues.append(issue)
 
@@ -108,7 +109,7 @@ def main():
         if target_issue_number is None:
             agent_log(
                 "No eligible issues found for Designer Agent "
-                "(requires project Todo, 'agent:ready', and no 'agent:planned')."
+                "(requires project Todo, 'agent:ready', no 'agent:planned', and no unresolved dependencies)."
             )
         else:
             agent_log(f"Issue #{target_issue_number} is not eligible for Designer Agent.")

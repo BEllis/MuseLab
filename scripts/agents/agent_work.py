@@ -47,6 +47,7 @@ def investigate_has_work(issue: dict, status_info: dict) -> bool:
     labels = labels_for(issue)
     return (
         "agent:investigate" in labels
+        and not github_utils.has_unresolved_dependencies(issue)
         and github_utils.get_issue_relations(issue["number"], status_info) == "none"
     )
 
@@ -60,6 +61,11 @@ def epic_has_work(issue: dict) -> bool:
     )
 
 
+def dependency_has_work(issue: dict) -> bool:
+    labels = labels_for(issue)
+    return "epic" not in labels and not github_utils.dependency_assessment_exists(issue)
+
+
 def design_has_work(issue: dict) -> bool:
     labels = labels_for(issue)
     return (
@@ -68,6 +74,7 @@ def design_has_work(issue: dict) -> bool:
         and "epic" not in labels
         and "needs:human" not in labels
         and "agent:investigate" not in labels
+        and not github_utils.has_unresolved_dependencies(issue)
     )
 
 
@@ -77,6 +84,7 @@ def implement_has_work(issue: dict, status_info: dict) -> bool:
         "agent:ready" in labels
         and "plan:signoff" in labels
         and "epic" not in labels
+        and not github_utils.has_unresolved_dependencies(issue)
         and github_utils.get_issue_relations(issue["number"], status_info) == "none"
     )
 
@@ -100,6 +108,8 @@ def next_issue_number(agent_name: str) -> int | None:
             return issue["number"]
         if agent_name == "epic" and epic_has_work(issue):
             return issue["number"]
+        if agent_name == "dependency" and dependency_has_work(issue):
+            return issue["number"]
         if agent_name == "investigate" and investigate_has_work(issue, status_info or {}):
             return issue["number"]
         if agent_name == "design" and design_has_work(issue):
@@ -111,7 +121,7 @@ def next_issue_number(agent_name: str) -> int | None:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Usage: agent_work.py <triage|epic|investigate|design|implement>", file=sys.stderr)
+        print("Usage: agent_work.py <triage|epic|dependency|investigate|design|implement>", file=sys.stderr)
         return 2
 
     issue_number = next_issue_number(sys.argv[1])
