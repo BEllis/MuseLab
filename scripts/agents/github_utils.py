@@ -14,22 +14,29 @@ def run_cmd(args, cwd=None):
     }
 
 def ensure_labels_exist():
-    """Fetches existing labels and creates any missing triage or status labels."""
+    """Fetches existing labels and creates any missing backlog or workflow labels."""
     expected_labels = {
-        # Priority
+        # Risk (backlog-manager)
+        "risk:low": {"color": "0e8a16", "description": "Low-risk issue suitable for agent execution when agent-ready"},
+        "risk:medium": {"color": "fbca04", "description": "Medium risk; do not execute unattended by default"},
+        "risk:high": {"color": "b60205", "description": "High risk; human-led or investigate/plan only"},
+        # Type (backlog-manager)
+        "type:bug": {"color": "5319e7", "description": "Incorrect behavior or regression"},
+        "type:feature": {"color": "5319e7", "description": "New user-facing or developer-facing capability"},
+        "type:docs": {"color": "5319e7", "description": "Documentation or written guidance"},
+        "type:test": {"color": "5319e7", "description": "Tests, coverage, or test reliability"},
+        "type:refactor": {"color": "5319e7", "description": "Internal restructuring without intended behavior change"},
+        "type:chore": {"color": "5319e7", "description": "Maintenance such as CI, deps, or repo cleanup"},
+        # Routing (backlog-manager + MuseLab pipeline)
+        "agent:ready": {"color": "1d76db", "description": "Safe for agent execution when risk is low"},
+        "needs:human": {"color": "d93f0b", "description": "Human decision or clarification required"},
+        "agent:investigate": {"color": "5319e7", "description": "Needs investigation by an agent"},
+        "human:ready": {"color": "1d76db", "description": "Ready for human implementation (legacy)"},
+        "human:investigate": {"color": "e99695", "description": "Needs feedback from human (legacy)"},
+        # Legacy priority/value labels (not set by backlog manager)
         "priority:high": {"color": "d73a4a", "description": "High priority task"},
         "priority:medium": {"color": "f8a978", "description": "Medium priority task"},
         "priority:low": {"color": "fef2c0", "description": "Low priority task"},
-        # Readiness/Suitability
-        "agent:ready": {"color": "0e8a16", "description": "Ready for agent implementation"},
-        "human:ready": {"color": "1d76db", "description": "Ready for human implementation"},
-        "agent:investigate": {"color": "5319e7", "description": "Needs investigation by an agent"},
-        "human:investigate": {"color": "e99695", "description": "Needs feedback/investigation from human"},
-        # Risk
-        "risk:high": {"color": "b60205", "description": "High risk of introducing bugs/significant changes"},
-        "risk:medium": {"color": "fbca04", "description": "Medium risk of introducing bugs/significant changes"},
-        "risk:low": {"color": "c2e0c6", "description": "Low risk of introducing bugs/significant changes"},
-        # Value
         "value:high": {"color": "1d76db", "description": "High value for the product offering"},
         "value:medium": {"color": "006b75", "description": "Medium value for the product offering"},
         "value:low": {"color": "cfd3d7", "description": "Low value for the product offering"},
@@ -40,7 +47,7 @@ def ensure_labels_exist():
         "status:in-progress": {"color": "fbca04", "description": "Work is actively in progress (branch exists)"},
         "status:in-review": {"color": "1d76db", "description": "Work is in review (PR exists)"},
         # Epics
-        "epic": {"color": "3e2f5b", "description": "A group of related issues/tasks"}
+        "epic": {"color": "3e4b9e", "description": "Large initiative tracking multiple related issues"},
     }
 
     res = run_cmd(["gh", "label", "list", "--json", "name"])
@@ -96,6 +103,19 @@ def add_issue_comment(issue_number, body):
     ])
     if not res["success"]:
         print(f"Error commenting on issue #{issue_number}: {res['stderr']}")
+        return False
+    return True
+
+def edit_issue_comment(comment_id, body):
+    """Updates an existing issue comment."""
+    res = run_cmd([
+        "gh", "api",
+        f"repos/{{owner}}/{{repo}}/issues/comments/{comment_id}",
+        "-X", "PATCH",
+        "-f", f"body={body}",
+    ])
+    if not res["success"]:
+        print(f"Error editing comment {comment_id}: {res['stderr']}")
         return False
     return True
 

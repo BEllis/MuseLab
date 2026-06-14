@@ -30,6 +30,7 @@ jobs:
 
       - name: Run Investigation Agent
         env:
+          PYTHONUNBUFFERED: "1"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_INVESTIGATE: anthropic/claude-sonnet-4

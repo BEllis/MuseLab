@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import pydantic
-from agent_config import model_for_agent
+from agent_config import model_for_agent, timeout_for_agent
 from agent_session import create_session_id, pick_primary_issue, with_fresh_session_instructions
 from codebase_context import gather_codebase_context
 from openrouter_client import chat_structured
@@ -73,6 +73,7 @@ Tasks:
         user=prompt,
         response_model=InvestigationResult,
         session_id=create_session_id("investigate", issue_num),
+        timeout_seconds=timeout_for_agent("investigate"),
     )
     result_data = result.model_dump()
 
@@ -101,10 +102,10 @@ Tasks:
         )
 
     if result_data["needs_human_feedback"]:
-        print("Changing label from agent:investigate to human:investigate...")
+        print("Changing label from agent:investigate to needs:human...")
         github_utils.update_issue_labels(
             issue_num,
-            add_labels=["human:investigate"],
+            add_labels=["needs:human"],
             remove_labels=["agent:investigate"],
         )
 

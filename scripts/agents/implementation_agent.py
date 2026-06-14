@@ -7,7 +7,7 @@ import github_utils
 from dotenv import load_dotenv
 load_dotenv()
 
-from agent_config import model_for_agent, resolve_repo_root
+from agent_config import model_for_agent, resolve_repo_root, timeout_for_agent
 from agent_session import create_session_id, pick_primary_issue, with_fresh_session_instructions
 from agent_tools import IMPLEMENTATION_TOOLS, execute_tool
 from codebase_context import gather_codebase_context
@@ -74,6 +74,7 @@ Use run_command for git, pnpm, and gh operations. Stop only after the PR is crea
         max_rounds=40,
         temperature=0.1,
         session_id=create_session_id("implement", issue_num),
+        timeout_seconds=timeout_for_agent("implement"),
     )
 
     print(f"\nImplementation Agent completed for #{issue_num}. Output:\n{final_output}\n")

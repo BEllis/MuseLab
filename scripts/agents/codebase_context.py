@@ -68,6 +68,9 @@ def _rg_search(repo_root: str, pattern: str) -> list[str]:
         "--glob", "!node_modules/**",
         "--glob", "!dist/**",
         "--glob", "!tmp/**",
+        "--glob", "!scaffolds/unity/**",
+        "--glob", "!third_party/cito/**",
+        "--glob", "!tools/cito/**",
         pattern,
         ".",
     ]
@@ -77,6 +80,7 @@ def _rg_search(repo_root: str, pattern: str) -> list[str]:
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
     )
     if result.returncode not in (0, 1):
         return []
@@ -91,6 +95,7 @@ def _rg_search(repo_root: str, pattern: str) -> list[str]:
 def gather_codebase_context(title: str, body: str) -> str:
     repo_root = resolve_repo_root()
     sections: list[str] = [f"Repository root: {repo_root}"]
+    terms = _extract_terms(title, body)
 
     for rel_path in ("README.md", "CONTRIBUTING.md", "docs/PROJECT_STATUS.md"):
         content = _read_file(repo_root, rel_path)
@@ -98,7 +103,7 @@ def gather_codebase_context(title: str, body: str) -> str:
             sections.append(f"## File: {rel_path}\n{content}")
 
     candidate_paths: list[str] = []
-    for term in _extract_terms(title, body):
+    for term in terms:
         candidate_paths.extend(_rg_search(repo_root, term))
 
     unique_paths: list[str] = []

@@ -1,4 +1,4 @@
-name: Run Triage Agent
+name: Run Backlog Manager
 on:
   workflow_dispatch:
   workflow_call:
@@ -28,8 +28,9 @@ jobs:
         run: |
           pip install -r scripts/agents/requirements.txt
 
-      - name: Run Triage Agent
+      - name: Run Backlog Manager
         env:
+          PYTHONUNBUFFERED: "1"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_TRIAGE: google/gemini-2.5-flash

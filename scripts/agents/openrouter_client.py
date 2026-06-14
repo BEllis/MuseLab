@@ -1,12 +1,15 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Any, TypeVar
 
 import httpx
 import pydantic
 
+from agent_config import agent_log
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_TIMEOUT = httpx.Timeout(120.0, connect=30.0)
+CONNECT_TIMEOUT = 30.0
 
 T = TypeVar("T", bound=pydantic.BaseModel)
 
@@ -54,6 +57,23 @@ def _extract_message_content(data: dict[str, Any]) -> str:
     return content
 
 
+def _post_chat(payload: dict[str, Any]) -> dict[str, Any]:
+    response = httpx.post(
+        OPENROUTER_URL,
+        headers=_headers(),
+        json=payload,
+        timeout=httpx.Timeout(CONNECT_TIMEOUT, read=60.0, write=60.0, pool=30.0),
+    )
+    if response.status_code >= 400:
+        raise OpenRouterError(
+            f"OpenRouter request failed ({response.status_code}): {response.text}"
+        )
+    data = response.json()
+    if data.get("error"):
+        raise OpenRouterError(f"OpenRouter error: {data['error']}")
+    return data
+
+
 def chat(
     *,
     model: str,
@@ -63,11 +83,13 @@ def chat(
     response_model: type[T] | None = None,
     temperature: float = 0.2,
     session_id: str | None = None,
+    timeout_seconds: float = 120.0,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
+        "stream": False,
     }
     if session_id:
         payload["user"] = session_id
@@ -85,19 +107,26 @@ def chat(
             },
         }
 
-    response = httpx.post(
-        OPENROUTER_URL,
-        headers=_headers(),
-        json=payload,
-        timeout=DEFAULT_TIMEOUT,
+    agent_log(
+        f"OpenRouter request: model={model}, timeout={timeout_seconds:.0f}s, "
+        f"messages={len(messages)}"
     )
-    if response.status_code >= 400:
-        raise OpenRouterError(
-            f"OpenRouter request failed ({response.status_code}): {response.text}"
-        )
-    data = response.json()
-    if data.get("error"):
-        raise OpenRouterError(f"OpenRouter error: {data['error']}")
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_post_chat, payload)
+        try:
+            data = future.result(timeout=timeout_seconds)
+        except FuturesTimeout as exc:
+            raise OpenRouterError(
+                f"OpenRouter request timed out after {timeout_seconds:.0f}s "
+                f"(model={model})."
+            ) from exc
+
+    usage = data.get("usage") or {}
+    agent_log(
+        "OpenRouter response received "
+        f"(prompt_tokens={usage.get('prompt_tokens', '?')}, "
+        f"completion_tokens={usage.get('completion_tokens', '?')})."
+    )
     return data
 
 
@@ -108,6 +137,7 @@ def chat_text(
     user: str,
     temperature: float = 0.2,
     session_id: str | None = None,
+    timeout_seconds: float = 120.0,
 ) -> str:
     data = chat(
         model=model,
@@ -117,6 +147,7 @@ def chat_text(
         ],
         temperature=temperature,
         session_id=session_id,
+        timeout_seconds=timeout_seconds,
     )
     return _extract_message_content(data)
 
@@ -129,6 +160,7 @@ def chat_structured(
     response_model: type[T],
     temperature: float = 0.1,
     session_id: str | None = None,
+    timeout_seconds: float = 120.0,
 ) -> T:
     try:
         data = chat(
@@ -140,6 +172,7 @@ def chat_structured(
             response_model=response_model,
             temperature=temperature,
             session_id=session_id,
+            timeout_seconds=timeout_seconds,
         )
         content = _extract_message_content(data)
         return response_model.model_validate_json(content)
@@ -154,6 +187,7 @@ def chat_structured(
             user=repair_prompt,
             temperature=0.0,
             session_id=session_id,
+            timeout_seconds=timeout_seconds,
         )
         return response_model.model_validate_json(content)
 
@@ -168,6 +202,7 @@ def chat_with_tools(
     max_rounds: int = 40,
     temperature: float = 0.2,
     session_id: str | None = None,
+    timeout_seconds: float = 900.0,
 ) -> str:
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system},
@@ -175,6 +210,7 @@ def chat_with_tools(
     ]
 
     for round_idx in range(max_rounds):
+        agent_log(f"OpenRouter tool round {round_idx + 1}/{max_rounds}")
         data = chat(
             model=model,
             messages=messages,
@@ -182,6 +218,7 @@ def chat_with_tools(
             tool_choice="auto",
             temperature=temperature,
             session_id=session_id,
+            timeout_seconds=timeout_seconds,
         )
         message = data["choices"][0]["message"]
         messages.append(message)

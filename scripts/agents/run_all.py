@@ -19,7 +19,7 @@ def run_script(script_name):
 def main():
     print("Starting MuseLab Agent Backlog Loop...")
     
-    # 1. Triage Agent: Ensures issues conform, triages priority, value, risk, readiness, and updates status
+    # 1. Backlog manager: classify issues, post assessments, sync PR state
     run_script("triage_agent.py")
     
     # 2. Investigation Agent: Investigates agent:investigate tickets (reproduces bugs or researches options)

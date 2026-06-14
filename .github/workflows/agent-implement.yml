@@ -35,7 +35,9 @@ jobs:
 
       - name: Run Implementation Agent
         env:
+          PYTHONUNBUFFERED: "1"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_IMPLEMENT: anthropic/claude-sonnet-4
+          OPENROUTER_TIMEOUT_IMPLEMENT: "900"
         run: python scripts/agents/implementation_agent.py

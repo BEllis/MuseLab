@@ -30,7 +30,9 @@ jobs:
 
       - name: Run Designer Agent
         env:
+          PYTHONUNBUFFERED: "1"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_MODEL_DESIGN: anthropic/claude-sonnet-4
+          OPENROUTER_TIMEOUT_DESIGN: "600"
         run: python scripts/agents/designer_agent.py
