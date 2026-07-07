@@ -6,8 +6,8 @@
   "scripts": {
     "build": "bash scripts/build-web-deploy.sh",
     "deploy": "pnpm run build && wrangler deploy",
-    "deploy:ci": "wrangler deploy --no-build",
-    "deploy:preview": "wrangler versions upload --no-build"
+    "deploy:ci": "wrangler deploy --no-bundle",
+    "deploy:preview": "wrangler versions upload --no-bundle"
   },
   "devDependencies": {
     "wrangler": "^4.98.0"
