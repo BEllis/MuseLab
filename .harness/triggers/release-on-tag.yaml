@@ -1,0 +1,32 @@
+# Git event trigger converted from release.yml `on.push.tags: v*`
+trigger:
+  name: Release on version tag
+  identifier: Release_On_Tag
+  enabled: true
+  orgIdentifier: default
+  projectIdentifier: muselab
+  pipelineIdentifier: Release
+  source:
+    type: Webhook
+    spec:
+      type: Github
+      spec:
+        type: Push
+        spec:
+          connectorRef: account.MuseLabGitHub
+          autoAbortPreviousExecutions: false
+          payloadConditions:
+            - key: changedFiles
+              operator: Regex
+              value: .*
+            - key: targetBranch
+              operator: Regex
+              value: refs/tags/v.*
+  inputYaml: |
+    pipeline:
+      name: Release
+      identifier: Release
+      variables:
+        - name: tag
+          type: String
+          value: <+trigger.tag>

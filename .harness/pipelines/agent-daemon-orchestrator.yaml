@@ -1,0 +1,62 @@
+# Harness CI pipeline converted from .github/workflows/agent-daemon-orchestrator.yml
+pipeline:
+  name: Agent Backlog Orchestrator Daemon
+  identifier: Agent_Daemon_Orchestrator
+  orgIdentifier: default
+  projectIdentifier: muselab
+  tags:
+    source: github-actions
+    workflow: agent-daemon-orchestrator
+  properties:
+    ci:
+      codebase:
+        connectorRef: account.MuseLabGitHub
+        repoName: MuseLab
+        build: <+input>
+  stages:
+    - stage:
+        name: orchestrate
+        identifier: orchestrate
+        description: Sequentially trigger agent pipelines until the backlog is clear.
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Action
+                  name: Set up Python
+                  identifier: setup_python
+                  spec:
+                    uses: actions/setup-python@v5
+                    with:
+                      python-version: "3.11"
+              - step:
+                  type: Run
+                  name: Install gh
+                  identifier: install_gh
+                  spec:
+                    shell: Sh
+                    command: sudo apt-get update && sudo apt-get install -y gh
+              - step:
+                  type: Run
+                  name: Run agent pipeline orchestrator
+                  identifier: run_agent_orchestrator
+                  spec:
+                    shell: Sh
+                    command: bash scripts/agents/trigger_agent_pipeline_harness.sh "<+codebase.branch>"
+                    envVariables:
+                      GITHUB_WORKSPACE: /harness
+                      HARNESS_API_KEY: <+secrets.getValue("harness_api_key")>
+                      HARNESS_ACCOUNT_ID: <+variable.harness_account_id>
+                      HARNESS_ORG_IDENTIFIER: <+variable.harness_org_identifier>
+                      HARNESS_PROJECT_IDENTIFIER: <+variable.harness_project_identifier>
+                      GH_TOKEN: <+secrets.getValue("github_token")>
+                      GITHUB_TOKEN: <+secrets.getValue("github_token")>
+                      GH_PROJECT_TOKEN: <+secrets.getValue("project_token")>

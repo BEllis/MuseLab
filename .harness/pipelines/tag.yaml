@@ -1,0 +1,132 @@
+# Harness CI pipeline converted from .github/workflows/tag.yml
+pipeline:
+  name: Tag Release
+  identifier: Tag_Release
+  orgIdentifier: default
+  projectIdentifier: muselab
+  tags:
+    source: github-actions
+    workflow: tag
+  variables:
+    - name: version
+      type: String
+      description: Release version (semver, e.g. 0.2.0)
+      value: <+input>
+  properties:
+    ci:
+      codebase:
+        connectorRef: account.MuseLabGitHub
+        repoName: MuseLab
+        build: <+input>
+  stages:
+    - stage:
+        name: Bump version and tag
+        identifier: bump_and_tag
+        description: Validate semver, bump package versions, test, commit, tag, and push.
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Action
+                  name: Setup pnpm
+                  identifier: setup_pnpm
+                  spec:
+                    uses: pnpm/action-setup@v4
+                    with:
+                      version: "10"
+              - step:
+                  type: Action
+                  name: Setup Node.js
+                  identifier: setup_node
+                  spec:
+                    uses: actions/setup-node@v4
+                    with:
+                      node-version: "20"
+                      cache: pnpm
+              - step:
+                  type: Run
+                  name: Validate version
+                  identifier: validate_version
+                  spec:
+                    shell: Sh
+                    command: |-
+                      VERSION="<+pipeline.variables.version>"
+                      VERSION="${VERSION#v}"
+                      if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'; then
+                        echo "Invalid semver: $VERSION (expected e.g. 0.2.0)" >&2
+                        exit 1
+                      fi
+                      TAG="v${VERSION}"
+                      if git rev-parse "$TAG" >/dev/null 2>&1; then
+                        echo "Tag $TAG already exists" >&2
+                        exit 1
+                      fi
+                      export version="$VERSION"
+                      export tag="$TAG"
+                    outputVariables:
+                      - name: version
+                        type: String
+                        value: version
+                      - name: tag
+                        type: String
+                        value: tag
+              - step:
+                  type: Run
+                  name: Bump version files
+                  identifier: bump_version_files
+                  spec:
+                    shell: Sh
+                    command: bash scripts/bump-version.sh "<+execution.steps.validate_version.output.outputVariables.version>"
+              - step:
+                  type: Run
+                  name: Run tests
+                  identifier: run_tests
+                  spec:
+                    shell: Sh
+                    command: pnpm install --frozen-lockfile && pnpm test
+              - step:
+                  type: Run
+                  name: Commit tag and push
+                  identifier: commit_tag_and_push
+                  spec:
+                    shell: Sh
+                    command: |-
+                      TAG="<+execution.steps.validate_version.output.outputVariables.tag>"
+                      REPO="$(git config --get remote.origin.url | sed -E 's#.*github.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#')"
+                      git config user.name "github-actions[bot]"
+                      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                      git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
+                      git add package.json apps/designer/package.json pnpm-lock.yaml
+                      if git diff --cached --quiet; then
+                        echo "No version changes to commit" >&2
+                        exit 1
+                      fi
+                      git commit -m "chore: release ${TAG}"
+                      git tag -a "$TAG" -m "Release ${TAG}"
+                      git push origin HEAD
+                      git push origin "$TAG"
+                    envVariables:
+                      GITHUB_TOKEN: <+secrets.getValue("github_token")>
+    - stage:
+        name: Build release artifacts
+        identifier: build_release_artifacts
+        description: Chain to the Release pipeline to build and publish artifacts.
+        type: Pipeline
+        spec:
+          org: default
+          pipeline: Release
+          project: muselab
+          inputs:
+            identifier: Release
+            variables:
+              - name: tag
+                type: String
+                value: <+pipeline.stages.bump_and_tag.spec.execution.steps.validate_version.output.outputVariables.tag>

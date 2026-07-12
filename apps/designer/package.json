@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "description": "Visual novel designer and player",
-  "homepage": "https://muselab.vn",
+  "homepage": "https://muselab.games",
   "author": {
     "name": "MuseLab",
-    "email": "dev@muselab.vn"
+    "email": "dev@muselab.games"
   },
   "main": "dist-electron/main.js",
   "type": "module",
@@ -58,7 +58,7 @@
         "deb"
       ],
       "category": "Development",
-      "maintainer": "MuseLab <dev@muselab.vn>",
+      "maintainer": "MuseLab <dev@muselab.games>",
       "executableName": "muselab"
     },
     "deb": {

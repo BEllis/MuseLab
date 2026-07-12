@@ -128,8 +128,8 @@ namespace MuseLab.UI
 
             ApplyBackdrop(node);
             ApplyActors(node);
-            ApplyChoices(currentState);
             ApplyDialogue(currentState, instructions);
+            ApplyChoices(currentState);
 
             var isEnded = currentState.GetIsEnded();
             endScreen.gameObject.SetActive(isEnded);
@@ -183,10 +183,13 @@ namespace MuseLab.UI
             var singleChoice = count == 1 && !hasOptions;
             continueHint.gameObject.SetActive(false);
 
-            if (singleChoice && promptComplete)
+            if (singleChoice)
             {
-                continueHint.gameObject.SetActive(true);
-                continueHint.text = "Continue ››";
+                if (promptComplete)
+                {
+                    continueHint.gameObject.SetActive(true);
+                    continueHint.text = "Continue ››";
+                }
                 return;
             }
 

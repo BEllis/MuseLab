@@ -1,0 +1,386 @@
+# Harness CI pipeline converted from .github/workflows/release.yml
+pipeline:
+  name: Release
+  identifier: Release
+  orgIdentifier: default
+  projectIdentifier: muselab
+  tags:
+    source: github-actions
+    workflow: release
+  variables:
+    - name: tag
+      type: String
+      description: Git tag to build (e.g. v0.2.0). Leave empty when triggered by a tag push.
+      value: <+input>
+  properties:
+    ci:
+      codebase:
+        connectorRef: account.MuseLabGitHub
+        repoName: MuseLab
+        build:
+          type: tag
+          spec:
+            tag: <+pipeline.variables.tag>
+  stages:
+    - parallel:
+        - stage:
+            name: Build Linux
+            identifier: build_linux
+            description: Build Linux release artifacts.
+            type: CI
+            spec:
+              cloneCodebase: true
+              platform:
+                os: Linux
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Initialize submodules
+                      identifier: init_submodules
+                      spec:
+                        shell: Sh
+                        command: git submodule update --init --recursive
+                  - step:
+                      type: Action
+                      name: Setup pnpm
+                      identifier: setup_pnpm
+                      spec:
+                        uses: pnpm/action-setup@v4
+                        with:
+                          version: "10"
+                  - step:
+                      type: Action
+                      name: Setup Node.js
+                      identifier: setup_node
+                      spec:
+                        uses: actions/setup-node@v4
+                        with:
+                          node-version: "20"
+                          cache: pnpm
+                  - step:
+                      type: Action
+                      name: Setup .NET SDK
+                      identifier: setup_dotnet
+                      spec:
+                        uses: actions/setup-dotnet@v4
+                        with:
+                          dotnet-version: 6.0.x
+                  - step:
+                      type: Run
+                      name: Install Linux build dependencies
+                      identifier: install_linux_deps
+                      spec:
+                        shell: Sh
+                        command: sudo apt-get update && sudo apt-get install -y libfuse2 rpm
+                  - step:
+                      type: Run
+                      name: Install dependencies
+                      identifier: install_dependencies
+                      spec:
+                        shell: Sh
+                        command: pnpm install --frozen-lockfile
+                  - step:
+                      type: Run
+                      name: Run tests
+                      identifier: run_tests
+                      spec:
+                        shell: Sh
+                        command: pnpm test
+                  - step:
+                      type: Run
+                      name: Build cito transpiler
+                      identifier: build_cito
+                      spec:
+                        shell: Sh
+                        command: pnpm build:cito
+                        envVariables:
+                          CITO_RID: linux-x64
+                  - step:
+                      type: Run
+                      name: Build desktop app
+                      identifier: build_desktop
+                      spec:
+                        shell: Sh
+                        command: pnpm electron:build
+                        envVariables:
+                          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+                  - step:
+                      type: SaveCache
+                      name: Save Linux artifacts
+                      identifier: save_linux_artifacts
+                      spec:
+                        key: release-linux-<+pipeline.variables.tag>-<+pipeline.sequenceId>
+                        sourcePaths:
+                          - apps/designer/release
+                        archiveFormat: Tar
+                        override: true
+        - stage:
+            name: Build Windows
+            identifier: build_windows
+            description: Build Windows release artifacts.
+            type: CI
+            spec:
+              cloneCodebase: true
+              platform:
+                os: Windows
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Initialize submodules
+                      identifier: init_submodules
+                      spec:
+                        shell: PowerShell
+                        command: git submodule update --init --recursive
+                  - step:
+                      type: Action
+                      name: Setup pnpm
+                      identifier: setup_pnpm
+                      spec:
+                        uses: pnpm/action-setup@v4
+                        with:
+                          version: "10"
+                  - step:
+                      type: Action
+                      name: Setup Node.js
+                      identifier: setup_node
+                      spec:
+                        uses: actions/setup-node@v4
+                        with:
+                          node-version: "20"
+                          cache: pnpm
+                  - step:
+                      type: Action
+                      name: Setup .NET SDK
+                      identifier: setup_dotnet
+                      spec:
+                        uses: actions/setup-dotnet@v4
+                        with:
+                          dotnet-version: 6.0.x
+                  - step:
+                      type: Run
+                      name: Install dependencies
+                      identifier: install_dependencies
+                      spec:
+                        shell: PowerShell
+                        command: pnpm install --frozen-lockfile
+                  - step:
+                      type: Run
+                      name: Run tests
+                      identifier: run_tests
+                      spec:
+                        shell: PowerShell
+                        command: pnpm test
+                  - step:
+                      type: Run
+                      name: Build cito transpiler
+                      identifier: build_cito
+                      spec:
+                        shell: PowerShell
+                        command: pnpm build:cito
+                        envVariables:
+                          CITO_RID: win-x64
+                  - step:
+                      type: Run
+                      name: Build desktop app
+                      identifier: build_desktop
+                      spec:
+                        shell: PowerShell
+                        command: pnpm electron:build
+                        envVariables:
+                          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+                  - step:
+                      type: SaveCache
+                      name: Save Windows artifacts
+                      identifier: save_windows_artifacts
+                      spec:
+                        key: release-windows-<+pipeline.variables.tag>-<+pipeline.sequenceId>
+                        sourcePaths:
+                          - apps/designer/release
+                        archiveFormat: Tar
+                        override: true
+        - stage:
+            name: Build macOS
+            identifier: build_macos
+            description: Build macOS release artifacts.
+            type: CI
+            spec:
+              cloneCodebase: true
+              platform:
+                os: MacOS
+                arch: Arm64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Initialize submodules
+                      identifier: init_submodules
+                      spec:
+                        shell: Sh
+                        command: git submodule update --init --recursive
+                  - step:
+                      type: Action
+                      name: Setup pnpm
+                      identifier: setup_pnpm
+                      spec:
+                        uses: pnpm/action-setup@v4
+                        with:
+                          version: "10"
+                  - step:
+                      type: Action
+                      name: Setup Node.js
+                      identifier: setup_node
+                      spec:
+                        uses: actions/setup-node@v4
+                        with:
+                          node-version: "20"
+                          cache: pnpm
+                  - step:
+                      type: Action
+                      name: Setup .NET SDK
+                      identifier: setup_dotnet
+                      spec:
+                        uses: actions/setup-dotnet@v4
+                        with:
+                          dotnet-version: 6.0.x
+                  - step:
+                      type: Run
+                      name: Install dependencies
+                      identifier: install_dependencies
+                      spec:
+                        shell: Sh
+                        command: pnpm install --frozen-lockfile
+                  - step:
+                      type: Run
+                      name: Run tests
+                      identifier: run_tests
+                      spec:
+                        shell: Sh
+                        command: pnpm test
+                  - step:
+                      type: Run
+                      name: Build cito transpiler
+                      identifier: build_cito
+                      spec:
+                        shell: Sh
+                        command: pnpm build:cito
+                        envVariables:
+                          CITO_RID: osx-arm64
+                  - step:
+                      type: Run
+                      name: Build desktop app
+                      identifier: build_desktop
+                      spec:
+                        shell: Sh
+                        command: pnpm electron:build
+                        envVariables:
+                          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+                  - step:
+                      type: SaveCache
+                      name: Save macOS artifacts
+                      identifier: save_macos_artifacts
+                      spec:
+                        key: release-macos-<+pipeline.variables.tag>-<+pipeline.sequenceId>
+                        sourcePaths:
+                          - apps/designer/release
+                        archiveFormat: Tar
+                        override: true
+    - stage:
+        name: Publish GitHub Release
+        identifier: publish_release
+        description: Collect build artifacts and publish a GitHub release.
+        type: CI
+        when:
+          condition: <+pipeline.variables.tag> != null && <+pipeline.variables.tag> != ""
+          stageStatus: All
+        spec:
+          cloneCodebase: false
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: RestoreCache
+                  name: Restore Linux artifacts
+                  identifier: restore_linux_artifacts
+                  spec:
+                    key: release-linux-<+pipeline.variables.tag>-<+pipeline.sequenceId>
+                    archiveFormat: Tar
+              - step:
+                  type: Run
+                  name: Stage Linux artifacts
+                  identifier: stage_linux_artifacts
+                  spec:
+                    shell: Sh
+                    command: |-
+                      mkdir -p artifacts/linux
+                      cp -R apps/designer/release/. artifacts/linux/ 2>/dev/null || true
+              - step:
+                  type: RestoreCache
+                  name: Restore Windows artifacts
+                  identifier: restore_windows_artifacts
+                  spec:
+                    key: release-windows-<+pipeline.variables.tag>-<+pipeline.sequenceId>
+                    archiveFormat: Tar
+              - step:
+                  type: Run
+                  name: Stage Windows artifacts
+                  identifier: stage_windows_artifacts
+                  spec:
+                    shell: Sh
+                    command: |-
+                      mkdir -p artifacts/windows
+                      cp -R apps/designer/release/. artifacts/windows/ 2>/dev/null || true
+              - step:
+                  type: RestoreCache
+                  name: Restore macOS artifacts
+                  identifier: restore_macos_artifacts
+                  spec:
+                    key: release-macos-<+pipeline.variables.tag>-<+pipeline.sequenceId>
+                    archiveFormat: Tar
+              - step:
+                  type: Run
+                  name: Stage macOS artifacts
+                  identifier: stage_macos_artifacts
+                  spec:
+                    shell: Sh
+                    command: |-
+                      mkdir -p artifacts/macos
+                      cp -R apps/designer/release/. artifacts/macos/ 2>/dev/null || true
+              - step:
+                  type: Run
+                  name: Flatten artifacts
+                  identifier: flatten_artifacts
+                  spec:
+                    shell: Sh
+                    command: |-
+                      mkdir -p artifacts
+                      find artifacts/linux artifacts/windows artifacts/macos -type f -print0 2>/dev/null | xargs -0 -I{} cp "{}" artifacts/ || true
+              - step:
+                  type: Action
+                  name: Create GitHub Release
+                  identifier: create_github_release
+                  spec:
+                    uses: softprops/action-gh-release@v2
+                    with:
+                      tag_name: <+pipeline.variables.tag>
+                      files: artifacts/**/*
+                      generate_release_notes: "true"
+                    env:
+                      GITHUB_TOKEN: <+secrets.getValue("github_token")>

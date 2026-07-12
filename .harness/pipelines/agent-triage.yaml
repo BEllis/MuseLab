@@ -1,0 +1,73 @@
+# Harness CI pipeline converted from .github/workflows/agent-triage.yml
+pipeline:
+  name: Run Backlog Manager
+  identifier: Agent_Triage
+  orgIdentifier: default
+  projectIdentifier: muselab
+  tags:
+    source: github-actions
+    workflow: agent-triage
+  variables:
+    - name: issue_number
+      type: String
+      description: Issue number to process. Leave empty to process all open issues.
+      value: <+input>
+  properties:
+    ci:
+      codebase:
+        connectorRef: account.MuseLabGitHub
+        repoName: MuseLab
+        build: <+input>
+  stages:
+    - stage:
+        name: triage
+        identifier: triage
+        description: Run the backlog manager agent against GitHub issues.
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Action
+                  name: Set up Python
+                  identifier: setup_python
+                  spec:
+                    uses: actions/setup-python@v5
+                    with:
+                      python-version: "3.11"
+              - step:
+                  type: Run
+                  name: Install ripgrep and gh
+                  identifier: install_tools
+                  spec:
+                    shell: Sh
+                    command: sudo apt-get update && sudo apt-get install -y ripgrep gh
+              - step:
+                  type: Run
+                  name: Install Dependencies
+                  identifier: install_dependencies
+                  spec:
+                    shell: Sh
+                    command: pip install -r scripts/agents/requirements.txt
+              - step:
+                  type: Run
+                  name: Run Backlog Manager
+                  identifier: run_backlog_manager
+                  spec:
+                    shell: Sh
+                    command: python scripts/agents/triage_agent.py "<+pipeline.variables.issue_number>"
+                    envVariables:
+                      PYTHONUNBUFFERED: "1"
+                      GITHUB_WORKSPACE: /harness
+                      GH_TOKEN: <+secrets.getValue("github_token")>
+                      GITHUB_TOKEN: <+secrets.getValue("github_token")>
+                      GH_PROJECT_TOKEN: <+secrets.getValue("project_token")>
+                      OPENROUTER_API_KEY: <+secrets.getValue("openrouter_api_key")>
+                      OPENROUTER_MODEL_TRIAGE: google/gemini-2.5-flash
