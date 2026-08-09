@@ -1045,7 +1045,6 @@ export function updateProject(
     Pick<
       Project,
       | "name"
-      | "thumbnailAspectRatio"
       | "playerResolution"
       | "locales"
       | "defaultLocale"
@@ -1057,9 +1056,6 @@ export function updateProject(
 ): void {
   if (patch.name !== undefined) {
     project.name = patch.name;
-  }
-  if (patch.thumbnailAspectRatio !== undefined) {
-    project.thumbnailAspectRatio = patch.thumbnailAspectRatio;
   }
   if (patch.playerResolution !== undefined) {
     project.playerResolution = patch.playerResolution;
@@ -1217,7 +1213,6 @@ function toManifestProject(project: Project): Project {
     locales,
     defaultLocale: getDefaultLocaleTag(getLocaleTags(locales), project.defaultLocale),
     modules: project.modules ?? [],
-    thumbnailAspectRatio: project.thumbnailAspectRatio,
     playerResolution: project.playerResolution,
     promptRendererTypescriptSource: project.promptRendererTypescriptSource,
     ...copyOptionalAttributes(project),

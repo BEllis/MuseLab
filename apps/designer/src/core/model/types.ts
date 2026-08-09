@@ -240,7 +240,10 @@ export interface Project {
   defaultFontId?: string;
   /** Custom module interfaces available in Cito code */
   modules: ModuleInterface[];
-  /** Scene thumbnail aspect ratio in the designer canvas */
+  /**
+   * Legacy field ignored at runtime (canvas thumbnails are always 16:9).
+   * Kept optional so older project.json files still parse.
+   */
   thumbnailAspectRatio?: AspectRatio;
   /** Target resolution for play mode (logical pixels) */
   playerResolution?: AspectRatio;

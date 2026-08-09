@@ -1,4 +1,3 @@
-import type { Project } from "@/core/model/types";
 import {
   migrateProjectBundle,
   parseStoredProjectPayload,
@@ -12,14 +11,11 @@ import {
   type StoredProjectSession,
 } from "@/core/events/persistedSession";
 import { getFirstStoryId } from "@/core/model/project";
-import { parseAspectRatio } from "@/core/view/thumbnailAspectRatio";
 import { validateStoredProjectJson } from "@/core/project/loadValidation";
 import { isElectron } from "@/utils/isElectron";
 
 /** Plain JSON autosave in localStorage (web) or userData/autosave.json (Electron). */
 export const AUTOSAVE_STORAGE_KEY = "muselab-project";
-
-const LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY = "muselab-thumbnail-aspect-ratio";
 
 export type LoadedAutosave = {
   bundle: ReturnType<typeof migrateProjectBundle>;
@@ -97,17 +93,5 @@ export async function saveAutosaveToPersistence(state: AutosavePersistState): Pr
     localStorage.setItem(AUTOSAVE_STORAGE_KEY, payload);
   } catch {
     // ignore quota errors
-  }
-}
-
-export function readLegacyThumbnailAspectRatio(project: Project): void {
-  if (project.thumbnailAspectRatio) return;
-  try {
-    const raw = localStorage.getItem(LEGACY_THUMBNAIL_ASPECT_RATIO_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = parseAspectRatio(JSON.parse(raw));
-    if (parsed) project.thumbnailAspectRatio = parsed;
-  } catch {
-    // ignore
   }
 }

@@ -32,7 +32,6 @@ import { ensureShapesRegistered } from "@/x6/registerShapes";
 import { syncProjectToGraph } from "@/x6/syncProjectToGraph";
 import { VIEW_COMMANDS } from "@/core/view/viewCommands";
 import { THEME_CHANGE_EVENT, getThemeCssVar } from "@/core/view/theme";
-import { ThumbnailAspectRatioControl } from "@/components/ThumbnailAspectRatioControl";
 import { ScenePreviewOverlay } from "@/components/NodeEditor/ScenePreviewOverlay";
 
 type ContextMenu =
@@ -614,17 +613,6 @@ export function FlowCanvas() {
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       <ScenePreviewOverlay />
       <AddNodeMenu onAdd={onAddNode} variant="overlay" />
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 6,
-        }}
-      >
-        <ThumbnailAspectRatioControl variant="overlay" />
-      </div>
       <div
         style={{
           position: "absolute",

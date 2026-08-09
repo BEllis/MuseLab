@@ -35,8 +35,9 @@ import {
 } from "@/core/view/vnStyles";
 import {
   aspectRatioToCss,
-  DEFAULT_THUMBNAIL_ASPECT_RATIO,
-  type AspectRatio,
+  letterboxContentRect,
+  STAGE_CONTENT_ASPECT_RATIO,
+  type LetterboxContentRect,
 } from "@/core/view/thumbnailAspectRatio";
 import {
   appendInlineDialogueMoreHint,
@@ -66,7 +67,6 @@ type SceneStagePreviewProps = {
   onChoice?: (targetNodeId: string) => void;
   onContinue?: () => void;
   onRestart?: () => void;
-  thumbnailAspectRatio?: AspectRatio;
   /** Canvas thumbnails: skip shake animation markup for a static preview. */
   disableShake?: boolean;
   style?: React.CSSProperties;
@@ -91,11 +91,24 @@ export function SceneStagePreview({
   onChoice,
   onContinue,
   onRestart,
-  thumbnailAspectRatio = DEFAULT_THUMBNAIL_ASPECT_RATIO,
   disableShake = false,
   style,
 }: SceneStagePreviewProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [contentRect, setContentRect] = useState<LetterboxContentRect | null>(null);
   const backdropUrl = useAssetUrl(project, node.backdropId ?? null);
+
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const update = () => {
+      setContentRect(letterboxContentRect(el.clientWidth, el.clientHeight));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const [previewHtml, setPreviewHtml] = useState(dialogueHtml ?? "");
   const [previewSpeaker, setPreviewSpeaker] = useState(dialogueSpeaker ?? "");
   const [previewChoices, setPreviewChoices] = useState<SceneStageChoice[]>(choicesProp ?? []);
@@ -209,250 +222,269 @@ export function SceneStagePreview({
 
   const buttonStyle = compact ? compactVnButtonStyle : vnButtonStyle;
   const speakerTabStyle = compact ? compactVnSpeakerTabStyle : vnSpeakerTabStyle;
+  const stageFrameStyle: React.CSSProperties = contentRect
+    ? {
+        position: "absolute",
+        left: contentRect.left,
+        top: contentRect.top,
+        width: contentRect.width,
+        height: contentRect.height,
+        overflow: "hidden",
+        background: "#0a0a12",
+      }
+    : {
+        position: "absolute",
+        inset: 0,
+        overflow: "hidden",
+        background: "#0a0a12",
+      };
 
   return (
     <div
+      ref={rootRef}
       style={{
         position: "relative",
         width: "100%",
-        aspectRatio: compact ? aspectRatioToCss(thumbnailAspectRatio) : undefined,
+        aspectRatio: compact ? aspectRatioToCss(STAGE_CONTENT_ASPECT_RATIO) : undefined,
         height: compact ? undefined : "100%",
         overflow: "hidden",
-        background: "#0a0a12",
+        background: "#000",
         ...style,
       }}
     >
-      {backdropUrl && (
-        <img
-          src={backdropUrl}
-          alt=""
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
-      )}
-
-      <ActorRow
-        project={project}
-        actorConfigs={node.actorConfigs ?? []}
-        padding={compact ? "6px 8px 0" : "24px 32px 0"}
-        zIndex={0}
-      />
-
-      {showChoiceButtons && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: choiceAreaBottom,
-            zIndex: 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: compact ? "4px" : "24px",
-            pointerEvents: compact ? "none" : undefined,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: compact ? "2px" : "8px",
-              maxWidth: "80%",
-              width: "max-content",
-            }}
-          >
-            {choices.map(({ edge, targetNode, optionText }) => (
-              <button
-                key={edge.id}
-                type="button"
-                disabled={compact}
-                onClick={compact ? undefined : () => onChoice?.(targetNode.id)}
-                style={{
-                  ...buttonStyle,
-                  cursor: compact ? "default" : "pointer",
-                  pointerEvents: compact ? "none" : undefined,
-                }}
-              >
-                {optionText || `Go to ${targetNode.label ?? targetNode.id}`}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {needsStageContinue && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 2,
-            cursor: "pointer",
-          }}
-          onClick={() =>
-            singleChoice ? onChoice?.(choices[0].targetNode.id) : onContinue?.()
-          }
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              singleChoice ? onChoice?.(choices[0].targetNode.id) : onContinue?.();
-            }
-          }}
-        >
-          <ContinueHint
-            compact={false}
-            tone="light"
+      <div style={stageFrameStyle}>
+        {backdropUrl && (
+          <img
+            src={backdropUrl}
+            alt=""
             style={{
               position: "absolute",
-              bottom: "24px",
-              right: "24px",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
             }}
           />
-        </div>
-      )}
+        )}
 
-      {showCaptionPanel && (
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: compact ? `${DIALOGUE_PANEL_FRACTION * 100}%` : DIALOGUE_PANEL_HEIGHT,
-          zIndex: 1,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-end",
-          padding: compact ? "3px 4px 4px" : "16px 24px 24px",
-          background:
-            "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)",
-          pointerEvents: compact ? "none" : undefined,
-        }}
-      >
-        {usePromptExecutor ? (
-          <PromptInstructionExecutor
-            fullHtml={html}
-            initialSpeakerHtml={initialSpeakerHtml}
-            instructions={promptInstructions}
-            renderSpeakerTemplate={renderSpeakerTemplate}
-            onPlaySound={onPlaySound}
-            onComplete={handlePromptComplete}
-            onSkipChange={handlePromptSkipChange}
+        <ActorRow
+          project={project}
+          actorConfigs={node.actorConfigs ?? []}
+          padding={compact ? "6px 8px 0" : "24px 32px 0"}
+          zIndex={0}
+        />
+
+        {showChoiceButtons && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: choiceAreaBottom,
+              zIndex: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: compact ? "4px" : "24px",
+              pointerEvents: compact ? "none" : undefined,
+            }}
           >
-            {({
-              visibleHtml,
-              visibleSpeakerHtml,
-              isComplete,
-              isAwaitingContinue,
-              isRevealing,
-              resume,
-              skipRevealChunk,
-            }) => (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: compact ? "2px" : "8px",
+                maxWidth: "80%",
+                width: "max-content",
+              }}
+            >
+              {choices.map(({ edge, targetNode, optionText }) => (
+                <button
+                  key={edge.id}
+                  type="button"
+                  disabled={compact}
+                  onClick={compact ? undefined : () => onChoice?.(targetNode.id)}
+                  style={{
+                    ...buttonStyle,
+                    cursor: compact ? "default" : "pointer",
+                    pointerEvents: compact ? "none" : undefined,
+                  }}
+                >
+                  {optionText || `Go to ${targetNode.label ?? targetNode.id}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {needsStageContinue && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 2,
+              cursor: "pointer",
+            }}
+            onClick={() =>
+              singleChoice ? onChoice?.(choices[0].targetNode.id) : onContinue?.()
+            }
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                singleChoice ? onChoice?.(choices[0].targetNode.id) : onContinue?.();
+              }
+            }}
+          >
+            <ContinueHint
+              compact={false}
+              tone="light"
+              style={{
+                position: "absolute",
+                bottom: "24px",
+                right: "24px",
+              }}
+            />
+          </div>
+        )}
+
+        {showCaptionPanel && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: compact ? `${DIALOGUE_PANEL_FRACTION * 100}%` : DIALOGUE_PANEL_HEIGHT,
+              zIndex: 1,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              padding: compact ? "3px 4px 4px" : "16px 24px 24px",
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)",
+              pointerEvents: compact ? "none" : undefined,
+            }}
+          >
+            {usePromptExecutor ? (
+              <PromptInstructionExecutor
+                fullHtml={html}
+                initialSpeakerHtml={initialSpeakerHtml}
+                instructions={promptInstructions}
+                renderSpeakerTemplate={renderSpeakerTemplate}
+                onPlaySound={onPlaySound}
+                onComplete={handlePromptComplete}
+                onSkipChange={handlePromptSkipChange}
+              >
+                {({
+                  visibleHtml,
+                  visibleSpeakerHtml,
+                  isComplete,
+                  isAwaitingContinue,
+                  isRevealing,
+                  resume,
+                  skipRevealChunk,
+                }) => (
+                  <DialogueCaptionBox
+                    compact={compact}
+                    hasSpeaker={hasVisibleRichText(visibleSpeakerHtml)}
+                    speakerHtml={visibleSpeakerHtml}
+                    speakerTabStyle={speakerTabStyle}
+                    defaultFontFamily={defaultFontFamily}
+                    dialogueHtml={visibleHtml}
+                    linePaginationEnabled={!compact && !isComplete}
+                    playbackInProgress={!isComplete}
+                    isRevealing={!isComplete && isRevealing}
+                    isAwaitingContinue={!isComplete && isAwaitingContinue}
+                    showContinueHint={
+                      (singleChoice || (showContinue && !compact && isComplete)) &&
+                      isComplete &&
+                      !hasChoiceButtons
+                    }
+                    interactive={!compact}
+                    onActivate={() => {
+                      if (!isComplete) {
+                        if (isAwaitingContinue) {
+                          resume();
+                        } else {
+                          skipRevealChunk();
+                        }
+                        return;
+                      }
+                      if (singleChoice) {
+                        onChoice?.(choices[0].targetNode.id);
+                        return;
+                      }
+                      if (showContinue) {
+                        onContinue?.();
+                      }
+                    }}
+                  />
+                )}
+              </PromptInstructionExecutor>
+            ) : (
               <DialogueCaptionBox
                 compact={compact}
-                hasSpeaker={hasVisibleRichText(visibleSpeakerHtml)}
-                speakerHtml={visibleSpeakerHtml}
+                hasSpeaker={hasVisibleRichText(initialSpeakerHtml)}
+                speakerHtml={initialSpeakerHtml}
                 speakerTabStyle={speakerTabStyle}
                 defaultFontFamily={defaultFontFamily}
-                dialogueHtml={visibleHtml}
-                linePaginationEnabled={!compact && !isComplete}
-                playbackInProgress={!isComplete}
-                isRevealing={!isComplete && isRevealing}
-                isAwaitingContinue={!isComplete && isAwaitingContinue}
+                dialogueHtml={html}
+                linePaginationEnabled={interactionsEnabled}
                 showContinueHint={
-                  (singleChoice || (showContinue && !compact && isComplete)) &&
-                  isComplete &&
-                  !hasChoiceButtons
+                  (singleChoice || continueOnClick) && interactionsEnabled && !hasChoiceButtons
                 }
-                interactive={!compact}
+                interactive={!compact && (singleChoice || continueOnClick || usePromptExecutor)}
                 onActivate={() => {
-                  if (!isComplete) {
-                    if (isAwaitingContinue) {
-                      resume();
-                    } else {
-                      skipRevealChunk();
-                    }
-                    return;
-                  }
                   if (singleChoice) {
                     onChoice?.(choices[0].targetNode.id);
                     return;
                   }
-                  if (showContinue) {
+                  if (continueOnClick) {
                     onContinue?.();
                   }
                 }}
               />
             )}
-          </PromptInstructionExecutor>
-        ) : (
-          <DialogueCaptionBox
-            compact={compact}
-            hasSpeaker={hasVisibleRichText(initialSpeakerHtml)}
-            speakerHtml={initialSpeakerHtml}
-            speakerTabStyle={speakerTabStyle}
-            defaultFontFamily={defaultFontFamily}
-            dialogueHtml={html}
-            linePaginationEnabled={interactionsEnabled}
-            showContinueHint={
-              (singleChoice || continueOnClick) && interactionsEnabled && !hasChoiceButtons
-            }
-            interactive={!compact && (singleChoice || continueOnClick || usePromptExecutor)}
-            onActivate={() => {
-              if (singleChoice) {
-                onChoice?.(choices[0].targetNode.id);
-                return;
-              }
-              if (continueOnClick) {
-                onContinue?.();
-              }
-            }}
-          />
-        )}
 
-        {!compact && choices.length === 0 && !showContinue && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <p style={{ margin: 0, padding: "8px 0", color: "#334155", fontSize: "14px" }}>
-              End of story.
-            </p>
-            {onRestart && (
-              <button
-                type="button"
-                onClick={onRestart}
+            {!compact && choices.length === 0 && !showContinue && (
+              <div
                 style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  background: "#1e5a8a",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  boxShadow: "0 2px 8px rgba(30, 90, 138, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  flexWrap: "wrap",
                 }}
               >
-                Restart
-              </button>
+                <p style={{ margin: 0, padding: "8px 0", color: "#334155", fontSize: "14px" }}>
+                  End of story.
+                </p>
+                {onRestart && (
+                  <button
+                    type="button"
+                    onClick={onRestart}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "14px",
+                      fontFamily: "inherit",
+                      cursor: "pointer",
+                      background: "#1e5a8a",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      boxShadow: "0 2px 8px rgba(30, 90, 138, 0.3)",
+                    }}
+                  >
+                    Restart
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
       </div>
-      )}
     </div>
   );
 }

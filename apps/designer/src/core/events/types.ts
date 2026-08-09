@@ -24,7 +24,6 @@ export type ProjectPatch = Partial<
   Pick<
     Project,
     | "name"
-    | "thumbnailAspectRatio"
     | "playerResolution"
     | "locales"
     | "defaultLocale"

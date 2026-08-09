@@ -69,7 +69,7 @@
     },
     "thumbnailAspectRatio": {
       "$ref": "#/$defs/aspectRatio",
-      "description": "Scene thumbnail aspect ratio in the designer canvas."
+      "description": "Legacy field ignored at runtime; canvas thumbnails are always 16:9."
     },
     "playerResolution": {
       "$ref": "#/$defs/aspectRatio",

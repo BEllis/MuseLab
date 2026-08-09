@@ -173,7 +173,6 @@ import {
 import {
   loadAutosaveFromLocalStorage,
   loadAutosaveFromPersistence,
-  readLegacyThumbnailAspectRatio,
   saveAutosaveToPersistence,
   serializeAutosavePayload,
   type LoadedAutosave,
@@ -204,7 +203,6 @@ function sanitizeLoadedBundle(bundle: ReturnType<typeof migrateProjectBundle>) {
   ensureDefaultBackdrop(bundle.project);
   ensureDefaultFont(bundle.project);
   normalizeEdgeTargetPorts(bundle.project);
-  readLegacyThumbnailAspectRatio(bundle.project);
   bundle.promptsByLocale = ensurePromptsForProjectLocales(
     bundle.project,
     bundle.promptsByLocale

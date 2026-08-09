@@ -332,8 +332,12 @@ namespace MuseLab.UI
             scaler.referenceResolution = new Vector2(width, height);
             canvasGo.AddComponent<GraphicRaycaster>();
 
+            var letterboxMatte = CreateImage(canvasGo.GetComponent<RectTransform>(), "LetterboxMatte", Color.black);
+            letterboxMatte.raycastTarget = false;
+            Stretch(letterboxMatte.rectTransform);
+
             stageRoot = CreateRect(canvasGo.transform, "Stage");
-            Stretch(stageRoot);
+            FitCenteredAspect(stageRoot, width, height, 16f, 9f);
 
             backdropImage = CreateImage(stageRoot, "Backdrop", MuseLabUiStyles.StageBackground);
             Stretch(backdropImage.rectTransform);
@@ -382,7 +386,7 @@ namespace MuseLab.UI
 
             instructionPlayer = gameObject.AddComponent<PromptInstructionPlayer>();
 
-            endScreen = CreateRect(canvasGo.transform, "EndScreen");
+            endScreen = CreateRect(stageRoot, "EndScreen");
             Stretch(endScreen);
             var endBg = endScreen.gameObject.AddComponent<Image>();
             endBg.color = MuseLabUiStyles.StageBackground;
@@ -444,6 +448,41 @@ namespace MuseLab.UI
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.offsetMin = rt.offsetMax = Vector2.zero;
+        }
+
+        /** Center a rect as the largest contentAspect that fits inside the reference frame. */
+        static void FitCenteredAspect(
+            RectTransform rt,
+            float frameWidth,
+            float frameHeight,
+            float contentAspectWidth,
+            float contentAspectHeight)
+        {
+            if (frameWidth <= 0f || frameHeight <= 0f)
+            {
+                Stretch(rt);
+                return;
+            }
+
+            var contentAspect = contentAspectWidth / contentAspectHeight;
+            var frameAspect = frameWidth / frameHeight;
+            float stageWidth;
+            float stageHeight;
+            if (frameAspect > contentAspect)
+            {
+                stageHeight = frameHeight;
+                stageWidth = frameHeight * contentAspect;
+            }
+            else
+            {
+                stageWidth = frameWidth;
+                stageHeight = frameWidth / contentAspect;
+            }
+
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(stageWidth, stageHeight);
         }
     }
 }

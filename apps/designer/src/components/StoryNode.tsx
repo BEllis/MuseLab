@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef } from "react";
 import type { Node } from "@antv/x6";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
-import { getProjectThumbnailAspectRatio } from "@/core/view/thumbnailAspectRatio";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
@@ -29,7 +28,6 @@ function SceneNodeBody({
   story,
   storyId,
   promptsByLocale,
-  thumbnailAspectRatio,
 }: {
   label: string;
   selected: boolean;
@@ -40,7 +38,6 @@ function SceneNodeBody({
   story: ReturnType<typeof useActiveStory>["story"];
   storyId: string;
   promptsByLocale: ReturnType<typeof useProjectStore.getState>["promptsByLocale"];
-  thumbnailAspectRatio: ReturnType<typeof getProjectThumbnailAspectRatio>;
 }) {
   const borderColor = invalidRoot
     ? "var(--app-node-invalid-border)"
@@ -77,7 +74,6 @@ function SceneNodeBody({
         node={stageNode}
         variant="compact"
         disableShake
-        thumbnailAspectRatio={thumbnailAspectRatio}
         style={{ borderRadius: "6px" }}
       />
     </div>
@@ -89,7 +85,6 @@ export function StoryNodeView({ node }: { node: Node }) {
   const project = useProjectStore((s) => s.project);
   const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const { story, storyId } = useActiveStory();
-  const thumbnailAspectRatio = getProjectThumbnailAspectRatio(project);
   const data = node.getData<StoryNodeData>();
 
   const domainNode = story.nodes.find((n) => n.id === node.id);
@@ -130,7 +125,6 @@ export function StoryNodeView({ node }: { node: Node }) {
         story={story}
         storyId={storyId}
         promptsByLocale={promptsByLocale}
-        thumbnailAspectRatio={thumbnailAspectRatio}
       />
     </div>
   );
