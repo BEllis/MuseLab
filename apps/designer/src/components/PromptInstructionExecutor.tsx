@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import { promptInstructionsNeedExecutor } from "@/core/prompt/promptInstructions";
 import {
@@ -8,21 +8,11 @@ import {
   type RevealSkipControl,
 } from "@/core/prompt/executePromptInstructions";
 
-export type DialoguePlaybackGate = {
-  totalVisualLines: number;
-  linesSinceContinue: number;
-  shouldPausePlayback: boolean;
-  measuredForHtmlLength: number;
-};
-
 export type PromptInstructionExecutorProps = {
   fullHtml: string;
   initialSpeakerHtml?: string;
   instructions: PromptInstruction[];
   renderSpeakerTemplate?: (template: string) => Promise<string>;
-  playbackGateRef?: RefObject<DialoguePlaybackGate | undefined>;
-  measureVisualLinesAtHtml?: (html: string) => number;
-  getLinesAtLastContinue?: () => number;
   onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
   onComplete?: () => void;
   onSkipChange?: (skipped: boolean) => void;
@@ -47,9 +37,6 @@ export function PromptInstructionExecutor({
   initialSpeakerHtml = "",
   instructions,
   renderSpeakerTemplate,
-  playbackGateRef,
-  measureVisualLinesAtHtml,
-  getLinesAtLastContinue,
   onPlaySound,
   onComplete,
   onSkipChange,
@@ -61,7 +48,6 @@ export function PromptInstructionExecutor({
   const [isAwaitingContinue, setIsAwaitingContinue] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
   const isCompleteRef = useRef(false);
-  const visibleHtmlLengthRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const checkpointRef = useRef<PromptExecutionCheckpoint | null>(null);
   const continueResolverRef = useRef<(() => void) | null>(null);
@@ -153,7 +139,6 @@ export function PromptInstructionExecutor({
     isCompleteRef.current = false;
     setIsComplete(false);
     setIsAwaitingContinue(false);
-    visibleHtmlLengthRef.current = 0;
     setIsRevealing(false);
     setVisibleSpeakerHtml(initialSpeakerHtml);
     skipRevealChunkRequestedRef.current = false;
@@ -180,7 +165,6 @@ export function PromptInstructionExecutor({
       },
       signal: controller.signal,
       onHtmlUpdate: (html) => {
-        visibleHtmlLengthRef.current = html.length;
         setVisibleHtml(html);
       },
       initialSpeakerHtml,
@@ -189,14 +173,7 @@ export function PromptInstructionExecutor({
       onPlaySound: (assetId, options) => {
         onPlaySoundRef.current?.(assetId, options);
       },
-      shouldPause: () => {
-        const gate = playbackGateRef?.current;
-        if (!gate?.shouldPausePlayback) return false;
-        return gate.measuredForHtmlLength >= visibleHtmlLengthRef.current;
-      },
       waitForContinue,
-      measureVisualLinesAtHtml,
-      getLinesAtLastContinue,
       skipRevealChunk: skipRevealChunkControlRef.current,
       onRevealActiveChange: handleRevealActiveChange,
     })
@@ -224,9 +201,6 @@ export function PromptInstructionExecutor({
     instructionsKey,
     waitForContinue,
     handleRevealActiveChange,
-    playbackGateRef,
-    measureVisualLinesAtHtml,
-    getLinesAtLastContinue,
   ]);
 
   return (

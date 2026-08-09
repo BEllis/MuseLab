@@ -5,7 +5,6 @@ namespace MuseLab.UI.Dialogue
 {
     public static class DialogueLayoutEngine
     {
-        public const int DefaultContinuationVisualLineInterval = 3;
         public const float DialogueHintReservePx = 22f;
 
         public static bool ShouldResetDialogueLinePage(string previousMarkup, string nextMarkup)
@@ -33,19 +32,19 @@ namespace MuseLab.UI.Dialogue
             text.ForceMeshUpdate();
             var last = lineOffsets.Length - 1;
             var lineHeight = text.fontSize * 1.6f;
-            return Math.Max(lineHeight, lineOffsets[last] - lineOffsets[0] + lineHeight);
+            return Math.Max(lineHeight, lineOffsets[0] - lineOffsets[last] + lineHeight);
         }
 
         public static int CountLinesThatFit(float[] lineOffsets, float contentHeight, int startLine, float viewportHeightPx)
         {
             if (lineOffsets == null || lineOffsets.Length == 0) return 1;
             if (viewportHeightPx <= 0f) return 1;
-            var top = lineOffsets[Math.Min(startLine, lineOffsets.Length - 1)];
+            var startLineBaseline = lineOffsets[Math.Min(startLine, lineOffsets.Length - 1)];
             var count = 0;
             for (var i = startLine; i < lineOffsets.Length; i++)
             {
-                var lineBottom = i + 1 < lineOffsets.Length ? lineOffsets[i + 1] : contentHeight;
-                if (count > 0 && lineBottom - top > viewportHeightPx) break;
+                var heightOfLines = startLineBaseline - lineOffsets[i] + 25.6f;
+                if (count > 0 && heightOfLines > viewportHeightPx) break;
                 count++;
             }
             return Math.Max(1, count);

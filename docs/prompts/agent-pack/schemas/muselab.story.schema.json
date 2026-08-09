@@ -1,0 +1,789 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://muselab.dev/schemas/story.schema.json",
+  "title": "MuseLab Story Project",
+  "description": "MuseLab story manifest (project.json inside a .mlvn zip archive). Media files live under assets/backdrops, assets/actors, and assets/sounds and are referenced by relative path. Legacy plain JSON imports may still embed base64 in imageData.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "assets", "stories", "locales"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable project title."
+    },
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "MuseLab project manifest format version."
+    },
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for this manifest."
+    },
+    "assets": {
+      "type": "array",
+      "description": "Backdrops, actor sprites, and sounds referenced by scenes.",
+      "items": { "$ref": "#/$defs/asset" }
+    },
+    "stories": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Branching story graphs; each story owns its own scenes and links.",
+      "items": { "$ref": "#/$defs/story" }
+    },
+    "locales": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Supported locales in alphabetical order by locale tag.",
+      "items": { "$ref": "#/$defs/locale" }
+    },
+    "defaultLocale": {
+      "type": "string",
+      "pattern": "^[a-z]+(?:-[a-z]+)*$",
+      "description": "Default locale tag; must match a locale entry's locale field."
+    },
+    "defaultFontId": {
+      "$ref": "#/$defs/assetId",
+      "description": "Default font asset id for unstyled dialogue text."
+    },
+    "entryNodeId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Legacy flat manifest only: optional starting scene id."
+    },
+    "nodes": {
+      "type": "array",
+      "description": "Legacy flat manifest only: scenes at project root.",
+      "items": { "$ref": "#/$defs/storyNode" }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Legacy flat manifest only: links at project root.",
+      "items": { "$ref": "#/$defs/storyEdge" }
+    },
+    "globalState": {
+      "type": "object",
+      "description": "Legacy flat manifest only: initial runtime state at project root.",
+      "additionalProperties": true
+    },
+    "thumbnailAspectRatio": {
+      "$ref": "#/$defs/aspectRatio",
+      "description": "Scene thumbnail aspect ratio in the designer canvas."
+    },
+    "playerResolution": {
+      "$ref": "#/$defs/aspectRatio",
+      "description": "Target play-mode resolution in logical pixels (width × height)."
+    },
+    "modules": {
+      "type": "array",
+      "description": "Custom module interfaces available in Cito templates and conditions.",
+      "items": { "$ref": "#/$defs/moduleInterface" }
+    },
+    "promptRendererTypescriptSource": {
+      "type": "string",
+      "description": "Optional TypeScript implementation override for IMuseLabPromptRenderer."
+    },
+    "storyGroups": {
+      "type": "array",
+      "description": "Optional hierarchy folders for organizing stories in the designer.",
+      "items": { "$ref": "#/$defs/storyGroup" }
+    },
+    "assetGroups": {
+      "type": "array",
+      "description": "Optional hierarchy folders for organizing assets in the designer.",
+      "items": { "$ref": "#/$defs/assetGroup" }
+    },
+    "attributes": {
+      "$ref": "#/$defs/attributes",
+      "description": "Optional project-wide export metadata."
+    }
+  },
+  "$defs": {
+    "locale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "locale", "displayName"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "description": "Stable locale id (UUID)."
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[a-z]+(?:-[a-z]+)*$",
+          "description": "BCP 47-style locale tag (lowercase letters and hyphens)."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable locale name, e.g. English or English (UK)."
+        }
+      }
+    },
+    "attributeValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "string" },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "integer" },
+            "value": { "type": "integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "number" },
+            "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "object" },
+            "value": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "list" },
+            "value": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/attributeValue" }
+            }
+          }
+        }
+      ]
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Custom key-value metadata for export targets.",
+      "additionalProperties": { "$ref": "#/$defs/attributeValue" }
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "UUID v4 object identifier (lowercase hex)."
+    },
+    "reservedAssetId": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "muselab-default-backdrop",
+          "description": "Built-in default backdrop asset id."
+        },
+        {
+          "type": "string",
+          "const": "muselab-default-font",
+          "description": "Built-in default font asset id."
+        }
+      ]
+    },
+    "reservedModuleId": {
+      "type": "string",
+      "pattern": "^builtin:",
+      "description": "Built-in module interface id."
+    },
+    "objectId": {
+      "$ref": "#/$defs/uuid",
+      "description": "UUID object identifier for stories, nodes, edges, and expressions."
+    },
+    "assetId": {
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "$ref": "#/$defs/reservedAssetId" }
+      ],
+      "description": "Asset reference id (UUID or reserved default backdrop)."
+    },
+    "moduleId": {
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "$ref": "#/$defs/reservedModuleId" }
+      ],
+      "description": "Module interface id (UUID or built-in builtin: prefix)."
+    },
+    "citoType": {
+      "type": "string",
+      "enum": ["void", "string", "bool", "int", "double"]
+    },
+    "moduleMethodParam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "$ref": "#/$defs/citoType" }
+      }
+    },
+    "moduleMethod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parameters", "returnType"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/moduleMethodParam" }
+        },
+        "returnType": { "$ref": "#/$defs/citoType" }
+      }
+    },
+    "moduleInterface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "bindingName", "methods"],
+      "properties": {
+        "id": { "$ref": "#/$defs/moduleId" },
+        "name": { "type": "string", "minLength": 1 },
+        "bindingName": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$",
+          "description": "camelCase variable name used in Cito code."
+        },
+        "methods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/moduleMethod" }
+        },
+        "typescriptSource": { "type": "string" }
+      }
+    },
+    "aspectRatio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Aspect ratio width component."
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Aspect ratio height component."
+        }
+      }
+    },
+    "assetType": {
+      "type": "string",
+      "enum": ["backdrop", "actor", "sound", "font"]
+    },
+    "actorExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable expression identifier unique within the actor."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name unique within the actor (case-insensitive)."
+        },
+        "path": {
+          "type": "string",
+          "description": "Archive-relative image path, e.g. assets/actors/{actorId}/{expressionId}.png."
+        },
+        "url": {
+          "type": "string",
+          "description": "Built-in placeholder data URL only. Omitted from saved MLVN manifests."
+        },
+        "imageData": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Legacy JSON import only: base64-encoded image bytes before hydration."
+        },
+        "imageMimeType": {
+          "type": "string",
+          "pattern": "^image/",
+          "description": "MIME type for imageData."
+        },
+        "blobStored": {
+          "type": "boolean",
+          "description": "Web runtime only: image stored in IndexedDB."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within the parent actor."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional expression export metadata."
+        }
+      }
+    },
+    "actorSceneConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "expressionId"],
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/assetId",
+          "description": "Actor asset id."
+        },
+        "expressionId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Expression id within the actor asset."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional per-scene actor placement metadata."
+        }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "name"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/assetId",
+          "description": "Stable asset identifier referenced by nodes and sound configs."
+        },
+        "type": { "$ref": "#/$defs/assetType" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the assets panel."
+        },
+        "path": {
+          "type": "string",
+          "description": "Archive-relative media path in saved MLVN projects, e.g. assets/actors/abc123.png."
+        },
+        "url": {
+          "type": "string",
+          "description": "Built-in default backdrop only. Omitted from saved MLVN manifests for custom assets."
+        },
+        "imageData": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Legacy JSON import only: base64-encoded media bytes before hydration."
+        },
+        "imageMimeType": {
+          "type": "string",
+          "pattern": "^image/",
+          "description": "MIME type for imageData (e.g. image/png, image/jpeg)."
+        },
+        "blobStored": {
+          "type": "boolean",
+          "description": "Web runtime only: media stored in IndexedDB under this asset id."
+        },
+        "personality": {
+          "type": "string",
+          "description": "Actor only: personality notes for designers."
+        },
+        "appearance": {
+          "type": "string",
+          "description": "Actor only: appearance notes for designers."
+        },
+        "voiceAccent": {
+          "type": "string",
+          "description": "Actor only: voice and accent notes for designers."
+        },
+        "backstory": {
+          "type": "string",
+          "description": "Actor only: backstory notes for designers."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Actor only: general notes for designers."
+        },
+        "expressions": {
+          "type": "array",
+          "description": "Actor only: named expression sprites.",
+          "items": { "$ref": "#/$defs/actorExpression" }
+        },
+        "defaultExpressionId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Actor only: expression used when no specific expression is chosen."
+        },
+        "groupId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional asset group for hierarchy in the Assets panel tree."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within a folder or at the type root."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional asset export metadata."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "actor" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["expressions"],
+            "properties": {
+              "expressions": {
+                "minItems": 1
+              }
+            },
+            "description": "Actor assets require at least one expression with an image."
+          }
+        }
+      ]
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "soundConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId"],
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/assetId",
+          "description": "Id of a sound asset."
+        },
+        "startOnLoad": {
+          "type": "boolean",
+          "description": "Start playback when the scene loads."
+        },
+        "stopOnLoad": {
+          "type": "boolean",
+          "description": "Stop other sounds when the scene loads."
+        },
+        "loop": {
+          "type": "boolean",
+          "description": "Loop playback."
+        },
+        "startTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Playback start offset in seconds."
+        },
+        "endTime": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Playback end offset in seconds."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional per-slot sound metadata."
+        }
+      }
+    },
+    "story": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "nodes", "edges", "globalState"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable story identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the Stories panel."
+        },
+        "groupId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional story group folder containing this story."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within a folder or at the project root."
+        },
+        "nodes": {
+          "type": "array",
+          "description": "Scenes in this story graph.",
+          "items": { "$ref": "#/$defs/storyNode" }
+        },
+        "edges": {
+          "type": "array",
+          "description": "Directed links between scenes in this story.",
+          "items": { "$ref": "#/$defs/storyEdge" }
+        },
+        "globalState": {
+          "type": "object",
+          "description": "Initial runtime variables and flags for this story.",
+          "additionalProperties": true
+        },
+        "entryNodeId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional explicit starting scene id for this story."
+        },
+        "endNodeLayouts": {
+          "type": "object",
+          "description": "Designer-only layout for synthetic End nodes on terminal scenes, keyed by scene id.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["position"],
+            "properties": {
+              "position": { "$ref": "#/$defs/point" },
+              "vertices": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/point" }
+              },
+              "manualRoute": { "type": "boolean" }
+            }
+          }
+        },
+        "promptStartTemplate": {
+          "type": "string",
+          "description": "Template prepended to every scene prompt before rendering."
+        },
+        "promptEndTemplate": {
+          "type": "string",
+          "description": "Template appended to every scene prompt before rendering."
+        },
+        "speakerStartTemplate": {
+          "type": "string",
+          "description": "Template prepended to every speaker name before rendering."
+        },
+        "speakerEndTemplate": {
+          "type": "string",
+          "description": "Template appended to every speaker name before rendering."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional story export metadata."
+        }
+      }
+    },
+    "storyGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable story group identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the Stories panel tree."
+        },
+        "parentGroupId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional parent group for nested folders."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within a parent folder or at the project root."
+        }
+      }
+    },
+    "assetGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "assetType"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable asset group identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name in the Assets panel tree."
+        },
+        "assetType": {
+          "$ref": "#/$defs/assetType",
+          "description": "Which Assets panel section this group belongs to."
+        },
+        "parentGroupId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Optional parent group for nested folders within the same asset type."
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sibling order within a parent folder or at the type root."
+        }
+      }
+    },
+    "storyNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "position"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable node identifier."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["start", "scene", "jump"],
+          "description": "Node kind: start (entry), scene (content), or jump (cross-story redirect)."
+        },
+        "position": { "$ref": "#/$defs/point" },
+        "label": {
+          "type": "string",
+          "description": "Unique display name shown in the designer."
+        },
+        "backdropId": {
+          "$ref": "#/$defs/assetId",
+          "description": "Scene only: backdrop asset id."
+        },
+        "actorConfigs": {
+          "type": "array",
+          "description": "Scene only: ordered actor placements with expression per actor.",
+          "items": { "$ref": "#/$defs/actorSceneConfig" }
+        },
+        "soundConfigs": {
+          "type": "array",
+          "description": "Scene only: sound playback configs.",
+          "items": { "$ref": "#/$defs/soundConfig" }
+        },
+        "jumpTargetStoryId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Jump only: target story id."
+        },
+        "jumpTargetStartNodeId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Jump only: target Start node id in the target story."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional node export metadata."
+        }
+      }
+    },
+    "storyEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourceNodeId", "targetNodeId"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objectId",
+          "description": "Stable link identifier."
+        },
+        "sourceNodeId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Outgoing scene id."
+        },
+        "targetNodeId": {
+          "$ref": "#/$defs/objectId",
+          "description": "Incoming scene id."
+        },
+        "sourcePortId": {
+          "type": "string",
+          "pattern": "^(out-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|__free_out__)$",
+          "description": "Designer out-port id. Persisted edges use out-{edgeId}."
+        },
+        "targetPortId": {
+          "type": "string",
+          "const": "__free_in__",
+          "description": "Designer in-port id. All incoming links share __free_in__."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Cito expression; link is offered only when this evaluates truthy."
+        },
+        "vertices": {
+          "type": "array",
+          "description": "Manual bend points for the link path in the designer.",
+          "items": { "$ref": "#/$defs/point" }
+        },
+        "manualRoute": {
+          "type": "boolean",
+          "description": "True when the user has manually shaped this link."
+        },
+        "attributes": {
+          "$ref": "#/$defs/attributes",
+          "description": "Optional link export metadata."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "name": "Untitled",
+      "assets": [
+        {
+          "id": "muselab-default-backdrop",
+          "type": "backdrop",
+          "name": "default",
+          "url": "data:image/png;base64,..."
+        },
+        {
+          "id": "a1000000-0000-4000-8000-000000000010",
+          "type": "actor",
+          "name": "Hero",
+          "expressions": [
+            {
+              "id": "a1000000-0000-4000-8000-000000000011",
+              "name": "default",
+              "imageMimeType": "image/png",
+              "imageData": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            }
+          ]
+        }
+      ],
+      "stories": [
+        {
+          "id": "a1000000-0000-4000-8000-000000000012",
+          "name": "Main",
+          "nodes": [
+            {
+              "id": "a1000000-0000-4000-8000-000000000013",
+              "type": "scene",
+              "position": { "x": 100, "y": 100 },
+              "label": "Opening",
+              "backdropId": "muselab-default-backdrop",
+              "actorConfigs": [
+                {
+                  "assetId": "a1000000-0000-4000-8000-000000000010",
+                  "expressionId": "a1000000-0000-4000-8000-000000000011"
+                }
+              ],
+              "soundConfigs": []
+            }
+          ],
+          "edges": [],
+          "globalState": {}
+        }
+      ],
+      "locales": [
+        {
+          "id": "a1000000-0000-4000-8000-000000000020",
+          "locale": "en",
+          "displayName": "English"
+        }
+      ]
+    }
+  ]
+}

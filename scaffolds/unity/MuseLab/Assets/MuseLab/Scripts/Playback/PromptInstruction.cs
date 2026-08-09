@@ -50,7 +50,6 @@ namespace MuseLab.Playback
     {
         public const double DefaultCharsPerSecond = 40;
         public const double DefaultWordsPerSecond = 12;
-        public const int DefaultContinuationVisualLineInterval = 3;
 
         public static bool NeedExecutor(IReadOnlyList<PromptInstruction> instructions)
         {

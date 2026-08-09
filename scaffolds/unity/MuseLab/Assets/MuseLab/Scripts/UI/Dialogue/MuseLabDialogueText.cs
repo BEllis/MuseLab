@@ -24,17 +24,12 @@ namespace MuseLab.UI.Dialogue
         float[] lineOffsets = { 0f };
         float contentHeight;
         int startLineIndex;
-        bool showMoreHint;
         bool showContinueHint;
 
         public bool Compact { get; set; }
 
         public TMP_Text VisibleText => visibleText;
         public IReadOnlyList<DialogueGlyph> Glyphs => document.Glyphs;
-
-        public int LineCount => lineOffsets?.Length ?? 0;
-
-        public DialoguePlaybackGate PlaybackGate { get; private set; }
 
         public bool HasMoreToPaginate
         {
@@ -91,7 +86,7 @@ namespace MuseLab.UI.Dialogue
             tmp.fontSize = MuseLabUiStyles.DialogueFontSize;
             tmp.lineSpacing = MuseLabUiStyles.DialogueLineSpacing;
             tmp.color = MuseLabUiStyles.TextDark;
-            tmp.alignment = TextAlignmentOptions.BottomLeft;
+            tmp.alignment = TextAlignmentOptions.TopLeft;
             tmp.textWrappingMode = TextWrappingModes.Normal;
             tmp.overflowMode = TextOverflowModes.Overflow;
             tmp.richText = true;
@@ -108,23 +103,10 @@ namespace MuseLab.UI.Dialogue
             fontRegistry?.PreloadFromMarkup(currentMarkup);
             document.BuildFromMarkup(currentMarkup, parser);
 
-            var tmpString = tmpRenderer.BuildTmpString(document.Glyphs);
-            measureText.text = tmpString;
-            visibleText.text = showMoreHint || showContinueHint
-                ? DialogueLayoutEngine.AppendInlineDialogueMoreHint(tmpString)
-                : tmpString;
-            measureText.ForceMeshUpdate();
-            visibleText.ForceMeshUpdate();
-
             RemeasureLayout();
+            RefreshHintDisplay();
             ApplyPageOffset();
             glyphEffects.Configure(visibleText, document.Glyphs, Compact);
-        }
-
-        public void SetShowMoreHint(bool show)
-        {
-            showMoreHint = show;
-            RefreshHintDisplay();
         }
 
         public void SetShowContinueHint(bool show)
@@ -137,9 +119,10 @@ namespace MuseLab.UI.Dialogue
         {
             if (string.IsNullOrEmpty(currentMarkup)) return;
             var tmpString = tmpRenderer.BuildTmpString(document.Glyphs);
-            visibleText.text = showMoreHint || showContinueHint
+            visibleText.text = showContinueHint
                 ? DialogueLayoutEngine.AppendInlineDialogueMoreHint(tmpString)
                 : tmpString;
+            visibleText.ForceMeshUpdate();
         }
 
         public void OnRevealStarted()
@@ -147,9 +130,13 @@ namespace MuseLab.UI.Dialogue
             var viewportHeight = GetContentViewportHeight();
             startLineIndex = DialogueLayoutEngine.GetLastPageStartLine(lineOffsets, contentHeight, viewportHeight, startLineIndex);
             ApplyPageOffset();
+            RefreshHintDisplay();
         }
 
-        public void OnRevealEnded() { }
+        public void OnRevealEnded()
+        {
+            RefreshHintDisplay();
+        }
 
         public bool Paginate()
         {
@@ -158,34 +145,24 @@ namespace MuseLab.UI.Dialogue
             var (linesOnPage, _) = DialogueLayoutEngine.GetDialoguePageState(lineOffsets, contentHeight, startLineIndex, viewportHeight);
             startLineIndex += linesOnPage;
             ApplyPageOffset();
+            RefreshHintDisplay();
             return true;
-        }
-
-        public int LineCountAtHtml(string markup)
-        {
-            var saved = currentMarkup;
-            SetMarkup(markup);
-            var count = LineCount;
-            SetMarkup(saved);
-            return count;
         }
 
         void RemeasureLayout()
         {
+            var tmpString = tmpRenderer.BuildTmpString(document.Glyphs);
+            measureText.text = tmpString;
+            measureText.ForceMeshUpdate();
             lineOffsets = DialogueLayoutEngine.MeasureLineBaselines(measureText);
             contentHeight = DialogueLayoutEngine.ContentHeight(lineOffsets, measureText);
-            PlaybackGate = new DialoguePlaybackGate
-            {
-                TotalVisualLines = lineOffsets.Length,
-                MeasuredForHtmlLength = currentMarkup.Length,
-            };
         }
 
         float GetContentViewportHeight()
         {
             if (viewport == null) return 0f;
             var height = viewport.rect.height;
-            var hintReserve = (showContinueHint || showMoreHint) ? DialogueLayoutEngine.DialogueHintReservePx : 0f;
+            var hintReserve = showContinueHint ? DialogueLayoutEngine.DialogueHintReservePx : 0f;
             return DialogueLayoutEngine.DialogueContentHeightPx(height, hintReserve);
         }
 
@@ -200,7 +177,25 @@ namespace MuseLab.UI.Dialogue
             var clampedStart = DialogueLayoutEngine.ClampDialogueStartLine(lineOffsets, startLineIndex);
             var offset = clampedStart < lineOffsets.Length ? lineOffsets[clampedStart] : 0f;
             var baseLine = lineOffsets[0];
-            textRect.anchoredPosition = new Vector2(0f, -(offset - baseLine));
+            var standardY = -(offset - baseLine);
+
+            var lastLineIndex = lineOffsets.Length - 1;
+            var lastLineBaseline = lineOffsets[lastLineIndex];
+            var startLineBaseline = lineOffsets[clampedStart];
+            var lineHeight = visibleText.fontSize * 1.6f;
+            var blockHeight = (startLineBaseline - lastLineBaseline) + lineHeight;
+
+            var viewportHeight = GetContentViewportHeight();
+
+            if (blockHeight > viewportHeight)
+            {
+                var scrollUp = blockHeight - viewportHeight;
+                textRect.anchoredPosition = new Vector2(0f, standardY + scrollUp);
+            }
+            else
+            {
+                textRect.anchoredPosition = new Vector2(0f, standardY);
+            }
         }
 
         static void Stretch(RectTransform rt)

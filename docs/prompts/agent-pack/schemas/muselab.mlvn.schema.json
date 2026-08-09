@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://muselab.dev/schemas/mlvn.schema.json",
+  "title": "MuseLab MLVN Archive Metadata",
+  "description": "Root metadata for a MuseLab .mlvn zip archive. The manifest and locale prompt files are stored as separate entries.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formatVersion", "schema", "manifest"],
+  "properties": {
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "MuseLab archive format version."
+    },
+    "schema": {
+      "type": "string",
+      "const": "https://muselab.dev/schemas/mlvn.schema.json",
+      "description": "Schema URL for this metadata file."
+    },
+    "manifest": {
+      "type": "string",
+      "const": "project.json",
+      "description": "Archive entry containing the project manifest."
+    },
+    "promptsPattern": {
+      "type": "string",
+      "const": "prompts.{locale}.json",
+      "description": "Filename pattern for locale prompt files inside the archive."
+    }
+  }
+}

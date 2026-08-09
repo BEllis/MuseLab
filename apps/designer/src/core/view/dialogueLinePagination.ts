@@ -1,5 +1,3 @@
-export const DEFAULT_CONTINUATION_VISUAL_LINE_INTERVAL = 3;
-
 export function shouldResetDialogueLinePage(previousHtml: string, nextHtml: string): boolean {
   return nextHtml.length < previousHtml.length || !nextHtml.startsWith(previousHtml);
 }

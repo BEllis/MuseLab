@@ -5,7 +5,6 @@ import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import {
   PromptInstructionExecutor,
   shouldUsePromptExecutor,
-  type DialoguePlaybackGate,
 } from "@/components/PromptInstructionExecutor";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { useLoadedFonts } from "@/hooks/useLoadedFonts";
@@ -42,7 +41,6 @@ import {
 import {
   appendInlineDialogueMoreHint,
   clampDialogueStartLine,
-  DEFAULT_CONTINUATION_VISUAL_LINE_INTERVAL,
   getDialoguePageState,
   getLastPageStartLine,
   measureVisualLineOffsets,
@@ -102,35 +100,6 @@ export function SceneStagePreview({
   const [previewSpeaker, setPreviewSpeaker] = useState(dialogueSpeaker ?? "");
   const [previewChoices, setPreviewChoices] = useState<SceneStageChoice[]>(choicesProp ?? []);
   const [promptComplete, setPromptComplete] = useState(true);
-  const playbackGateRef = useRef<DialoguePlaybackGate | undefined>(undefined);
-  const linesAtLastContinueRef = useRef(0);
-  const dialogueMeasureRef = useRef<HTMLDivElement>(null);
-
-  const measureVisualLinesAtHtml = useCallback((html: string) => {
-    const el = dialogueMeasureRef.current;
-    if (!el) return 0;
-    const saved = el.innerHTML;
-    el.innerHTML = html;
-    const lineCount = measureVisualLineOffsets(el).length;
-    el.innerHTML = saved;
-    return lineCount;
-  }, []);
-
-  const getLinesAtLastContinue = useCallback(() => linesAtLastContinueRef.current, []);
-
-  const handlePlaybackGateChange = useCallback(
-    (totalVisualLines: number, measuredForHtmlLength: number) => {
-      const linesSinceContinue = totalVisualLines - linesAtLastContinueRef.current;
-      playbackGateRef.current = {
-        totalVisualLines,
-        linesSinceContinue,
-        shouldPausePlayback:
-          linesSinceContinue >= DEFAULT_CONTINUATION_VISUAL_LINE_INTERVAL,
-        measuredForHtmlLength,
-      };
-    },
-    [],
-  );
 
   useEffect(() => {
     if (choicesProp !== undefined) {
@@ -223,8 +192,6 @@ export function SceneStagePreview({
 
   useEffect(() => {
     setPromptComplete(!usePromptExecutor);
-    linesAtLastContinueRef.current = 0;
-    playbackGateRef.current = undefined;
   }, [html, promptInstructions, usePromptExecutor]);
   const showCaptionPanel = hasDialogueContent;
   const choiceAreaBottom =
@@ -376,9 +343,6 @@ export function SceneStagePreview({
             initialSpeakerHtml={initialSpeakerHtml}
             instructions={promptInstructions}
             renderSpeakerTemplate={renderSpeakerTemplate}
-            playbackGateRef={playbackGateRef}
-            measureVisualLinesAtHtml={!compact ? measureVisualLinesAtHtml : undefined}
-            getLinesAtLastContinue={!compact ? getLinesAtLastContinue : undefined}
             onPlaySound={onPlaySound}
             onComplete={handlePromptComplete}
             onSkipChange={handlePromptSkipChange}
@@ -398,15 +362,11 @@ export function SceneStagePreview({
                 speakerHtml={visibleSpeakerHtml}
                 speakerTabStyle={speakerTabStyle}
                 defaultFontFamily={defaultFontFamily}
-                dialogueMeasureRef={!compact ? dialogueMeasureRef : undefined}
                 dialogueHtml={visibleHtml}
                 linePaginationEnabled={!compact && !isComplete}
                 playbackInProgress={!isComplete}
                 isRevealing={!isComplete && isRevealing}
                 isAwaitingContinue={!isComplete && isAwaitingContinue}
-                onPlaybackGateChange={
-                  !compact && !isComplete ? handlePlaybackGateChange : undefined
-                }
                 showContinueHint={
                   (singleChoice || (showContinue && !compact && isComplete)) &&
                   isComplete &&
@@ -416,9 +376,6 @@ export function SceneStagePreview({
                 onActivate={() => {
                   if (!isComplete) {
                     if (isAwaitingContinue) {
-                      linesAtLastContinueRef.current =
-                        playbackGateRef.current?.totalVisualLines ??
-                        linesAtLastContinueRef.current;
                       resume();
                     } else {
                       skipRevealChunk();
@@ -574,13 +531,11 @@ function DialogueCaptionBox({
   speakerHtml,
   speakerTabStyle,
   defaultFontFamily,
-  dialogueMeasureRef,
   dialogueHtml,
   linePaginationEnabled = true,
   playbackInProgress = false,
   isRevealing = false,
   isAwaitingContinue = false,
-  onPlaybackGateChange,
   showContinueHint,
   interactive,
   onActivate,
@@ -590,21 +545,18 @@ function DialogueCaptionBox({
   speakerHtml: string;
   speakerTabStyle: React.CSSProperties;
   defaultFontFamily?: string;
-  dialogueMeasureRef?: React.RefObject<HTMLDivElement | null>;
   dialogueHtml: string;
   linePaginationEnabled?: boolean;
   playbackInProgress?: boolean;
   isRevealing?: boolean;
   isAwaitingContinue?: boolean;
-  onPlaybackGateChange?: (totalVisualLines: number, measuredForHtmlLength: number) => void;
   showContinueHint: boolean;
   interactive: boolean;
   onActivate?: () => void;
 }) {
   const lineHeight = compact ? 1.25 : 1.6;
   const viewportRef = useRef<HTMLDivElement>(null);
-  const internalMeasureRef = useRef<HTMLDivElement>(null);
-  const measureRef = dialogueMeasureRef ?? internalMeasureRef;
+  const measureRef = useRef<HTMLDivElement>(null);
   const previousHtmlRef = useRef("");
   const [startLineIndex, setStartLineIndex] = useState(0);
   const startLineIndexRef = useRef(0);
@@ -666,11 +618,8 @@ function DialogueCaptionBox({
       setContentHeight(measureEl.scrollHeight);
       setContentViewportHeightPx(nextContentViewportHeight);
       setStartLineIndex(nextStartLine);
-      if (!compact && onPlaybackGateChange) {
-        onPlaybackGateChange(offsets.length, dialogueHtml.length);
-      }
     },
-    [compact, dialogueHtml, hintReservePx, isRevealing, onPlaybackGateChange],
+    [compact, dialogueHtml, hintReservePx, isRevealing],
   );
 
   const { linesOnPage, hasMoreToPaginate } = getDialoguePageState(

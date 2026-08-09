@@ -72,53 +72,6 @@ describe("executePromptInstructions", () => {
     ]);
   });
 
-  it("pauses and resumes reveal when shouldPause returns true", async () => {
-    const updates: string[] = [];
-    let continuePlayback: (() => void) | null = null;
-    const plain = "one two three four five six";
-    const pauseAfterStep = 10;
-    let paused = false;
-
-    const run = executePromptInstructions({
-      instructions: [
-        {
-          kind: "revealHtml",
-          html: plain,
-          plainLength: plain.length,
-          wordCount: 6,
-          mode: { kind: "charsPerSecond", rate: 1000 },
-        },
-      ],
-      onHtmlUpdate: (html) => updates.push(html),
-      onPlaySound: () => {},
-      shouldPause: () => {
-        if (paused) return false;
-        if (updates.length >= pauseAfterStep) {
-          paused = true;
-          return true;
-        }
-        return false;
-      },
-      waitForContinue: () =>
-        new Promise<void>((resolve) => {
-          continuePlayback = () => {
-            resolve();
-          };
-        }),
-    });
-
-    for (let attempt = 0; attempt < 50 && continuePlayback === null; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-    expect(continuePlayback).not.toBeNull();
-    expect(updates.at(-1)).toBe(htmlPrefixForPlainLength(plain, pauseAfterStep));
-
-    continuePlayback?.();
-    await run;
-
-    expect(updates.at(-1)).toBe(plain);
-  });
-
   it("shows appendHtml in one burst without onRevealActiveChange", async () => {
     const updates: string[] = [];
     const revealActive: boolean[] = [];
@@ -134,46 +87,6 @@ describe("executePromptInstructions", () => {
 
     expect(updates).toEqual([plain]);
     expect(revealActive).toEqual([]);
-  });
-
-  it("pauses appendHtml at visual-line boundaries using word bursts", async () => {
-    const updates: string[] = [];
-    let continuePlayback: (() => void) | null = null;
-    let linesAtLastContinue = 0;
-    const plain = "one two three four five";
-
-    const measureVisualLinesAtHtml = (html: string) => {
-      const text = html.replace(/<[^>]*>/g, "");
-      if (!text.trim()) return 0;
-      return text.trim().split(/\s+/).length;
-    };
-
-    const run = executePromptInstructions({
-      instructions: [{ kind: "appendHtml", html: plain }],
-      onHtmlUpdate: (html) => updates.push(html),
-      onPlaySound: () => {},
-      measureVisualLinesAtHtml,
-      getLinesAtLastContinue: () => linesAtLastContinue,
-      continuationVisualLineInterval: 3,
-      waitForContinue: () =>
-        new Promise<void>((resolve) => {
-          continuePlayback = () => {
-            linesAtLastContinue = measureVisualLinesAtHtml(updates.at(-1) ?? "");
-            resolve();
-          };
-        }),
-    });
-
-    for (let attempt = 0; attempt < 50 && continuePlayback === null; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    expect(continuePlayback).not.toBeNull();
-    expect(updates.at(-1)).toBe("one two three");
-
-    continuePlayback?.();
-    await run;
-
-    expect(updates.at(-1)).toBe(plain);
   });
 
   it("defers playSound until an explicit waitForContinue instruction", async () => {

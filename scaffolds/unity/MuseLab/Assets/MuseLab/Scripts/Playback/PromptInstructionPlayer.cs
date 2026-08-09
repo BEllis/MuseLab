@@ -28,8 +28,6 @@ namespace MuseLab.Playback
         bool isRevealing;
         bool skipRevealRequested;
         bool skipLatchActive;
-        int linesAtLastContinue;
-        int continuationLineInterval = PromptInstructionRules.DefaultContinuationVisualLineInterval;
 
         PromptExecutionCheckpoint checkpoint;
 
@@ -59,7 +57,6 @@ namespace MuseLab.Playback
             isRevealing = false;
             awaitingContinue = false;
             skipLatchActive = false;
-            dialogueView?.SetShowMoreHint(false);
             dialogueView?.SetShowContinueHint(false);
             dialogueView?.OnRevealEnded();
         }
@@ -118,7 +115,6 @@ namespace MuseLab.Playback
             }
 
             IsComplete = false;
-            linesAtLastContinue = 0;
             StartCoroutine(RunInstructions(fullMarkupSnapshot, initialSpeaker, instructions));
         }
 
@@ -132,7 +128,6 @@ namespace MuseLab.Playback
             for (var index = 0; index < instructions.Count; index++)
             {
                 var instruction = instructions[index];
-                yield return MaybePause();
 
                 switch (instruction.Kind)
                 {
@@ -140,7 +135,6 @@ namespace MuseLab.Playback
                         baseMarkup += instruction.Html ?? "";
                         visibleMarkup = baseMarkup;
                         ApplyText();
-                        yield return MaybePause();
                         break;
 
                     case PromptInstructionKind.RevealHtml:
@@ -197,7 +191,6 @@ namespace MuseLab.Playback
             isRevealing = false;
             awaitingContinue = false;
             dialogueView?.OnRevealEnded();
-            dialogueView?.SetShowMoreHint(false);
             IsComplete = true;
             OnPlaybackStateChanged?.Invoke(false);
             OnPlaybackComplete?.Invoke();
@@ -253,7 +246,6 @@ namespace MuseLab.Playback
                         ? MarkupUtil.PrefixForWordCount(html, step)
                         : MarkupUtil.PrefixForPlainLength(html, step);
                     onUpdate(partial);
-                    yield return MaybePause();
                     if (ConsumeSkip(html, onUpdate)) yield break;
                     var delay = instruction.RateKind == RevealRateKind.WordsPerSecond
                         ? 1f / (float)instruction.Rate
@@ -288,30 +280,7 @@ namespace MuseLab.Playback
             OnPlaybackStateChanged?.Invoke(true);
             while (awaitingContinue) yield return null;
             dialogueView?.SetShowContinueHint(false);
-            linesAtLastContinue = dialogueView?.LineCount ?? 0;
             OnPlaybackStateChanged?.Invoke(false);
-        }
-
-        IEnumerator MaybePause()
-        {
-            if (dialogueView == null) yield break;
-            yield return WaitForLayoutGate();
-            var lines = dialogueView.LineCount;
-            if (lines - linesAtLastContinue < continuationLineInterval) yield break;
-            dialogueView.SetShowMoreHint(true);
-            yield return WaitForContinueGate();
-            dialogueView.SetShowMoreHint(false);
-        }
-
-        IEnumerator WaitForLayoutGate()
-        {
-            if (dialogueView == null) yield break;
-            var markupLen = visibleMarkup?.Length ?? 0;
-            for (var i = 0; i < 120; i++)
-            {
-                if (dialogueView.PlaybackGate.MeasuredForHtmlLength >= markupLen) yield break;
-                yield return null;
-            }
         }
 
         void ApplyText()
