@@ -30,24 +30,11 @@ export interface ScriptAssetReference {
 function collectReferencesFromStory(script: MuseLabStoryScript): ScriptAssetReference[] {
   const references: ScriptAssetReference[] = [];
   for (const scene of script.scenes) {
-    if (scene.backdrop?.backdrop_path) {
-      references.push({
-        assetType: "backdrop",
-        assetPath: scene.backdrop.backdrop_path,
-      });
-    }
     if (scene.sound?.sound_path) {
       const { groupPath, assetName } = splitAssetPath(scene.sound.sound_path);
       references.push({
         assetType: "sound",
         assetPath: formatAssetPath(groupPath, normalizeSoundAssetName(assetName)),
-      });
-    }
-    for (const actor of scene.actors ?? []) {
-      references.push({
-        assetType: "actor",
-        assetPath: actor.actor_path,
-        expressionName: actor.expression,
       });
     }
   }

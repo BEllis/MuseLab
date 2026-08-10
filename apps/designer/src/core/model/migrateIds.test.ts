@@ -5,9 +5,13 @@ import { parseProject } from "./project";
 import { migrateProjectBundle } from "./projectBundle";
 import { isUuid } from "./id";
 import {
+  createEmptyPromptsByLocale,
   getEdgeOptionTextForLocale,
-  getNodeTextTemplateForLocale,
+  getNodeActionsForLocale,
+  setEdgeOptionText,
+  setNodeActions,
 } from "../locale/prompts";
+import type { SceneAction } from "../scene/actions";
 
 describe("migrateProjectIdsToUuid", () => {
   it("migrates legacy string ids to UUIDs while preserving prompts and references", () => {
@@ -25,23 +29,12 @@ describe("migrateProjectIdsToUuid", () => {
         {
           id: "main",
           name: "Main",
-          nodes: [
-            {
-              id: "scene1",
-              type: "scene",
-              position: { x: 0, y: 0 },
-              backdropId: DEFAULT_BACKDROP_ID,
-              actorConfigs: [{ assetId: "hero1", expressionId: "expr1" }],
-              soundConfigs: [],
-              textTemplate: "<p>Hello</p>",
-            },
-          ],
+          nodes: [{ id: "scene1", type: "scene", position: { x: 0, y: 0 } }],
           edges: [
             {
               id: "edge1",
               sourceNodeId: "scene1",
               targetNodeId: "scene1",
-              optionText: "Continue",
             },
           ],
           globalState: {},
@@ -50,7 +43,15 @@ describe("migrateProjectIdsToUuid", () => {
       locales: ["en"],
     });
 
-    const bundle = migrateProjectBundle(parseProject(raw));
+    const project = parseProject(raw);
+    const promptsByLocale = createEmptyPromptsByLocale(["en"]);
+    setNodeActions(promptsByLocale.en, "main", "scene1", [
+      { kind: "prop.add", id: "hero", assetId: "hero1", variationId: "expr1" },
+      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+    ]);
+    setEdgeOptionText(promptsByLocale.en, "main", "edge1", "Continue");
+
+    const bundle = migrateProjectBundle(project, promptsByLocale);
     const story = bundle.project.stories[0]!;
     const scene = story.nodes[0]!;
     const edge = story.edges[0]!;
@@ -64,13 +65,17 @@ describe("migrateProjectIdsToUuid", () => {
     expect(isUuid(expression.id)).toBe(true);
     expect(edge.sourceNodeId).toBe(scene.id);
     expect(edge.targetNodeId).toBe(scene.id);
-    expect(scene.actorConfigs![0]).toEqual({
-      assetId: hero.id,
-      expressionId: expression.id,
-    });
-    expect(
-      getNodeTextTemplateForLocale(bundle.promptsByLocale, "en", story.id, scene.id)
-    ).toBe("<p>Hello</p>");
+
+    const actions: SceneAction[] = getNodeActionsForLocale(
+      bundle.promptsByLocale,
+      "en",
+      story.id,
+      scene.id
+    );
+    expect(actions).toEqual([
+      { kind: "prop.add", id: "hero", assetId: hero.id, variationId: expression.id },
+      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+    ]);
     expect(getEdgeOptionTextForLocale(bundle.promptsByLocale, "en", story.id, edge.id)).toBe(
       "Continue"
     );
@@ -87,29 +92,38 @@ describe("migrateProjectIdsToUuid", () => {
   });
 
   it("leaves reserved built-in ids unchanged", () => {
-    const bundle = migrateProjectBundle(parseProject(JSON.stringify({
-      name: "Builtin",
-      assets: [],
-      stories: [
-        {
-          id: "a1000000-0000-4000-8000-000000000001",
-          name: "Main",
-          nodes: [
-            {
-              id: "a1000000-0000-4000-8000-000000000002",
-              type: "scene",
-              position: { x: 0, y: 0 },
-              backdropId: DEFAULT_BACKDROP_ID,
-              actorConfigs: [],
-              soundConfigs: [],
-            },
-          ],
-          edges: [],
-          globalState: {},
-        },
-      ],
-      locales: ["en"],
-    })));
+    const project = parseProject(
+      JSON.stringify({
+        name: "Builtin",
+        assets: [],
+        stories: [
+          {
+            id: "a1000000-0000-4000-8000-000000000001",
+            name: "Main",
+            nodes: [
+              {
+                id: "a1000000-0000-4000-8000-000000000002",
+                type: "scene",
+                position: { x: 0, y: 0 },
+              },
+            ],
+            edges: [],
+            globalState: {},
+          },
+        ],
+        locales: ["en"],
+      })
+    );
+
+    const promptsByLocale = createEmptyPromptsByLocale(["en"]);
+    setNodeActions(
+      promptsByLocale.en,
+      "a1000000-0000-4000-8000-000000000001",
+      "a1000000-0000-4000-8000-000000000002",
+      [{ kind: "bg.show", assetId: DEFAULT_BACKDROP_ID }]
+    );
+
+    const bundle = migrateProjectBundle(project, promptsByLocale);
 
     const backdrop = bundle.project.assets.find((asset) => asset.id === DEFAULT_BACKDROP_ID);
     expect(backdrop).toBeDefined();

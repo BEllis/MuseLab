@@ -26,18 +26,15 @@
         "properties": {
           "nodes": {
             "type": "object",
-            "description": "Scene dialogue keyed by node id within the story.",
+            "description": "Scripted scene actions keyed by node id within the story.",
             "additionalProperties": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "textTemplate": {
-                  "type": "string",
-                  "description": "Scene dialogue/narration template (HTML subset with embedded Cito in {{ }} blocks)."
-                },
-                "speaker": {
-                  "type": "string",
-                  "description": "Optional speaker name shown above dialogue. Supports template expressions."
+                "actions": {
+                  "type": "array",
+                  "description": "Ordered scene actions describing everything this scene shows and says.",
+                  "items": { "$ref": "#/$defs/sceneAction" }
                 }
               }
             }
@@ -58,6 +55,139 @@
           }
         }
       }
+    }
+  },
+  "$defs": {
+    "positionSlot": {
+      "type": "string",
+      "enum": [
+        "TopLeft",
+        "Top",
+        "TopRight",
+        "FarLeft",
+        "Left",
+        "Centre",
+        "Right",
+        "FarRight",
+        "BottomLeft",
+        "Bottom",
+        "BottomRight"
+      ]
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "Left",
+        "Right",
+        "Top",
+        "Bottom",
+        "TopLeft",
+        "TopRight",
+        "BottomLeft",
+        "BottomRight"
+      ]
+    },
+    "stagePosition": {
+      "description": "Either a named stage slot or explicit coordinates in the 16x9 logical stage.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "slot"],
+          "properties": {
+            "kind": { "const": "slot" },
+            "slot": { "$ref": "#/$defs/positionSlot" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "x", "y"],
+          "properties": {
+            "kind": { "const": "vec" },
+            "x": { "type": "number", "minimum": 0, "maximum": 16 },
+            "y": { "type": "number", "minimum": 0, "maximum": 9 }
+          }
+        }
+      ]
+    },
+    "revealSpec": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "instant",
+            "charsPerSecond",
+            "wordsPerSecond",
+            "charsOverTime",
+            "wordsOverTime"
+          ]
+        },
+        "rate": { "type": "number" },
+        "durationMs": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "sceneAction": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "bg.show",
+            "bg.clear",
+            "bg.fade",
+            "bg.slideIn",
+            "bg.slideOut",
+            "prop.add",
+            "prop.remove",
+            "prop.show",
+            "prop.hide",
+            "prop.fadeIn",
+            "prop.fadeOut",
+            "prop.slideIn",
+            "prop.slideOut",
+            "prop.move",
+            "prop.setPosition",
+            "prop.setZ",
+            "prop.setVariation",
+            "dialogue.show",
+            "dialogue.hide",
+            "dialogue.setSpeaker",
+            "dialogue.revealText",
+            "dialogue.clear",
+            "dialogue.reset",
+            "wait",
+            "waitForContinue",
+            "playSound",
+            "rt.setBool",
+            "rt.setInt",
+            "rt.setString",
+            "rt.emit"
+          ]
+        },
+        "id": { "type": "string" },
+        "assetId": { "type": "string" },
+        "variationId": { "type": "string" },
+        "channel": { "type": "string" },
+        "text": { "type": "string" },
+        "key": { "type": "string" },
+        "eventName": { "type": "string" },
+        "value": { "type": ["string", "number", "boolean"] },
+        "z": { "type": "number" },
+        "milliseconds": { "type": "number", "minimum": 0 },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "delaySeconds": { "type": "number", "minimum": 0 },
+        "startTime": { "type": "number" },
+        "endTime": { "type": "number" },
+        "direction": { "$ref": "#/$defs/direction" },
+        "position": { "$ref": "#/$defs/stagePosition" },
+        "reveal": { "$ref": "#/$defs/revealSpec" }
+      },
+      "additionalProperties": false
     }
   }
 }

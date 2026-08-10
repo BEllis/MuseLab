@@ -337,25 +337,6 @@
         }
       }
     },
-    "actorSceneConfig": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["assetId", "expressionId"],
-      "properties": {
-        "assetId": {
-          "$ref": "#/$defs/assetId",
-          "description": "Actor asset id."
-        },
-        "expressionId": {
-          "$ref": "#/$defs/objectId",
-          "description": "Expression id within the actor asset."
-        },
-        "attributes": {
-          "$ref": "#/$defs/attributes",
-          "description": "Optional per-scene actor placement metadata."
-        }
-      }
-    },
     "asset": {
       "type": "object",
       "additionalProperties": false,
@@ -654,15 +635,6 @@
           "type": "string",
           "description": "Unique display name shown in the designer."
         },
-        "backdropId": {
-          "$ref": "#/$defs/assetId",
-          "description": "Scene only: backdrop asset id."
-        },
-        "actorConfigs": {
-          "type": "array",
-          "description": "Scene only: ordered actor placements with expression per actor.",
-          "items": { "$ref": "#/$defs/actorSceneConfig" }
-        },
         "soundConfigs": {
           "type": "array",
           "description": "Scene only: sound playback configs.",
@@ -763,13 +735,6 @@
               "type": "scene",
               "position": { "x": 100, "y": 100 },
               "label": "Opening",
-              "backdropId": "muselab-default-backdrop",
-              "actorConfigs": [
-                {
-                  "assetId": "a1000000-0000-4000-8000-000000000010",
-                  "expressionId": "a1000000-0000-4000-8000-000000000011"
-                }
-              ],
               "soundConfigs": []
             }
           ],

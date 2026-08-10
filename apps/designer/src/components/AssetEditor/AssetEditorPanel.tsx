@@ -170,8 +170,9 @@ function ExpressionRow({
   nameRequired?: boolean;
 }) {
   const project = useProjectStore((s) => s.project);
+  const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const previewUrl = useActorExpressionUrl(project, asset.id, expression.id);
-  const usage = getExpressionUsage(project, asset.id, expression.id);
+  const usage = getExpressionUsage(promptsByLocale, asset.id, expression.id);
   const isLast = (asset.expressions?.length ?? 0) <= 1;
   const canDelete = usage === 0 && !isLast;
   const nameInputRef = useRef<HTMLInputElement>(null);

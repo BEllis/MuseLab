@@ -20,6 +20,16 @@ public class MuseLabFormat
         return null;
     }
 
+    public IFormatMarker UnderlineStart()
+    {
+        return null;
+    }
+
+    public IFormatMarker UnderlineEnd()
+    {
+        return null;
+    }
+
     public IFormatMarker ColorStart(string colorHex)
     {
         return null;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MuseLab.Scene;
 
 namespace MuseLab.Playback
 {
@@ -11,6 +12,7 @@ namespace MuseLab.Playback
         WaitForContinue,
         PlaySound,
         UpdateSpeaker,
+        Scene,
         Reset,
         Clear,
     }
@@ -44,6 +46,8 @@ namespace MuseLab.Playback
         public double StartTime = -1;
         public double EndTime = -1;
         public string SpeakerTemplate;
+        public string SpeakerHtml;
+        public SceneOp SceneOp;
     }
 
     public static class PromptInstructionRules
@@ -63,6 +67,7 @@ namespace MuseLab.Playback
                     case PromptInstructionKind.RevealHtml:
                     case PromptInstructionKind.PlaySound:
                     case PromptInstructionKind.UpdateSpeaker:
+                    case PromptInstructionKind.Scene:
                     case PromptInstructionKind.Reset:
                     case PromptInstructionKind.Clear:
                         return true;

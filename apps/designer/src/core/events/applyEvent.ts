@@ -36,8 +36,7 @@ import {
   removeNodeFromAllLocales,
   removeStoryFromAllLocales,
   setEdgeOptionText,
-  setNodeSpeaker,
-  setNodeTextTemplate,
+  setNodeActions,
 } from "@/core/locale/prompts";
 import {
   applyNavigationSnapshot,
@@ -45,7 +44,7 @@ import {
   cloneAppState,
   type AppState,
 } from "./appState";
-import type { AppEvent } from "./types";
+import type { AppEvent, NodePromptValue } from "./types";
 
 export type ApplyDirection = "forward" | "backward";
 
@@ -57,12 +56,12 @@ function restoreNodePrompts(
   state: AppState,
   storyId: string,
   nodeId: string,
-  promptsByLocale: Record<string, { textTemplate?: string; speaker?: string }>
+  promptsByLocale: Record<string, NodePromptValue>
 ): void {
   for (const [locale, value] of Object.entries(promptsByLocale)) {
     const prompts = ensureLocalePrompts(state.promptsByLocale, locale);
     const storyPrompts = ensureStoryPrompts(prompts, storyId);
-    if (Object.keys(value).length === 0) {
+    if (!value.actions?.length) {
       delete storyPrompts.nodes[nodeId];
       continue;
     }
@@ -388,20 +387,14 @@ function applySingleEvent(state: AppState, event: AppEvent, direction: ApplyDire
       );
       break;
 
-    case "updateNodePrompt": {
+    case "updateNodeActions": {
       const prompts = ensureLocalePrompts(state.promptsByLocale, event.locale);
-      setNodeTextTemplate(
+      setNodeActions(
         prompts,
         event.storyId,
         event.nodeId,
-        useAfter ? event.after : event.before
+        cloneNode(useAfter ? event.after : event.before)
       );
-      break;
-    }
-
-    case "updateNodeSpeaker": {
-      const prompts = ensureLocalePrompts(state.promptsByLocale, event.locale);
-      setNodeSpeaker(prompts, event.storyId, event.nodeId, useAfter ? event.after : event.before);
       break;
     }
 

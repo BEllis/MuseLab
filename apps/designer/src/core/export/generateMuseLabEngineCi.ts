@@ -296,25 +296,11 @@ function generateTemplateDispatch(
     if (ref.kind === "none") continue;
     const [locale, storyId, nodeId] = key.split("\0");
     renderLines.push(
-      `    if (locale == ${escapeCiStringLiteral(locale)} && storyId == ${escapeCiStringLiteral(storyId)} && nodeId == ${escapeCiStringLiteral(nodeId)}) return ${ref.className}.Render(rt, prompter, format${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
+      `    if (locale == ${escapeCiStringLiteral(locale)} && storyId == ${escapeCiStringLiteral(storyId)} && nodeId == ${escapeCiStringLiteral(nodeId)}) return ${ref.className}.Render(rt, prompter, format, bg, prop${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
     );
   }
   renderLines.push(`    return "";`);
   renderLines.push(`}`);
-
-  const speakerLines = [
-    `string RenderNodeSpeaker(string locale, string storyId, string nodeId)
-    {`,
-  ];
-  for (const [key, className] of compiled.nodeSpeakerClass) {
-    if (!className) continue;
-    const [locale, storyId, nodeId] = key.split("\0");
-    speakerLines.push(
-      `    if (locale == ${escapeCiStringLiteral(locale)} && storyId == ${escapeCiStringLiteral(storyId)} && nodeId == ${escapeCiStringLiteral(nodeId)}) return ${className}.Render(rt, prompter, format${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
-    );
-  }
-  speakerLines.push(`    return "";`);
-  speakerLines.push(`}`);
 
   const optionLines = [
     `string RenderEdgeOption(string locale, string storyId, string edgeId)
@@ -325,7 +311,7 @@ function generateTemplateDispatch(
     if (parts[3] !== "option" || ref.kind !== "prompt") continue;
     const [locale, storyId, edgeId] = parts;
     optionLines.push(
-      `    if (locale == ${escapeCiStringLiteral(locale)} && storyId == ${escapeCiStringLiteral(storyId)} && edgeId == ${escapeCiStringLiteral(edgeId)}) return ${ref.className}.Render(rt, prompter, format${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
+      `    if (locale == ${escapeCiStringLiteral(locale)} && storyId == ${escapeCiStringLiteral(storyId)} && edgeId == ${escapeCiStringLiteral(edgeId)}) return ${ref.className}.Render(rt, prompter, format, bg, prop${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
     );
   }
   optionLines.push(`    return "";`);
@@ -345,13 +331,13 @@ function generateTemplateDispatch(
     }
     const [storyId, edgeId] = key.split("\0");
     conditionLines.push(
-      `    if (storyId == ${escapeCiStringLiteral(storyId)} && edgeId == ${escapeCiStringLiteral(edgeId)}) return ${className}.Eval(rt, prompter, format${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
+      `    if (storyId == ${escapeCiStringLiteral(storyId)} && edgeId == ${escapeCiStringLiteral(edgeId)}) return ${className}.Eval(rt, prompter, format, bg, prop${project.modules.length ? ", " + project.modules.map((m) => m.bindingName).join(", ") : ""});`
     );
   }
   conditionLines.push(`    return true;`);
   conditionLines.push(`}`);
 
-  return [...renderLines, ``, ...speakerLines, ``, ...optionLines, ``, ...conditionLines].join("\n    ");
+  return [...renderLines, ``, ...optionLines, ``, ...conditionLines].join("\n    ");
 }
 
 function sceneHasOutgoingContinuation(story: Story, sceneId: string): boolean {
@@ -391,6 +377,8 @@ function generateEngineClass(project: Project, compiled: ReturnType<typeof compi
     IMuseLabRuntime rt;
     IMuseLabFormat format;
     IMuseLabPromptRenderer prompter;
+    IMuseLabBackground bg;
+    IMuseLabProp prop;
 ${moduleFields ? `${moduleFields}\n` : ""}    string activeLocale;
     string activeStoryId;
     string currentNodeId;
@@ -403,12 +391,14 @@ ${moduleFields ? `${moduleFields}\n` : ""}    string activeLocale;
         this.isEnded = false;
     }
 
-    public static MuseLabEngine# Create(IMuseLabRuntime rt, IMuseLabFormat format, IMuseLabPromptRenderer prompter${moduleParams ? `, ${moduleParams}` : ""}, string defaultLocale)
+    public static MuseLabEngine# Create(IMuseLabRuntime rt, IMuseLabFormat format, IMuseLabPromptRenderer prompter, IMuseLabBackground bg, IMuseLabProp prop${moduleParams ? `, ${moduleParams}` : ""}, string defaultLocale)
     {
         MuseLabEngine# engine = new MuseLabEngine();
         engine.rt = rt;
         engine.format = format;
         engine.prompter = prompter;
+        engine.bg = bg;
+        engine.prop = prop;
 ${moduleAssign ? `${moduleAssign}\n` : ""}        engine.activeLocale = defaultLocale;
         return engine;
     }
@@ -495,7 +485,9 @@ ${moduleAssign ? `${moduleAssign}\n` : ""}        engine.activeLocale = defaultL
         if (kind == 1)
         {
             html = RenderNodePrompt(activeLocale, activeStoryId, currentNodeId);
-            speaker = RenderNodeSpeaker(activeLocale, activeStoryId, currentNodeId);
+            // Scene scripts emit the speaker through the prompter, so it is read
+            // back from the renderer rather than compiled separately.
+            speaker = prompter.GetSpeakerHtml();
             RuntimeChoices# builtChoices = BuildChoices();
             choiceCount = builtChoices.GetCount();
             choices = builtChoices.GetItems();

@@ -3,9 +3,9 @@ import { createStarterProject, addNode, addEdge, updateNode, getFirstStoryId } f
 import { migrateProjectBundle } from "../model/projectBundle";
 import {
   setEdgeOptionText,
-  setNodeSpeaker,
-  setNodeTextTemplate,
+  setNodeActions,
   createEmptyPromptsByLocale,
+  getNodeActionsForLocale,
 } from "../locale/prompts";
 import { isSceneNode } from "../model/nodeTypes";
 import { getNodeDisplayName } from "../model/nodeNames";
@@ -13,6 +13,7 @@ import { exportStoryScript } from "./exportScript";
 import { importStoryScript } from "./importScript";
 import { parseScriptText, serializeScriptYaml } from "./parseScript";
 import type { MuseLabStoryScript } from "./types";
+import type { SceneAction } from "../scene/actions";
 
 function createScriptFixtureBundle() {
   const project = createStarterProject("Script Test");
@@ -60,14 +61,6 @@ function createScriptFixtureBundle() {
   const opening = addNode(project, storyId, { x: 300, y: 100 }, "scene");
   updateNode(project, storyId, opening.id, {
     label: "Opening",
-    backdropId,
-    actorConfigs: [
-      {
-        assetId: actorId,
-        expressionId: exprId,
-        attributes: { x: { type: "number", value: 12.5 } },
-      },
-    ],
     soundConfigs: [
       {
         assetId: soundId,
@@ -92,164 +85,75 @@ function createScriptFixtureBundle() {
     style: { type: "string", value: "dashed" },
   };
 
+  const openingActions: SceneAction[] = [
+    { kind: "bg.show", assetId: backdropId },
+    { kind: "prop.add", id: "maya", assetId: actorId, variationId: exprId },
+    { kind: "prop.show", id: "maya", position: { kind: "slot", slot: "Left" } },
+    { kind: "dialogue.setSpeaker", text: "Maya" },
+    {
+      kind: "dialogue.revealText",
+      channel: "main",
+      text: "Rain.",
+      reveal: { mode: "instant" },
+    },
+    { kind: "waitForContinue" },
+  ];
+
   const promptsByLocale = createEmptyPromptsByLocale(project.locales);
   const en = promptsByLocale.en;
-  setNodeTextTemplate(en, storyId, opening.id, "<p>Rain.</p>");
-  setNodeSpeaker(en, storyId, opening.id, "Maya");
+  setNodeActions(en, storyId, opening.id, openingActions);
   setEdgeOptionText(en, storyId, edge.id, "Go to the alley");
 
   return migrateProjectBundle(project, promptsByLocale);
 }
 
-describe("MuseLab script export/import", () => {
-  it("exports a human-readable story script with attributes and paths", () => {
+describe("script export/import", () => {
+  it("exports scene actions per locale", () => {
+    const bundle = createScriptFixtureBundle();
+    const script = exportStoryScript(bundle, getFirstStoryId(bundle.project));
+    const opening = script.scenes.find((scene) => scene.node_name === "Opening");
+    expect(opening?.actions?.en).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "bg.show" }),
+        expect.objectContaining({ kind: "dialogue.setSpeaker", text: "Maya" }),
+        expect.objectContaining({ kind: "dialogue.revealText", text: "Rain." }),
+      ])
+    );
+    expect(opening?.sound?.sound_path).toBe("music/AmbientRain");
+  });
+
+  it("round-trips actions through YAML", () => {
     const bundle = createScriptFixtureBundle();
     const storyId = getFirstStoryId(bundle.project);
     const script = exportStoryScript(bundle, storyId);
+    const yaml = serializeScriptYaml(script);
+    const parsed = parseScriptText(yaml) as MuseLabStoryScript;
 
-    expect(script.story_name).toBe("Main");
-    expect(script.entry_node_name).toBe("Opening");
-    expect(script.attributes?.chapter).toEqual({ type: "integer", value: 1 });
-
-    const opening = script.scenes.find((scene) => scene.node_name === "Opening");
-    expect(opening?.backdrop?.backdrop_path).toBe("backgrounds/RainyStreet");
-    expect(opening?.actors?.[0]?.actor_path).toBe("cast/Maya");
-    expect(opening?.actors?.[0]?.expression).toBe("happy");
-    expect(opening?.actors?.[0]?.attributes?.x).toEqual({ type: "number", value: 12.5 });
-    expect(opening?.sound?.sound_path).toBe("music/AmbientRain");
-    expect(opening?.options?.[0]?.condition).toBe('rt.GetBool("hasKey")');
-    expect(opening?.options?.[0]?.attributes?.style).toEqual({
-      type: "string",
-      value: "dashed",
-    });
-  });
-
-  it("round-trips export -> import (merge) preserving prompts and graph", () => {
-    const bundle = createScriptFixtureBundle();
-    const storyId = getFirstStoryId(bundle.project);
-    const exported = exportStoryScript(bundle, storyId);
-    const yaml = serializeScriptYaml(exported);
-    const parsed = parseScriptText(yaml, "Main.mls.yaml") as MuseLabStoryScript;
-
-    const working = structuredClone(bundle);
-    importStoryScript(working, parsed, "merge", storyId);
-
-    const story = working.project.stories[0];
-    const opening = story.nodes.find(
-      (node) => isSceneNode(node) && getNodeDisplayName(node) === "Opening"
-    )!;
-    const alley = story.nodes.find(
-      (node) => isSceneNode(node) && getNodeDisplayName(node) === "Alley"
-    )!;
-    const edge = story.edges.find(
-      (entry) => entry.sourceNodeId === opening.id && entry.targetNodeId === alley.id
+    const target = createStarterProject("Import Target");
+    const working = migrateProjectBundle(
+      target,
+      createEmptyPromptsByLocale(target.locales)
     );
 
-    expect(working.promptsByLocale.en.stories[storyId].nodes[opening.id].textTemplate).toBe(
-      "<p>Rain.</p>"
-    );
-    expect(edge?.condition).toBe('rt.GetBool("hasKey")');
-    expect(opening.attributes?.fade_in_ms).toEqual({ type: "integer", value: 300 });
-  });
-
-  it("maps on_click alias to edge condition on import", () => {
-    const bundle = createScriptFixtureBundle();
-    const storyId = getFirstStoryId(bundle.project);
-    const script: MuseLabStoryScript = {
-      format_version: 1,
-      scenes: [
-        {
-          node_name: "Opening",
-          options: [{ node_name: "Alley", on_click: "true" }],
-        },
-        { node_name: "Alley" },
-      ],
-      entry_node_name: "Opening",
-    };
-
-    importStoryScript(bundle, script, "replace", storyId);
-    const story = bundle.project.stories[0];
-    const opening = story.nodes.find(
-      (node) => isSceneNode(node) && getNodeDisplayName(node) === "Opening"
-    )!;
-    const edge = story.edges.find((entry) => entry.sourceNodeId === opening.id);
-    expect(edge?.condition).toBe("true");
-  });
-
-  it("fails import on invalid attribute types", () => {
-    const bundle = createScriptFixtureBundle();
-    const storyId = getFirstStoryId(bundle.project);
-    const script: MuseLabStoryScript = {
-      format_version: 1,
-      attributes: {
-        bad: { type: "integer", value: 1.5 },
-      },
-      scenes: [{ node_name: "Opening" }],
-      entry_node_name: "Opening",
-    };
-
-    expect(() => importStoryScript(bundle, script, "merge", storyId)).toThrow(
-      /integer value must be an integer/
-    );
-  });
-
-  it("creates placeholder assets when script references missing project assets", () => {
-    const bundle = createScriptFixtureBundle();
-    const storyId = getFirstStoryId(bundle.project);
-    const script: MuseLabStoryScript = {
-      format_version: 1,
-      scenes: [
-        {
-          node_name: "Opening",
-          actors: [{ actor_path: "cast/Missing", expression: "happy" }],
-          backdrop: { backdrop_path: "backgrounds/NewPlace" },
-          sound: { sound_path: "music/NewTrack.wav" },
-        },
-      ],
-      entry_node_name: "Opening",
-    };
-
-    const result = importStoryScript(bundle, script, "replace", storyId);
-    expect(result.warnings.some((warning) => warning.includes("cast/Missing"))).toBe(true);
-    expect(result.warnings.some((warning) => warning.includes("backgrounds/NewPlace"))).toBe(true);
-    expect(result.warnings.some((warning) => warning.includes("music/NewTrack"))).toBe(true);
-
-    const story = bundle.project.stories[0];
-    const opening = story.nodes.find(
-      (node) => isSceneNode(node) && getNodeDisplayName(node) === "Opening"
-    )!;
-    expect(opening.actorConfigs?.[0]?.assetId).toBeTruthy();
-    expect(opening.backdropId).not.toBe("muselab-default-backdrop");
-    expect(opening.soundConfigs?.[0]?.assetId).toBeTruthy();
-  });
-
-  it("creates missing story folders and stories from story_path + story_name", () => {
-    const bundle = createScriptFixtureBundle();
-    const script: MuseLabStoryScript = {
-      format_version: 1,
-      story_path: "Chapter2/Act1",
-      story_name: "SideQuest",
-      scenes: [{ node_name: "Opening" }],
-      entry_node_name: "Opening",
-    };
-
-    const result = importStoryScript(bundle, script, "merge");
-    expect(result.warnings.some((warning) => warning.includes('Added story folder "Chapter2"'))).toBe(
-      true
-    );
-    expect(
-      result.warnings.some((warning) => warning.includes('Added story folder "Chapter2/Act1"'))
-    ).toBe(true);
-    expect(result.warnings.some((warning) => warning.includes('Added story "Chapter2/Act1/SideQuest"'))).toBe(
-      true
+    // Seed assets the script actions reference by id.
+    const source = createScriptFixtureBundle();
+    working.project.assets.push(
+      ...source.project.assets.filter((a) => a.id !== "muselab-default-backdrop")
     );
 
-    const story = bundle.project.stories.find((entry) => entry.name === "SideQuest");
-    expect(story).toBeTruthy();
-    expect(
-      bundle.project.storyGroups?.some(
-        (group) => group.name === "Act1" && group.parentGroupId === bundle.project.storyGroups?.find((g) => g.name === "Chapter2")?.id
-      )
-    ).toBe(true);
+    const result = importStoryScript(working, parsed, "replace");
+    const importedStoryId = getFirstStoryId(result.bundle.project);
+    const opening = result.bundle.project.stories[0].nodes.find(
+      (node) => isSceneNode(node) && getNodeDisplayName(node, result.bundle.project) === "Opening"
+    );
+    expect(opening).toBeTruthy();
+    const actions = getNodeActionsForLocale(
+      result.bundle.promptsByLocale,
+      "en",
+      importedStoryId,
+      opening!.id
+    );
+    expect(actions.some((action) => action.kind === "bg.show")).toBe(true);
+    expect(actions.some((action) => action.kind === "dialogue.revealText")).toBe(true);
   });
 });

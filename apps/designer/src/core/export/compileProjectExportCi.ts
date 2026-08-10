@@ -1,29 +1,21 @@
 import type { Project } from "../model/types";
 import type { PromptsByLocale } from "../locale/prompts";
-import {
-  getEdgeOptionTextForLocale,
-  getNodeSpeakerForLocale,
-  getNodeTextTemplateForLocale,
-} from "../locale/prompts";
+import { getEdgeOptionTextForLocale, getNodeActionsForLocale } from "../locale/prompts";
 import { isSceneNode } from "../model/nodeTypes";
 import { compileCondition } from "../cito/compileCondition";
 import { compileTemplate } from "../cito/compileTemplate";
-import {
-  wrapStoryPromptTemplate,
-  wrapStorySpeakerTemplate,
-} from "../template/storyTemplateWrap";
+import { compileSceneActions } from "../scene/compileSceneActions";
+import { storyWrapTemplates } from "../template/storyTemplateWrap";
 import { normalizeLocaleTags } from "../locale/localeTag";
 
 export type ExportTemplateRef =
   | { kind: "prompt"; className: string }
-  | { kind: "speaker"; className: string }
   | { kind: "none" };
 
 export type CompiledProjectExport = {
   classSources: string[];
   edgeConditionClass: Map<string, string>;
   nodeTemplateClass: Map<string, ExportTemplateRef>;
-  nodeSpeakerClass: Map<string, string | null>;
 };
 
 function refKey(parts: string[]): string {
@@ -37,7 +29,6 @@ export function compileProjectExportCi(
   const classBodies = new Map<string, string>();
   const edgeConditionClass = new Map<string, string>();
   const nodeTemplateClass = new Map<string, ExportTemplateRef>();
-  const nodeSpeakerClass = new Map<string, string | null>();
 
   const compileOptions = { forExport: true, includePreamble: false };
 
@@ -60,36 +51,21 @@ export function compileProjectExportCi(
       edgeConditionClass.set(edgeKey, compiled.className);
     }
 
+    const wrap = storyWrapTemplates(story);
+
     for (const node of story.nodes) {
       if (!isSceneNode(node)) continue;
 
       for (const locale of normalizeLocaleTags(project.locales)) {
-        const textTemplate = getNodeTextTemplateForLocale(
-          promptsByLocale,
-          locale,
-          story.id,
-          node.id
-        );
+        const actions = getNodeActionsForLocale(promptsByLocale, locale, story.id, node.id);
         const promptKey = refKey([locale, story.id, node.id, "prompt"]);
-        if (!textTemplate.trim()) {
+        if (actions.length === 0) {
           nodeTemplateClass.set(promptKey, { kind: "none" });
-        } else {
-          const wrapped = wrapStoryPromptTemplate(story, textTemplate);
-          const compiled = compileTemplate(wrapped, project, compileOptions);
-          rememberClass(compiled.className, compiled.ciSource);
-          nodeTemplateClass.set(promptKey, { kind: "prompt", className: compiled.className });
+          continue;
         }
-
-        const speaker = getNodeSpeakerForLocale(promptsByLocale, locale, story.id, node.id);
-        const speakerKey = refKey([locale, story.id, node.id, "speaker"]);
-        if (!speaker.trim()) {
-          nodeSpeakerClass.set(speakerKey, null);
-        } else {
-          const wrapped = wrapStorySpeakerTemplate(story, speaker);
-          const compiled = compileTemplate(wrapped, project, compileOptions);
-          rememberClass(compiled.className, compiled.ciSource);
-          nodeSpeakerClass.set(speakerKey, compiled.className);
-        }
+        const compiled = compileSceneActions(actions, project, { ...compileOptions, wrap });
+        rememberClass(compiled.className, compiled.ciSource);
+        nodeTemplateClass.set(promptKey, { kind: "prompt", className: compiled.className });
       }
     }
   }
@@ -117,6 +93,5 @@ export function compileProjectExportCi(
     classSources: [...classBodies.values()],
     edgeConditionClass,
     nodeTemplateClass,
-    nodeSpeakerClass,
   };
 }

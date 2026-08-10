@@ -1,4 +1,19 @@
 import type { Story } from "../model/types";
+import type { SceneWrapTemplates } from "../scene/compileSceneActions";
+
+export function storyWrapTemplates(
+  story: Pick<
+    Story,
+    "promptStartTemplate" | "promptEndTemplate" | "speakerStartTemplate" | "speakerEndTemplate"
+  >
+): SceneWrapTemplates {
+  return {
+    promptStart: story.promptStartTemplate,
+    promptEnd: story.promptEndTemplate,
+    speakerStart: story.speakerStartTemplate,
+    speakerEnd: story.speakerEndTemplate,
+  };
+}
 
 function wrapTemplate(template: string, start?: string, end?: string): string {
   const prefix = start?.trim() ?? "";

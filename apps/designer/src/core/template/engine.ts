@@ -1,6 +1,10 @@
-import type { Project } from "../model/types";
+import type { Project, SceneAction } from "../model/types";
 import { compileCondition, getConditionBindingNames } from "../cito/compileCondition";
 import { compileTemplate, getTemplateBindingNames } from "../cito/compileTemplate";
+import {
+  compileSceneActions,
+  type SceneWrapTemplates,
+} from "../scene/compileSceneActions";
 import type { TemplateContext } from "../cito/runtimeBridge";
 import { runTranspiledMethod, transpileCiToJs } from "../cito/transpile";
 import { createModuleBindings } from "../modules/moduleRuntime";
@@ -12,6 +16,10 @@ export type { TemplateContext } from "../cito/runtimeBridge";
 export type RunTemplateOptions = {
   project: Project;
   disableShake?: boolean;
+};
+
+export type RunSceneActionsOptions = RunTemplateOptions & {
+  wrap?: SceneWrapTemplates;
 };
 
 export type RunTemplateResult = {
@@ -47,6 +55,37 @@ export async function runTemplate(
 
   const html =
     result === undefined || result === null ? "" : sanitizeHtml(String(result));
+  return {
+    html,
+    instructions: bindings.promptRenderer.getInstructions(),
+  };
+}
+
+/**
+ * Run an authored scene action list.
+ *
+ * Actions are compiled to a Cito scene template and executed through the same
+ * transpile + bridge path as every other target, so preview cannot drift from
+ * exported engines.
+ */
+export async function runSceneActions(
+  actions: SceneAction[],
+  context: TemplateContext,
+  options: RunSceneActionsOptions
+): Promise<RunTemplateResult> {
+  if (actions.length === 0) {
+    return { html: "", instructions: [] };
+  }
+
+  const compiled = compileSceneActions(actions, options.project, { wrap: options.wrap });
+  const js = await transpileCiToJs(compiled.ciSource);
+  const bindings = createModuleBindings(options.project, context, {
+    disableShake: options.disableShake,
+  });
+  const paramNames = getTemplateBindingNames(options.project);
+  const result = runTranspiledMethod(js, compiled.className, "render", bindings, paramNames);
+
+  const html = result === undefined || result === null ? "" : sanitizeHtml(String(result));
   return {
     html,
     instructions: bindings.promptRenderer.getInstructions(),

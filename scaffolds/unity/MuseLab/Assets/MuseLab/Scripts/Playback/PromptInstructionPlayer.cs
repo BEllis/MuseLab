@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using MuseLab.Audio;
+using MuseLab.Scene;
 using MuseLab.UI.Dialogue;
 using TMPro;
 using UnityEngine;
@@ -14,10 +15,12 @@ namespace MuseLab.Playback
         public event Action OnPlaybackComplete;
 
         SoundManager soundManager;
+        SceneDirector sceneDirector;
         IDialogueTextView dialogueView;
         TMP_Text speakerText;
         Func<string, string> renderSpeakerTemplate;
         Action<string> onSpeakerChanged;
+        Action onDialogueBoundary;
 
         string visibleMarkup = "";
         string visibleSpeaker = "";
@@ -42,13 +45,17 @@ namespace MuseLab.Playback
             IDialogueTextView dialogue,
             TMP_Text speaker,
             Func<string, string> speakerRenderer,
-            Action<string> onSpeakerChanged = null)
+            Action<string> onSpeakerChanged = null,
+            SceneDirector scene = null,
+            Action onDialogueBoundary = null)
         {
             soundManager = sound;
             dialogueView = dialogue;
             speakerText = speaker;
             renderSpeakerTemplate = speakerRenderer;
             this.onSpeakerChanged = onSpeakerChanged;
+            sceneDirector = scene;
+            this.onDialogueBoundary = onDialogueBoundary;
         }
 
         public void StopPlayback()
@@ -153,6 +160,8 @@ namespace MuseLab.Playback
 
                     case PromptInstructionKind.WaitForContinue:
                         yield return WaitForContinueGate();
+                        onDialogueBoundary?.Invoke();
+                        sceneDirector?.DialogueBoundary();
                         break;
 
                     case PromptInstructionKind.PlaySound:
@@ -165,10 +174,17 @@ namespace MuseLab.Playback
                         break;
 
                     case PromptInstructionKind.UpdateSpeaker:
-                        visibleSpeaker = renderSpeakerTemplate != null
-                            ? renderSpeakerTemplate(instruction.SpeakerTemplate)
-                            : instruction.SpeakerTemplate ?? "";
+                        visibleSpeaker = !string.IsNullOrEmpty(instruction.SpeakerHtml)
+                            ? instruction.SpeakerHtml
+                            : renderSpeakerTemplate != null
+                                ? renderSpeakerTemplate(instruction.SpeakerTemplate)
+                                : instruction.SpeakerTemplate ?? "";
                         ApplyText();
+                        break;
+
+                    case PromptInstructionKind.Scene:
+                        if (sceneDirector != null && instruction.SceneOp != null)
+                            yield return sceneDirector.ApplyOp(instruction.SceneOp);
                         break;
 
                     case PromptInstructionKind.Reset:

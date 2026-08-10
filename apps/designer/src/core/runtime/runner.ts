@@ -1,18 +1,11 @@
 import type { Project, Story, StoryNode, StoryEdge } from "../model/types";
 import type { PromptsByLocale } from "../locale/prompts";
-import {
-  getEdgeOptionTextForLocale,
-  getNodeSpeakerForLocale,
-  getNodeTextTemplateForLocale,
-} from "../locale/prompts";
+import { getEdgeOptionTextForLocale, getNodeActionsForLocale } from "../locale/prompts";
 import { isJumpNode, isSceneNode, isStartNode } from "../model/nodeTypes";
 import { resolveJumpTargetStoryId } from "../model/nodeNames";
 import { getStory } from "../model/project";
-import { runTemplate, evaluateCondition, type RunTemplateResult } from "../template/engine";
-import {
-  wrapStoryPromptTemplate,
-  wrapStorySpeakerTemplate,
-} from "../template/storyTemplateWrap";
+import { runSceneActions, evaluateCondition, type RunTemplateResult } from "../template/engine";
+import { storyWrapTemplates } from "../template/storyTemplateWrap";
 import type { TemplateContext } from "../cito/runtimeBridge";
 import type { PromptInstruction } from "../prompt/promptInstructions";
 
@@ -30,7 +23,7 @@ export interface RuntimeState {
   currentHtml: string;
   /** Sequential prompt instructions for timed dialogue playback */
   promptInstructions: PromptInstruction[];
-  /** Rendered speaker name for current node (empty when unset) */
+  /** Speaker before playback starts; scene actions update it during playback. */
   currentSpeaker: string;
   /** Out-edges from current node that pass their condition */
   choices: RuntimeChoice[];
@@ -208,35 +201,24 @@ export function createRunner(
     if (!currentNodeId) return { html: "", instructions: [] };
     const node = getCurrentNode();
     if (!node || !isSceneNode(node)) return { html: "", instructions: [] };
-    const textTemplate = wrapStoryPromptTemplate(
-      activeStory,
-      getNodeTextTemplateForLocale(promptsByLocale, activeLocale, activeStoryId, currentNodeId)
-    );
-    return runTemplate(textTemplate, context, { project });
-  }
-
-  async function renderCurrentSpeaker(): Promise<string> {
-    if (!currentNodeId) return "";
-    const node = getCurrentNode();
-    if (!node || !isSceneNode(node)) return "";
-    const speaker = getNodeSpeakerForLocale(
+    const actions = getNodeActionsForLocale(
       promptsByLocale,
       activeLocale,
       activeStoryId,
       currentNodeId
     );
-    if (!speaker) return "";
-    const result = await runTemplate(wrapStorySpeakerTemplate(activeStory, speaker), context, {
+    return runSceneActions(actions, context, {
       project,
+      wrap: storyWrapTemplates(activeStory),
     });
-    return result.html;
   }
 
   async function getRuntimeState(): Promise<RuntimeState> {
     const node = getCurrentNode();
-    const [nodeRender, speaker, choices] = await Promise.all([
-      node && isSceneNode(node) ? renderCurrentNode() : Promise.resolve({ html: "", instructions: [] }),
-      node && isSceneNode(node) ? renderCurrentSpeaker() : Promise.resolve(""),
+    const [nodeRender, choices] = await Promise.all([
+      node && isSceneNode(node)
+        ? renderCurrentNode()
+        : Promise.resolve({ html: "", instructions: [] }),
       getChoices(),
     ]);
 
@@ -252,7 +234,7 @@ export function createRunner(
       state: { ...state },
       currentHtml: nodeRender.html,
       promptInstructions: nodeRender.instructions,
-      currentSpeaker: speaker,
+      currentSpeaker: "",
       choices,
       isTerminalScene,
       isEnded,

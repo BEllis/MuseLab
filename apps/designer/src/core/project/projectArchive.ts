@@ -7,7 +7,7 @@ import {
   isArchiveRelativePath,
   promptsFileName,
 } from "./assetArchivePaths";
-import { serializeProject, parseProject, getFirstStoryId } from "../model/project";
+import { serializeProject } from "../model/project";
 import type { ProjectBundle } from "../model/projectBundle";
 import { serializeMlvnMetadata } from "../model/projectBundle";
 import { MLVN_METADATA_FILE } from "../model/formatVersion";
@@ -267,7 +267,6 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
   let metadata: Record<string, unknown> | null = null;
 
   const manifest = strFromU8(manifestBytes);
-  const defaultStoryId = getFirstStoryId(parseProject(manifest));
 
   for (const [name, bytes] of Object.entries(entries)) {
     if (name === PROJECT_MANIFEST) continue;
@@ -281,7 +280,7 @@ export function unpackProjectArchive(data: Uint8Array): UnpackedProjectArchive {
     if (locale) {
       const promptJson = strFromU8(bytes);
       promptSources.set(locale, promptJson);
-      prompts.set(locale, parseLocalePrompts(promptJson, defaultStoryId));
+      prompts.set(locale, parseLocalePrompts(promptJson));
       continue;
     }
 

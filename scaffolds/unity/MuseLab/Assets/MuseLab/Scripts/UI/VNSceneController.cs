@@ -3,6 +3,7 @@ using MuseLab.Audio;
 using MuseLab.Bridge;
 using MuseLab.Export;
 using MuseLab.Playback;
+using MuseLab.Scene;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -16,13 +17,17 @@ namespace MuseLab.UI
         UnityMuseLabRuntime runtime;
         UnityMuseLabFormat format;
         UnityMuseLabPromptRenderer prompter;
+        UnityMuseLabBackground bg;
+        UnityMuseLabProp prop;
+        SceneDirector sceneDirector;
         SoundManager soundManager;
         PromptInstructionPlayer instructionPlayer;
 
         ExportContext export;
         RectTransform stageRoot;
         Image backdropImage;
-        RectTransform actorRow;
+        Image outgoingBackdropImage;
+        RectTransform propLayer;
         RectTransform choicePanel;
         RectTransform dialoguePanel;
         DialogueCaptionBox dialogueCaption;
@@ -33,6 +38,8 @@ namespace MuseLab.UI
         bool promptComplete = true;
         RuntimeState currentState;
         string entryNodeId;
+        string lastSceneNodeId;
+        readonly Dictionary<string, Image> propImages = new();
 
         void Start()
         {
@@ -98,8 +105,19 @@ namespace MuseLab.UI
             format = new UnityMuseLabFormat();
             prompter = new UnityMuseLabPromptRenderer();
             runtime.BindInstructionRecorder(prompter.GetRecorder());
+            bg = new UnityMuseLabBackground(prompter.GetRecorder());
+            prop = new UnityMuseLabProp(prompter.GetRecorder());
+            sceneDirector = new SceneDirector(
+                this,
+                skipTransitions: false,
+                onLoadAsset: key =>
+                {
+                    var assetId = key.Contains(':') ? key.Split(':')[0] : key;
+                    AssetLoader.LoadSprite(export.RootPath, assetId);
+                },
+                onUnloadAsset: key => AssetLoader.ReleaseTexture(key));
 
-            engine = MuseLabEngine.Create(runtime, format, prompter, export.DefaultLocale);
+            engine = MuseLabEngine.Create(runtime, format, prompter, bg, prop, export.DefaultLocale);
             var storyId = export.Manifest.FindEntryStoryId();
             entryNodeId = export.Manifest.FindEntryNodeId(storyId)
                 ?? MuseLabProjectData.GetStoryEntryNodeId(storyId);
@@ -113,8 +131,11 @@ namespace MuseLab.UI
                 dialogueCaption.Dialogue,
                 dialogueCaption.SpeakerText,
                 SpeakerTemplateRenderer.Render,
-                dialogueCaption.SetSpeaker);
+                dialogueCaption.SetSpeaker,
+                sceneDirector,
+                () => BindStage());
             instructionPlayer.OnPlaybackComplete += OnPlaybackComplete;
+            sceneDirector.Changed += BindStage;
         }
 
         void RefreshScene()
@@ -123,11 +144,16 @@ namespace MuseLab.UI
             currentState = engine.GetRuntimeState();
             if (TryAutoAdvanceFromStartNode())
                 return;
-            var instructions = new List<PromptInstruction>(prompter.GetInstructions());
-            var node = export.Manifest.FindNode(currentState.GetActiveStoryId(), currentState.GetCurrentNodeId());
 
-            ApplyBackdrop(node);
-            ApplyActors(node);
+            var nodeId = currentState.GetCurrentNodeId();
+            if (lastSceneNodeId != null && lastSceneNodeId != nodeId)
+            {
+                sceneDirector.DialogueBoundary();
+            }
+            lastSceneNodeId = nodeId;
+
+            var instructions = new List<PromptInstruction>(prompter.GetInstructions());
+            BindStage();
             ApplyDialogue(currentState, instructions);
             ApplyChoices(currentState);
 
@@ -136,35 +162,85 @@ namespace MuseLab.UI
             stageRoot.gameObject.SetActive(!isEnded);
         }
 
-        void ApplyBackdrop(StoryNodeVisual node)
+        void BindStage()
         {
-            backdropImage.sprite = null;
-            backdropImage.color = MuseLabUiStyles.StageBackground;
-            if (node == null || string.IsNullOrEmpty(node.backdropId)) return;
-            var sprite = AssetLoader.LoadSprite(export.RootPath, node.backdropId);
-            if (sprite == null) return;
-            backdropImage.sprite = sprite;
-            backdropImage.color = Color.white;
+            if (sceneDirector == null) return;
+            var snapshot = sceneDirector.GetSnapshot();
+            ApplyBackgroundImage(backdropImage, snapshot.Background);
+            ApplyBackgroundImage(outgoingBackdropImage, snapshot.OutgoingBackground);
+            outgoingBackdropImage.gameObject.SetActive(snapshot.OutgoingBackground != null);
+
+            var liveIds = new HashSet<string>();
+            foreach (var propState in snapshot.Props)
+            {
+                if (!propState.Visible && propState.Opacity <= 0.001f) continue;
+                liveIds.Add(propState.Id);
+                if (!propImages.TryGetValue(propState.Id, out var image))
+                {
+                    image = CreateImage(propLayer, $"Prop_{propState.Id}", Color.white);
+                    image.preserveAspect = true;
+                    propImages[propState.Id] = image;
+                }
+
+                var assetId = string.IsNullOrEmpty(propState.VariationId)
+                    ? propState.AssetId
+                    : propState.AssetId;
+                image.sprite = AssetLoader.LoadSprite(export.RootPath, assetId);
+                var color = image.color;
+                color.a = propState.Opacity;
+                image.color = color;
+                image.gameObject.SetActive(propState.Visible);
+                image.transform.SetSiblingIndex(propState.ZIndex);
+                PositionProp(image.rectTransform, propState);
+            }
+
+            var stale = new List<string>();
+            foreach (var entry in propImages)
+            {
+                if (liveIds.Contains(entry.Key)) continue;
+                Destroy(entry.Value.gameObject);
+                stale.Add(entry.Key);
+            }
+            foreach (var id in stale) propImages.Remove(id);
+
+            var dialogueVisible = !snapshot.DialogueChannels.TryGetValue(SceneDirector.DefaultDialogueChannel, out var shown) || shown;
+            if (dialoguePanel != null && currentState != null)
+            {
+                // Keep panel if dialogue text exists; scene ops can hide the channel.
+                if (!dialogueVisible) dialoguePanel.gameObject.SetActive(false);
+            }
         }
 
-        void ApplyActors(StoryNodeVisual node)
+        void ApplyBackgroundImage(Image image, SceneBackgroundState state)
         {
-            foreach (Transform child in actorRow)
-                Destroy(child.gameObject);
-            if (node?.actorConfigs == null) return;
-            foreach (var actor in node.actorConfigs)
+            if (state == null)
             {
-                if (string.IsNullOrEmpty(actor.assetId)) continue;
-                var sprite = AssetLoader.LoadSprite(export.RootPath, actor.assetId);
-                if (sprite == null) continue;
-                var go = new GameObject("Actor", typeof(RectTransform), typeof(Image));
-                go.transform.SetParent(actorRow, false);
-                var img = go.GetComponent<Image>();
-                img.sprite = sprite;
-                img.preserveAspect = true;
-                var rt = go.GetComponent<RectTransform>();
-                rt.sizeDelta = new Vector2(220, 360);
+                image.sprite = null;
+                image.color = MuseLabUiStyles.StageBackground;
+                return;
             }
+
+            image.sprite = AssetLoader.LoadSprite(export.RootPath, state.AssetId);
+            var color = Color.white;
+            color.a = state.Opacity;
+            image.color = color;
+            var rt = image.rectTransform;
+            Stretch(rt);
+            var size = stageRoot.rect.size;
+            rt.anchoredPosition = new Vector2(
+                (float)(state.OffsetX / StageCoords.Width) * size.x,
+                (float)(state.OffsetY / StageCoords.Height) * size.y);
+        }
+
+        void PositionProp(RectTransform rt, ScenePropState propState)
+        {
+            var size = stageRoot.rect.size;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(220, 360) * propState.Scale;
+            rt.anchoredPosition = new Vector2(
+                (float)((propState.X / StageCoords.Width) - 0.5) * size.x,
+                (float)((propState.Y / StageCoords.Height) - 0.5) * size.y);
         }
 
         void ApplyChoices(RuntimeState state)
@@ -264,6 +340,7 @@ namespace MuseLab.UI
         void OnChoice(string targetNodeId)
         {
             if (!promptComplete) return;
+            sceneDirector.DialogueBoundary();
             engine.GoToNode(targetNodeId);
             RefreshScene();
         }
@@ -317,6 +394,8 @@ namespace MuseLab.UI
 
         void OnRestart()
         {
+            sceneDirector.Reset();
+            lastSceneNodeId = null;
             engine.StartStoryByIdAtNode(export.Manifest.FindEntryStoryId(), entryNodeId);
             RefreshScene();
         }
@@ -342,15 +421,12 @@ namespace MuseLab.UI
             backdropImage = CreateImage(stageRoot, "Backdrop", MuseLabUiStyles.StageBackground);
             Stretch(backdropImage.rectTransform);
 
-            actorRow = CreateRect(stageRoot, "Actors");
-            actorRow.anchorMin = new Vector2(0, 0);
-            actorRow.anchorMax = new Vector2(1, 1);
-            actorRow.offsetMin = new Vector2(32, MuseLabUiStyles.DialoguePanelHeight);
-            actorRow.offsetMax = new Vector2(-32, -24);
-            var layout = actorRow.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.childAlignment = TextAnchor.LowerCenter;
-            layout.spacing = 16;
-            layout.childForceExpandWidth = false;
+            outgoingBackdropImage = CreateImage(stageRoot, "OutgoingBackdrop", MuseLabUiStyles.StageBackground);
+            Stretch(outgoingBackdropImage.rectTransform);
+            outgoingBackdropImage.gameObject.SetActive(false);
+
+            propLayer = CreateRect(stageRoot, "Props");
+            Stretch(propLayer);
 
             choicePanel = CreateRect(stageRoot, "Choices");
             choicePanel.anchorMin = new Vector2(0.1f, 0.35f);

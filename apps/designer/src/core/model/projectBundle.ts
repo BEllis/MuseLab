@@ -4,7 +4,6 @@ import {
   clonePromptsByLocale,
   createEmptyPromptsByLocale,
   ensurePromptsForProjectLocales,
-  migrateLegacyInlinePrompts,
   parseLocalePrompts,
   serializeLocalePrompts,
   type PromptsByLocale,
@@ -13,11 +12,11 @@ import { migrateProjectDefaultLocale, normalizeLocaleTags } from "../locale/loca
 import {
   createEmptyProject,
   finalizeProjectNodes,
-  getFirstStoryId,
   normalizeProjectModules,
   parseProject,
   serializeProject,
 } from "./project";
+import { normalizeActorExpressionReferences } from "../assets/actorExpressions";
 import { migrateProjectIdsToUuid, type BlobKeyRemapping } from "./migrateIds";
 import {
   BUNDLE_SCHEMA_ID,
@@ -52,24 +51,10 @@ export function cloneProjectBundle(bundle: ProjectBundle): ProjectBundle {
 export function migrateProjectBundle(project: Project, promptsByLocale?: PromptsByLocale): ProjectBundle {
   normalizeProjectModules(project);
   migrateProjectDefaultLocale(project);
-  const defaultStoryId = project.stories[0]?.id;
-  const basePrompts =
-    promptsByLocale ??
-    createEmptyPromptsByLocale(project.locales);
-  const migratedPrompts = migrateLegacyInlinePrompts(project, basePrompts);
+  const basePrompts = promptsByLocale ?? createEmptyPromptsByLocale(project.locales);
   finalizeProjectNodes(project);
-  if (defaultStoryId) {
-    for (const locale of normalizeLocaleTags(project.locales)) {
-      const raw = migratedPrompts[locale];
-      if (raw && (!raw.stories || Object.keys(raw.stories).length === 0)) {
-        migratedPrompts[locale] = parseLocalePrompts(
-          JSON.stringify(raw),
-          defaultStoryId
-        );
-      }
-    }
-  }
-  const prompts = ensurePromptsForProjectLocales(project, migratedPrompts);
+  const prompts = ensurePromptsForProjectLocales(project, basePrompts);
+  normalizeActorExpressionReferences(project, prompts);
   const { blobKeyRemappings } = migrateProjectIdsToUuid(project, prompts);
   return {
     project,
@@ -92,10 +77,9 @@ export function parseStoredProjectPayload(raw: string): ProjectBundle {
 
   if ("promptsByLocale" in data && data.promptsByLocale) {
     const project = parseProject(JSON.stringify(data.project));
-    const defaultStoryId = getFirstStoryId(project);
     const promptsByLocale: PromptsByLocale = {};
     for (const [locale, prompts] of Object.entries(data.promptsByLocale)) {
-      promptsByLocale[locale] = parseLocalePrompts(JSON.stringify(prompts), defaultStoryId);
+      promptsByLocale[locale] = parseLocalePrompts(JSON.stringify(prompts));
     }
     return migrateProjectBundle(project, promptsByLocale);
   }
@@ -158,10 +142,9 @@ export function parseProjectBundleSnapshot(raw: string): ProjectBundle {
     prompts: Record<string, string>;
   };
   const project = parseProject(data.manifest);
-  const defaultStoryId = getFirstStoryId(project);
   const promptsByLocale: PromptsByLocale = {};
   for (const [locale, promptsJson] of Object.entries(data.prompts ?? {})) {
-    promptsByLocale[locale] = parseLocalePrompts(promptsJson, defaultStoryId);
+    promptsByLocale[locale] = parseLocalePrompts(promptsJson);
   }
   return migrateProjectBundle(project, promptsByLocale);
 }

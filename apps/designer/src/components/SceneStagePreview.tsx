@@ -1,23 +1,28 @@
 // @refresh reset
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Project, Story, StoryNode } from "@/core/model/types";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
+import type { SceneOp } from "@/core/scene/sceneOps";
 import {
   PromptInstructionExecutor,
   shouldUsePromptExecutor,
 } from "@/components/PromptInstructionExecutor";
-import { useAssetUrl } from "@/hooks/useAssetUrl";
 import { useLoadedFonts } from "@/hooks/useLoadedFonts";
-import { ActorRow } from "@/components/ActorImage";
+import { StageLayers } from "@/components/StageLayers";
 import {
   getNodeChoices,
   hasVisibleRichText,
-  renderNodePreviewHtmlForLocale,
-  renderNodeSpeakerForLocale,
-  renderSpeakerTemplateForStory,
+  renderScenePreviewResultForLocale,
   type SceneStageChoice,
 } from "@/core/view/sceneStage";
-import type { PromptsByLocale } from "@/core/locale/prompts";
+import { getDefaultLocale, getNodeActionsForLocale, type PromptsByLocale } from "@/core/locale/prompts";
+import { summarizeSceneActions } from "@/core/scene/sceneSummary";
+import {
+  EMPTY_STAGE_VIEW,
+  stageViewFromSummary,
+  type StageView,
+} from "@/core/view/stageView";
+import { finalSpeakerHtml } from "@/core/prompt/executePromptInstructions";
 import {
   compactVnButtonStyle,
   DIALOGUE_PANEL_FRACTION,
@@ -53,12 +58,15 @@ type SceneStagePreviewProps = {
   story: Story;
   storyId: string;
   promptsByLocale: PromptsByLocale;
-  node: Pick<StoryNode, "id" | "backdropId" | "actorConfigs">;
+  node: Pick<StoryNode, "id">;
   locale?: string;
   variant?: "compact" | "full";
   dialogueHtml?: string;
   dialogueSpeaker?: string;
-  templateState?: Record<string, unknown>;
+  /** Live stage state during playback; falls back to the scene's end state. */
+  stageView?: StageView;
+  onSceneOp?: (op: SceneOp) => Promise<void> | void;
+  onDialogueBoundary?: () => void;
   promptInstructions?: PromptInstruction[];
   onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
   choices?: SceneStageChoice[];
@@ -82,7 +90,9 @@ export function SceneStagePreview({
   variant = "compact",
   dialogueHtml,
   dialogueSpeaker,
-  templateState,
+  stageView,
+  onSceneOp,
+  onDialogueBoundary,
   promptInstructions = [],
   onPlaySound,
   choices: choicesProp,
@@ -96,7 +106,13 @@ export function SceneStagePreview({
 }: SceneStagePreviewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [contentRect, setContentRect] = useState<LetterboxContentRect | null>(null);
-  const backdropUrl = useAssetUrl(project, node.backdropId ?? null);
+  const activeLocale = locale ?? getDefaultLocale(project);
+  const staticStageView = useMemo(() => {
+    if (stageView) return EMPTY_STAGE_VIEW;
+    const actions = getNodeActionsForLocale(promptsByLocale, activeLocale, storyId, node.id);
+    return stageViewFromSummary(summarizeSceneActions(actions));
+  }, [stageView, promptsByLocale, activeLocale, storyId, node.id]);
+  const resolvedStageView = stageView ?? staticStageView;
 
   useLayoutEffect(() => {
     const el = rootRef.current;
@@ -129,34 +145,13 @@ export function SceneStagePreview({
   }, [choicesProp, story, storyId, project, node.id, promptsByLocale, locale]);
 
   useEffect(() => {
-    if (dialogueHtml !== undefined) {
+    if (dialogueHtml !== undefined && dialogueSpeaker !== undefined) {
       setPreviewHtml(dialogueHtml);
-      return;
-    }
-    let cancelled = false;
-    void renderNodePreviewHtmlForLocale(
-      story,
-      storyId,
-      project,
-      promptsByLocale,
-      node.id,
-      locale,
-      { disableShake }
-    ).then((next) => {
-      if (!cancelled) setPreviewHtml(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [dialogueHtml, story, storyId, project, promptsByLocale, node.id, locale, disableShake]);
-
-  useEffect(() => {
-    if (dialogueSpeaker !== undefined) {
       setPreviewSpeaker(dialogueSpeaker);
       return;
     }
     let cancelled = false;
-    void renderNodeSpeakerForLocale(
+    void renderScenePreviewResultForLocale(
       story,
       storyId,
       project,
@@ -164,26 +159,29 @@ export function SceneStagePreview({
       node.id,
       locale,
       { disableShake }
-    ).then((next) => {
-      if (!cancelled) setPreviewSpeaker(next);
+    ).then((result) => {
+      if (cancelled) return;
+      setPreviewHtml(result.html);
+      setPreviewSpeaker(finalSpeakerHtml(result.instructions, ""));
     });
     return () => {
       cancelled = true;
     };
-  }, [dialogueSpeaker, story, storyId, project, promptsByLocale, node.id, locale, disableShake]);
+  }, [
+    dialogueHtml,
+    dialogueSpeaker,
+    story,
+    storyId,
+    project,
+    promptsByLocale,
+    node.id,
+    locale,
+    disableShake,
+  ]);
 
   const html = dialogueHtml ?? previewHtml;
   const { defaultFontFamily } = useLoadedFonts(project, html);
   const initialSpeakerHtml = dialogueSpeaker ?? previewSpeaker;
-  const templateRuntimeState = templateState ?? story.globalState;
-  const renderSpeakerTemplate = useCallback(
-    (template: string) =>
-      renderSpeakerTemplateForStory(story, template, templateRuntimeState, {
-        project,
-        disableShake,
-      }),
-    [story, templateRuntimeState, project, disableShake]
-  );
   const choices = choicesProp ?? previewChoices;
   const hasDialogueContent = hasVisibleRichText(html) || hasVisibleRichText(initialSpeakerHtml);
   const hasOptions = choices.some((choice) => choice.optionText);
@@ -253,26 +251,9 @@ export function SceneStagePreview({
       }}
     >
       <div style={stageFrameStyle}>
-        {backdropUrl && (
-          <img
-            src={backdropUrl}
-            alt=""
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        )}
-
-        <ActorRow
-          project={project}
-          actorConfigs={node.actorConfigs ?? []}
-          padding={compact ? "6px 8px 0" : "24px 32px 0"}
-          zIndex={0}
-        />
+        <div style={{ position: "absolute", inset: 0, isolation: "isolate" }}>
+          <StageLayers project={project} view={resolvedStageView} />
+        </div>
 
         {showChoiceButtons && (
           <div
@@ -373,8 +354,9 @@ export function SceneStagePreview({
                 fullHtml={html}
                 initialSpeakerHtml={initialSpeakerHtml}
                 instructions={promptInstructions}
-                renderSpeakerTemplate={renderSpeakerTemplate}
                 onPlaySound={onPlaySound}
+                onSceneOp={onSceneOp}
+                onDialogueBoundary={onDialogueBoundary}
                 onComplete={handlePromptComplete}
                 onSkipChange={handlePromptSkipChange}
               >

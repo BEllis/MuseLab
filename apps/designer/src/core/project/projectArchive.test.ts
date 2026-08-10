@@ -13,13 +13,14 @@ import { PLACEHOLDER_EXPRESSION_URL } from "../assets/actorExpressions";
 import { migrateProjectBundle } from "../model/projectBundle";
 import {
   getEdgeOptionTextForLocale,
-  getNodeTextTemplateForLocale,
+  getNodeActionsForLocale,
   setEdgeOptionText,
-  setNodeTextTemplate,
+  setNodeActions,
   createEmptyLocalePrompts,
 } from "../locale/prompts";
 import { getLocaleTags, normalizeLocales } from "../locale/localeTag";
 import { packProjectArchive, unpackProjectArchive } from "../project/projectArchive";
+import { MUSELAB_FORMAT_VERSION } from "../model/formatVersion";
 
 describe("projectArchive localization", () => {
   it("round-trips prompts files in mlvn archives", async () => {
@@ -33,13 +34,17 @@ describe("projectArchive localization", () => {
       en: createEmptyLocalePrompts(),
       de: createEmptyLocalePrompts(),
     };
-    setNodeTextTemplate(promptsByLocale.en, storyId, nodeId, "<p>Hello</p>");
-    setNodeTextTemplate(promptsByLocale.de, storyId, nodeId, "<p>Hallo</p>");
+    setNodeActions(promptsByLocale.en, storyId, nodeId, [
+      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+    ]);
+    setNodeActions(promptsByLocale.de, storyId, nodeId, [
+      { kind: "dialogue.revealText", channel: "main", text: "Hallo", reveal: { mode: "instant" } },
+    ]);
 
     const archive = await packProjectArchive({ project, promptsByLocale });
     const unpacked = unpackProjectArchive(archive);
     expect(unpacked.metadata).toMatchObject({
-      formatVersion: 6,
+      formatVersion: MUSELAB_FORMAT_VERSION,
       schema: "https://muselab.dev/schemas/mlvn.schema.json",
       manifest: "project.json",
     });
@@ -52,11 +57,15 @@ describe("projectArchive localization", () => {
     expect(getLocaleTags(bundle.project.locales)).toEqual(["de", "en"]);
     expect(bundle.project.defaultLocale).toBe("en");
     expect(
-      getNodeTextTemplateForLocale(bundle.promptsByLocale, "en", restoredStoryId, nodeId)
-    ).toBe("<p>Hello</p>");
+      getNodeActionsForLocale(bundle.promptsByLocale, "en", restoredStoryId, nodeId)
+    ).toEqual([
+      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+    ]);
     expect(
-      getNodeTextTemplateForLocale(bundle.promptsByLocale, "de", restoredStoryId, nodeId)
-    ).toBe("<p>Hallo</p>");
+      getNodeActionsForLocale(bundle.promptsByLocale, "de", restoredStoryId, nodeId)
+    ).toEqual([
+      { kind: "dialogue.revealText", channel: "main", text: "Hallo", reveal: { mode: "instant" } },
+    ]);
   });
 
   it("preserves edge option text per locale", async () => {
@@ -106,18 +115,12 @@ describe("projectArchive localization", () => {
     expect(secondStory).toBeDefined();
 
     const promptsByLocale = { en: createEmptyLocalePrompts() };
-    setNodeTextTemplate(
-      promptsByLocale.en,
-      firstStory!.id,
-      firstStory!.nodes[0]!.id,
-      "<p>First</p>"
-    );
-    setNodeTextTemplate(
-      promptsByLocale.en,
-      secondStory!.id,
-      secondStory!.nodes[0]!.id,
-      "<p>Second</p>"
-    );
+    setNodeActions(promptsByLocale.en, firstStory!.id, firstStory!.nodes[0]!.id, [
+      { kind: "dialogue.revealText", channel: "main", text: "First", reveal: { mode: "instant" } },
+    ]);
+    setNodeActions(promptsByLocale.en, secondStory!.id, secondStory!.nodes[0]!.id, [
+      { kind: "dialogue.revealText", channel: "main", text: "Second", reveal: { mode: "instant" } },
+    ]);
 
     const archive = await packProjectArchive({ project, promptsByLocale });
     const unpacked = unpackProjectArchive(archive);
@@ -130,21 +133,25 @@ describe("projectArchive localization", () => {
     const restoredFirst = bundle.project.stories[0]!;
     const restoredSecond = bundle.project.stories[1]!;
     expect(
-      getNodeTextTemplateForLocale(
+      getNodeActionsForLocale(
         bundle.promptsByLocale,
         "en",
         restoredFirst.id,
         restoredFirst.nodes[0]!.id
       )
-    ).toBe("<p>First</p>");
+    ).toEqual([
+      { kind: "dialogue.revealText", channel: "main", text: "First", reveal: { mode: "instant" } },
+    ]);
     expect(
-      getNodeTextTemplateForLocale(
+      getNodeActionsForLocale(
         bundle.promptsByLocale,
         "en",
         restoredSecond.id,
         restoredSecond.nodes[0]!.id
       )
-    ).toBe("<p>Second</p>");
+    ).toEqual([
+      { kind: "dialogue.revealText", channel: "main", text: "Second", reveal: { mode: "instant" } },
+    ]);
   });
 
   it("round-trips actor expressions in mlvn archives", async () => {
@@ -155,14 +162,15 @@ describe("projectArchive localization", () => {
 
     const storyId = getFirstStoryId(project);
     const scene = addNode(project, storyId, { x: 300, y: 100 }, "scene");
-    scene.actorConfigs = [
-      { assetId: actor.id, expressionId: actor.expressions![0].id },
-      { assetId: actor.id, expressionId: happy.id },
-    ];
+    const promptsByLocale = { en: createEmptyLocalePrompts() };
+    setNodeActions(promptsByLocale.en, storyId, scene.id, [
+      { kind: "prop.add", id: "hero", assetId: actor.id, variationId: actor.expressions![0].id },
+      { kind: "prop.setVariation", id: "hero", variationId: happy.id },
+    ]);
 
     const archive = await packProjectArchive({
       project,
-      promptsByLocale: { en: createEmptyLocalePrompts() },
+      promptsByLocale,
     });
     const unpacked = unpackProjectArchive(archive);
     const bundle = migrateProjectBundle(parseProject(unpacked.manifest));

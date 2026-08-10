@@ -3,14 +3,16 @@ import type { PromptsByLocale } from "@/core/locale/prompts";
 import {
   getDefaultLocale,
   getEdgeOptionTextForLocale,
-  getNodeSpeakerForLocale,
-  getNodeTextTemplateForLocale,
+  getNodeActionsForLocale,
 } from "@/core/locale/prompts";
-import { evaluateCondition, runTemplate, type RunTemplateResult } from "@/core/template/engine";
+import type { SceneAction } from "@/core/model/types";
 import {
-  wrapStoryPromptTemplate,
-  wrapStorySpeakerTemplate,
-} from "@/core/template/storyTemplateWrap";
+  evaluateCondition,
+  runSceneActions,
+  type RunTemplateResult,
+} from "@/core/template/engine";
+import { storyWrapTemplates } from "@/core/template/storyTemplateWrap";
+import { finalSpeakerHtml } from "@/core/prompt/executePromptInstructions";
 import type { TemplateContext } from "@/core/cito/runtimeBridge";
 
 export type SceneStageChoice = {
@@ -81,25 +83,29 @@ export function hasVisibleRichText(html: string): boolean {
   return html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim().length > 0;
 }
 
-export async function renderNodePreviewResult(
-  textTemplate: string,
-  globalState: Story["globalState"],
+export async function renderScenePreviewResult(
+  story: Story,
+  actions: SceneAction[],
   options: RenderNodePreviewOptions
 ): Promise<RunTemplateResult> {
-  return runTemplate(
-    textTemplate,
-    previewTemplateContext(options.project, globalState),
-    options
-  );
+  return runSceneActions(actions, previewTemplateContext(options.project, story.globalState), {
+    ...options,
+    wrap: storyWrapTemplates(story),
+  });
 }
 
-export async function renderNodePreviewHtml(
-  textTemplate: string,
-  globalState: Story["globalState"],
-  options: RenderNodePreviewOptions
-): Promise<string> {
-  const result = await renderNodePreviewResult(textTemplate, globalState, options);
-  return result.html;
+export async function renderScenePreviewResultForLocale(
+  story: Story,
+  storyId: string,
+  project: Project,
+  promptsByLocale: PromptsByLocale,
+  nodeId: string,
+  locale?: string,
+  options: RenderNodePreviewLocaleOptions = {}
+): Promise<RunTemplateResult> {
+  const activeLocale = locale ?? getDefaultLocale(project);
+  const actions = getNodeActionsForLocale(promptsByLocale, activeLocale, storyId, nodeId);
+  return renderScenePreviewResult(story, actions, { ...options, project });
 }
 
 export async function renderNodePreviewHtmlForLocale(
@@ -111,12 +117,16 @@ export async function renderNodePreviewHtmlForLocale(
   locale?: string,
   options: RenderNodePreviewLocaleOptions = {}
 ): Promise<string> {
-  const activeLocale = locale ?? getDefaultLocale(project);
-  const textTemplate = wrapStoryPromptTemplate(
+  const result = await renderScenePreviewResultForLocale(
     story,
-    getNodeTextTemplateForLocale(promptsByLocale, activeLocale, storyId, nodeId)
+    storyId,
+    project,
+    promptsByLocale,
+    nodeId,
+    locale,
+    options
   );
-  return renderNodePreviewHtml(textTemplate, story.globalState, { ...options, project });
+  return result.html;
 }
 
 export async function renderNodeSpeakerForLocale(
@@ -128,21 +138,14 @@ export async function renderNodeSpeakerForLocale(
   locale?: string,
   options: RenderNodePreviewLocaleOptions = {}
 ): Promise<string> {
-  const activeLocale = locale ?? getDefaultLocale(project);
-  const speaker = getNodeSpeakerForLocale(promptsByLocale, activeLocale, storyId, nodeId);
-  if (!speaker) return "";
-  return renderSpeakerTemplateForStory(story, speaker, story.globalState, {
-    ...options,
+  const result = await renderScenePreviewResultForLocale(
+    story,
+    storyId,
     project,
-  });
-}
-
-export async function renderSpeakerTemplateForStory(
-  story: Pick<Story, "speakerStartTemplate" | "speakerEndTemplate">,
-  template: string,
-  state: Story["globalState"],
-  options: RenderNodePreviewOptions
-): Promise<string> {
-  if (!template.trim()) return "";
-  return renderNodePreviewHtml(wrapStorySpeakerTemplate(story, template), state, options);
+    promptsByLocale,
+    nodeId,
+    locale,
+    options
+  );
+  return finalSpeakerHtml(result.instructions, "");
 }

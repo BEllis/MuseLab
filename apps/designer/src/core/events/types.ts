@@ -12,7 +12,7 @@ import type {
   StoryGroup,
   StoryNode,
 } from "@/core/model/types";
-import type { LocalePrompts, StoryPrompts } from "@/core/model/types";
+import type { LocalePrompts, SceneAction, StoryPrompts } from "@/core/model/types";
 import type { NavigationSnapshot, SelectionSnapshot } from "./appState";
 
 export type AppEventBase = {
@@ -90,7 +90,7 @@ export type ExpressionPatch = Partial<Pick<ActorExpression, "name" | "sortOrder"
   attributes?: Attributes | null;
 };
 
-export type NodePromptValue = { textTemplate?: string; speaker?: string };
+export type NodePromptValue = { actions?: SceneAction[] };
 
 export type EdgePromptValue = { optionText?: string };
 
@@ -280,22 +280,13 @@ export type UpdateEdgeEvent = AppEventBase & {
   after: EdgePatch;
 };
 
-export type UpdateNodePromptEvent = AppEventBase & {
-  type: "updateNodePrompt";
+export type UpdateNodeActionsEvent = AppEventBase & {
+  type: "updateNodeActions";
   storyId: string;
   locale: string;
   nodeId: string;
-  before: string;
-  after: string;
-};
-
-export type UpdateNodeSpeakerEvent = AppEventBase & {
-  type: "updateNodeSpeaker";
-  storyId: string;
-  locale: string;
-  nodeId: string;
-  before: string;
-  after: string;
+  before: SceneAction[];
+  after: SceneAction[];
 };
 
 export type UpdateEdgePromptEvent = AppEventBase & {
@@ -485,8 +476,7 @@ export type AppEvent =
   | AddEdgeEvent
   | RemoveEdgeEvent
   | UpdateEdgeEvent
-  | UpdateNodePromptEvent
-  | UpdateNodeSpeakerEvent
+  | UpdateNodeActionsEvent
   | UpdateEdgePromptEvent
   | AddAssetEvent
   | AddBlankActorEvent

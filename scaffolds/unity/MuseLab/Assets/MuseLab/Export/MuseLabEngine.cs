@@ -41,6 +41,10 @@ public abstract class IMuseLabFormat
 
 	public abstract string ItalicEnd();
 
+	public abstract string UnderlineStart();
+
+	public abstract string UnderlineEnd();
+
 	public abstract string ColorStart(string colorHex);
 
 	public abstract string ColorEnd();
@@ -95,13 +99,77 @@ public abstract class IMuseLabPromptRenderer
 
 	public abstract void WaitForContinue();
 
-	public abstract void UpdateSpeaker(string template);
+	public abstract void SpeakerBegin();
+
+	public abstract void SpeakerEnd();
+
+	public abstract void ShowDialogue(string channel);
+
+	public abstract void HideDialogue(string channel);
 
 	public abstract void Reset();
 
 	public abstract void Clear();
 
 	public abstract string Render();
+
+	public abstract string GetSpeakerHtml();
+}
+
+public abstract class IMuseLabBackground
+{
+	public abstract void Show(string assetId);
+
+	public abstract void Clear();
+
+	public abstract void Fade(string assetId, int durationMs);
+
+	public abstract void SlideIn(string assetId, string direction, int durationMs);
+
+	public abstract void SlideOut(string direction, int durationMs);
+}
+
+public abstract class IMuseLabProp
+{
+	public abstract void Add(string id, string assetId);
+
+	public abstract void AddVariant(string id, string assetId, string variationId);
+
+	public abstract void Remove(string id);
+
+	public abstract void Show(string id);
+
+	public abstract void ShowAt(string id, string slot);
+
+	public abstract void ShowAtXY(string id, double x, double y);
+
+	public abstract void Hide(string id);
+
+	public abstract void FadeIn(string id, int durationMs);
+
+	public abstract void FadeInAt(string id, string slot, int durationMs);
+
+	public abstract void FadeInAtXY(string id, double x, double y, int durationMs);
+
+	public abstract void FadeOut(string id, int durationMs);
+
+	public abstract void SlideIn(string id, string slot, string direction, int durationMs);
+
+	public abstract void SlideInXY(string id, double x, double y, string direction, int durationMs);
+
+	public abstract void SlideOut(string id, string direction, int durationMs);
+
+	public abstract void Move(string id, string slot, int durationMs);
+
+	public abstract void MoveXY(string id, double x, double y, int durationMs);
+
+	public abstract void SetPosition(string id, string slot);
+
+	public abstract void SetPositionXY(string id, double x, double y);
+
+	public abstract void SetZ(string id, int z);
+
+	public abstract void SetVariation(string id, string variationId);
 }
 
 public class RuntimeChoices
@@ -399,6 +467,10 @@ public class MuseLabEngine
 
 	IMuseLabPromptRenderer prompter;
 
+	IMuseLabBackground bg;
+
+	IMuseLabProp prop;
+
 	string activeLocale;
 
 	string activeStoryId;
@@ -407,12 +479,14 @@ public class MuseLabEngine
 
 	bool isEnded;
 
-	public static MuseLabEngine Create(IMuseLabRuntime rt, IMuseLabFormat format, IMuseLabPromptRenderer prompter, string defaultLocale)
+	public static MuseLabEngine Create(IMuseLabRuntime rt, IMuseLabFormat format, IMuseLabPromptRenderer prompter, IMuseLabBackground bg, IMuseLabProp prop, string defaultLocale)
 	{
 		MuseLabEngine engine = new MuseLabEngine();
 		engine.rt = rt;
 		engine.format = format;
 		engine.prompter = prompter;
+		engine.bg = bg;
+		engine.prop = prop;
 		engine.activeLocale = defaultLocale;
 		return engine;
 	}
@@ -496,7 +570,7 @@ public class MuseLabEngine
 		bool isTerminalScene = false;
 		if (kind == 1) {
 			html = RenderNodePrompt(this.activeLocale, this.activeStoryId, this.currentNodeId);
-			speaker = RenderNodeSpeaker(this.activeLocale, this.activeStoryId, this.currentNodeId);
+			speaker = this.prompter.GetSpeakerHtml();
 		}
 		if (kind == 0 || kind == 1) {
 			RuntimeChoices builtChoices = BuildChoices();

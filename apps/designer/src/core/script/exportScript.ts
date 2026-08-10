@@ -4,31 +4,24 @@ import { getStory } from "../model/project";
 import { isUuid } from "../model/id";
 import { getNodeDisplayName } from "../model/nodeNames";
 import { isSceneNode } from "../model/nodeTypes";
-import {
-  getEdgeOptionTextForLocale,
-  getNodeSpeakerForLocale,
-  getNodeTextTemplateForLocale,
-} from "../locale/prompts";
+import { getEdgeOptionTextForLocale, getNodeActionsForLocale } from "../locale/prompts";
 import { getDefaultLocaleTag } from "../locale/localeTag";
 import { SCRIPT_SCHEMA_ID, MUSELAB_SCRIPT_FORMAT_VERSION } from "../model/formatVersion";
 import { getStoryGroupPath } from "./storyPath";
-import {
-  exportAttributes,
-} from "./attributes";
+import { exportAttributes } from "./attributes";
 import {
   getAssetPath,
   resolveAssetById,
   normalizeSoundAssetName,
 } from "./assetPath";
-import { findExpression } from "../assets/actorExpressions";
 import type {
   MuseLabProjectScript,
-  MuseLabScriptActor,
   MuseLabScriptOption,
   MuseLabScriptScene,
   MuseLabScriptSound,
   MuseLabStoryScript,
 } from "./types";
+import type { SceneAction } from "../scene/actions";
 
 function getEntrySceneName(story: Story, project: Project): string | undefined {
   const startId = story.entryNodeId;
@@ -38,29 +31,6 @@ function getEntrySceneName(story: Story, project: Project): string | undefined {
   const target = story.nodes.find((node) => node.id === startEdge.targetNodeId);
   if (!target || !isSceneNode(target)) return undefined;
   return getNodeDisplayName(target, project);
-}
-
-function exportSceneActors(
-  project: Project,
-  node: StoryNode
-): MuseLabScriptActor[] | undefined {
-  const configs = node.actorConfigs ?? [];
-  if (configs.length === 0) return undefined;
-
-  return configs.map((config) => {
-    const actor = resolveAssetById(project, config.assetId);
-    const expression = findExpression(actor, config.expressionId);
-    const entry: MuseLabScriptActor = {
-      actor_path: getAssetPath(project, actor),
-      expression: expression?.name ?? "default",
-    };
-    if (isUuid(config.assetId)) {
-      entry.actor_id = config.assetId;
-    }
-    const attrs = exportAttributes(config.attributes);
-    if (attrs) entry.attributes = attrs;
-    return entry;
-  });
 }
 
 function exportSceneSound(project: Project, node: StoryNode): MuseLabScriptSound | undefined {
@@ -121,33 +91,25 @@ function exportSceneOptions(
   return options.length > 0 ? options : undefined;
 }
 
-function exportSceneDialogue(
+function exportSceneActions(
   bundle: ProjectBundle,
   storyId: string,
   nodeId: string,
   project: Project
-): MuseLabScriptScene["dialogue"] {
-  const dialogue: NonNullable<MuseLabScriptScene["dialogue"]> = {};
+): MuseLabScriptScene["actions"] {
+  const actionsByLocale: Record<string, SceneAction[]> = {};
   for (const localeEntry of project.locales) {
     const locale = localeEntry.locale;
-    const text = getNodeTextTemplateForLocale(
+    const actions = getNodeActionsForLocale(
       bundle.promptsByLocale,
       locale,
       storyId,
       nodeId
     );
-    const speaker = getNodeSpeakerForLocale(
-      bundle.promptsByLocale,
-      locale,
-      storyId,
-      nodeId
-    );
-    if (!text && !speaker) continue;
-    dialogue[locale] = {};
-    if (speaker) dialogue[locale].speaker = speaker;
-    if (text) dialogue[locale].dialogue = text;
+    if (actions.length === 0) continue;
+    actionsByLocale[locale] = actions;
   }
-  return Object.keys(dialogue).length > 0 ? dialogue : undefined;
+  return Object.keys(actionsByLocale).length > 0 ? actionsByLocale : undefined;
 }
 
 function exportScene(
@@ -166,24 +128,11 @@ function exportScene(
   const nodeAttrs = exportAttributes(node.attributes);
   if (nodeAttrs) scene.attributes = nodeAttrs;
 
-  const actors = exportSceneActors(project, node);
-  if (actors) scene.actors = actors;
-
-  if (node.backdropId) {
-    const backdrop = resolveAssetById(project, node.backdropId);
-    scene.backdrop = {
-      backdrop_path: getAssetPath(project, backdrop),
-    };
-    if (isUuid(node.backdropId)) {
-      scene.backdrop.backdrop_id = node.backdropId;
-    }
-  }
-
   const sound = exportSceneSound(project, node);
   if (sound) scene.sound = sound;
 
-  const dialogue = exportSceneDialogue(bundle, story.id, node.id, project);
-  if (dialogue) scene.dialogue = dialogue;
+  const actions = exportSceneActions(bundle, story.id, node.id, project);
+  if (actions) scene.actions = actions;
 
   const options = exportSceneOptions(bundle, story, project, node, defaultLocale);
   if (options) scene.options = options;

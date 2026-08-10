@@ -1,6 +1,11 @@
 import type { CitoType, ModuleInterface, ModuleMethod } from "@/core/model/types";
 
-export type BuiltInModuleId = "builtin:runtime" | "builtin:format" | "builtin:prompter";
+export type BuiltInModuleId =
+  | "builtin:runtime"
+  | "builtin:format"
+  | "builtin:prompter"
+  | "builtin:background"
+  | "builtin:prop";
 
 export type BuiltInModuleDefinition = {
   id: BuiltInModuleId;
@@ -143,6 +148,18 @@ const FORMAT_METHODS: ModuleMethod[] = [
     parameters: [],
     returnType: "string",
     description: "Close an italic span opened with ItalicStart.",
+  },
+  {
+    name: "UnderlineStart",
+    parameters: [],
+    returnType: "string",
+    description: "Open an underlined span; pair with UnderlineEnd around following text.",
+  },
+  {
+    name: "UnderlineEnd",
+    parameters: [],
+    returnType: "string",
+    description: "Close an underlined span opened with UnderlineStart.",
   },
   {
     name: "ColorStart",
@@ -313,11 +330,29 @@ const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
       "Pause prompt playback and show a continue hint until the player clicks to proceed.",
   },
   {
-    name: "UpdateSpeaker",
-    parameters: [{ name: "template", type: "string" }],
+    name: "SpeakerBegin",
+    parameters: [],
     returnType: "void",
     description:
-      "Replace the speaker name at this point in the prompt stream. The template is rendered like a scene speaker field.",
+      "Start capturing following literal and format output as the speaker name instead of dialogue text.",
+  },
+  {
+    name: "SpeakerEnd",
+    parameters: [],
+    returnType: "void",
+    description: "Commit the captured speaker name and resume normal dialogue output.",
+  },
+  {
+    name: "ShowDialogue",
+    parameters: [{ name: "channel", type: "string" }],
+    returnType: "void",
+    description: "Show the dialogue box for a channel at this point in the prompt stream.",
+  },
+  {
+    name: "HideDialogue",
+    parameters: [{ name: "channel", type: "string" }],
+    returnType: "void",
+    description: "Hide the dialogue box for a channel at this point in the prompt stream.",
   },
   {
     name: "Reset",
@@ -336,6 +371,245 @@ const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
     parameters: [],
     returnType: "string",
     description: "Return the accumulated HTML output (used internally by the template compiler).",
+  },
+  {
+    name: "GetSpeakerHtml",
+    parameters: [],
+    returnType: "string",
+    description: "Return the speaker HTML captured between SpeakerBegin and SpeakerEnd.",
+  },
+];
+
+const BACKGROUND_METHODS: ModuleMethod[] = [
+  {
+    name: "Show",
+    parameters: [{ name: "assetId", type: "string" }],
+    returnType: "void",
+    description: "Replace the background immediately and unload the previous one.",
+  },
+  {
+    name: "Clear",
+    parameters: [],
+    returnType: "void",
+    description: "Remove the current background and unload its asset.",
+  },
+  {
+    name: "Fade",
+    parameters: [
+      { name: "assetId", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Cross-fade from the current background to a new one, then unload the old one.",
+  },
+  {
+    name: "SlideIn",
+    parameters: [
+      { name: "assetId", type: "string" },
+      { name: "direction", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Slide a new background in over the current one from the given direction.",
+  },
+  {
+    name: "SlideOut",
+    parameters: [
+      { name: "direction", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Slide the current background off screen and unload it.",
+  },
+];
+
+const PROP_METHODS: ModuleMethod[] = [
+  {
+    name: "Add",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "assetId", type: "string" },
+    ],
+    returnType: "void",
+    description: "Register a hidden scene object under an instance id and prepare its asset.",
+  },
+  {
+    name: "AddVariant",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "assetId", type: "string" },
+      { name: "variationId", type: "string" },
+    ],
+    returnType: "void",
+    description: "Register a hidden scene object using a specific variation or expression.",
+  },
+  {
+    name: "Remove",
+    parameters: [{ name: "id", type: "string" }],
+    returnType: "void",
+    description: "Destroy a scene object immediately and release its asset reference.",
+  },
+  {
+    name: "Show",
+    parameters: [{ name: "id", type: "string" }],
+    returnType: "void",
+    description: "Make a prop visible at its current position.",
+  },
+  {
+    name: "ShowAt",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "slot", type: "string" },
+    ],
+    returnType: "void",
+    description: "Make a prop visible at a named position slot.",
+  },
+  {
+    name: "ShowAtXY",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "x", type: "double" },
+      { name: "y", type: "double" },
+    ],
+    returnType: "void",
+    description: "Make a prop visible at stage coordinates (x 0-16, y 0-9).",
+  },
+  {
+    name: "Hide",
+    parameters: [{ name: "id", type: "string" }],
+    returnType: "void",
+    description: "Hide a prop; it is unloaded at the next dialogue boundary if still hidden.",
+  },
+  {
+    name: "FadeIn",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Fade a prop from transparent to fully visible.",
+  },
+  {
+    name: "FadeInAt",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "slot", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Position a prop at a named slot, then fade it in.",
+  },
+  {
+    name: "FadeInAtXY",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "x", type: "double" },
+      { name: "y", type: "double" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Position a prop at stage coordinates, then fade it in.",
+  },
+  {
+    name: "FadeOut",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Fade a prop to transparent and mark it hidden.",
+  },
+  {
+    name: "SlideIn",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "slot", type: "string" },
+      { name: "direction", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Slide a prop in from off screen to a named slot.",
+  },
+  {
+    name: "SlideInXY",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "x", type: "double" },
+      { name: "y", type: "double" },
+      { name: "direction", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Slide a prop in from off screen to stage coordinates.",
+  },
+  {
+    name: "SlideOut",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "direction", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Slide a prop off screen and mark it hidden.",
+  },
+  {
+    name: "Move",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "slot", type: "string" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Animate a prop from its current position to a named slot.",
+  },
+  {
+    name: "MoveXY",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "x", type: "double" },
+      { name: "y", type: "double" },
+      { name: "durationMs", type: "int" },
+    ],
+    returnType: "void",
+    description: "Animate a prop from its current position to stage coordinates.",
+  },
+  {
+    name: "SetPosition",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "slot", type: "string" },
+    ],
+    returnType: "void",
+    description: "Move a prop to a named slot with no transition.",
+  },
+  {
+    name: "SetPositionXY",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "x", type: "double" },
+      { name: "y", type: "double" },
+    ],
+    returnType: "void",
+    description: "Move a prop to stage coordinates with no transition.",
+  },
+  {
+    name: "SetZ",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "z", type: "int" },
+    ],
+    returnType: "void",
+    description: "Set the render order for a prop; higher values draw in front.",
+  },
+  {
+    name: "SetVariation",
+    parameters: [
+      { name: "id", type: "string" },
+      { name: "variationId", type: "string" },
+    ],
+    returnType: "void",
+    description:
+      "Swap the rendered variation or expression, preserving visibility, position, z layer, and opacity.",
   },
 ];
 
@@ -369,10 +643,32 @@ export const BUILT_IN_MODULES: BuiltInModuleDefinition[] = [
     overridableTypescript: true,
     methods: PROMPT_RENDERER_METHODS,
   },
+  {
+    id: "builtin:background",
+    name: "IMuseLabBackground",
+    description:
+      "Scripted background lifecycle: show, clear, and transition between backdrops with automatic unloading.",
+    bindingName: "bg",
+    className: "MuseLabBackground",
+    overridableTypescript: false,
+    methods: BACKGROUND_METHODS,
+  },
+  {
+    id: "builtin:prop",
+    name: "IMuseLabProp",
+    description:
+      "Scripted foreground objects for characters and props: add, show, move, transition, layer, and remove.",
+    bindingName: "prop",
+    className: "MuseLabProp",
+    overridableTypescript: false,
+    methods: PROP_METHODS,
+  },
 ];
 
+const BUILT_IN_MODULE_IDS = new Set<string>(BUILT_IN_MODULES.map((module) => module.id));
+
 export function isBuiltInModuleId(id: string): id is BuiltInModuleId {
-  return id === "builtin:runtime" || id === "builtin:format" || id === "builtin:prompter";
+  return BUILT_IN_MODULE_IDS.has(id);
 }
 
 export function getBuiltInModule(id: BuiltInModuleId): BuiltInModuleDefinition {

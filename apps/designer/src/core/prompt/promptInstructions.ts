@@ -1,3 +1,5 @@
+import type { SceneOp } from "@/core/scene/sceneOps";
+
 export const DEFAULT_CHARS_PER_SECOND = 40;
 export const DEFAULT_WORDS_PER_SECOND = 12;
 
@@ -23,7 +25,8 @@ export type PromptInstruction =
       startTime?: number;
       endTime?: number;
     }
-  | { kind: "updateSpeaker"; template: string }
+  | { kind: "updateSpeaker"; html: string }
+  | { kind: "scene"; op: SceneOp }
   | { kind: "reset" }
   | { kind: "clear" };
 
@@ -37,7 +40,8 @@ type OverTimeItem =
       endTime?: number;
     }
   | { kind: "wait"; milliseconds: number }
-  | { kind: "updateSpeaker"; template: string };
+  | { kind: "scene"; op: SceneOp }
+  | { kind: "updateSpeaker"; html: string };
 
 type RevealBlockState =
   | { kind: "none" }
@@ -65,7 +69,8 @@ export type PromptInstructionRecorder = {
     startTime: number,
     endTime: number
   ): void;
-  updateSpeaker(template: string): void;
+  updateSpeaker(html: string): void;
+  scene(op: SceneOp): void;
   reset(): void;
   clear(): void;
 };
@@ -139,7 +144,11 @@ function flushOverTimeItems(
       continue;
     }
     if (item.kind === "updateSpeaker") {
-      instructions.push({ kind: "updateSpeaker", template: item.template });
+      instructions.push({ kind: "updateSpeaker", html: item.html });
+      continue;
+    }
+    if (item.kind === "scene") {
+      instructions.push({ kind: "scene", op: item.op });
       continue;
     }
     const sound: PromptInstruction = {
@@ -279,12 +288,19 @@ export function createPromptInstructionRecorder(): PromptInstructionRecorder {
       if (sound.endTime !== undefined) instruction.endTime = sound.endTime;
       instructions.push(instruction);
     },
-    updateSpeaker(template: string) {
+    updateSpeaker(html: string) {
       if (block.kind === "overTime") {
-        block.items.push({ kind: "updateSpeaker", template });
+        block.items.push({ kind: "updateSpeaker", html });
         return;
       }
-      instructions.push({ kind: "updateSpeaker", template });
+      instructions.push({ kind: "updateSpeaker", html });
+    },
+    scene(op: SceneOp) {
+      if (block.kind === "overTime") {
+        block.items.push({ kind: "scene", op });
+        return;
+      }
+      instructions.push({ kind: "scene", op });
     },
     reset() {
       block = endActiveRevealBlock(block, instructions);
@@ -306,6 +322,7 @@ export function promptInstructionsNeedExecutor(instructions: PromptInstruction[]
       instruction.kind === "revealHtml" ||
       instruction.kind === "playSound" ||
       instruction.kind === "updateSpeaker" ||
+      instruction.kind === "scene" ||
       instruction.kind === "reset" ||
       instruction.kind === "clear"
   );

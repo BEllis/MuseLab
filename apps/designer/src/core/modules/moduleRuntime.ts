@@ -6,6 +6,7 @@ import {
   type HtmlPromptRendererOptions,
 } from "./htmlPromptRenderer";
 import { createFormatMarkerBridge } from "./formatMarkerRuntime";
+import { createBackgroundBridge, createPropBridge } from "./sceneBridge";
 import { createMuseLabRuntimeBridge, type TemplateContext } from "@/core/cito/runtimeBridge";
 import { createPromptInstructionRecorder } from "@/core/prompt/promptInstructions";
 
@@ -91,7 +92,10 @@ const noopTimingMethods = {
   revealWordsOverTimeBegin: () => undefined,
   revealEnd: () => undefined,
   waitForContinue: () => undefined,
-  updateSpeaker: () => undefined,
+  speakerBegin: () => undefined,
+  speakerEnd: () => undefined,
+  showDialogue: () => undefined,
+  hideDialogue: () => undefined,
   reset: () => undefined,
   clear: () => undefined,
 };
@@ -123,6 +127,7 @@ export function createPromptRenderer(
           applyFormat: (marker) => custom.applyFormat(marker),
           render: () => String(custom.render()),
           getInstructions: () => [],
+          getSpeakerHtml: () => "",
           ...noopTimingMethods,
         };
       }
@@ -138,6 +143,10 @@ export function createPromptRenderer(
           applyFormat: (marker) => custom.ApplyFormat(marker),
           render: () => String(custom.Render()),
           getInstructions: () => [],
+          getSpeakerHtml: () =>
+            typeof custom.GetSpeakerHtml === "function"
+              ? String(custom.GetSpeakerHtml())
+              : "",
           ...noopTimingMethods,
         };
       }
@@ -153,6 +162,8 @@ export type ModuleBindings = Record<string, unknown> & {
   rt: ReturnType<typeof createMuseLabRuntimeBridge>;
   prompter: ReturnType<typeof createPromptRendererBridge>;
   format: ReturnType<typeof createFormatMarkerBridge>;
+  bg: ReturnType<typeof createBackgroundBridge>;
+  prop: ReturnType<typeof createPropBridge>;
   promptRenderer: PromptRenderer;
 };
 
@@ -171,6 +182,8 @@ export function createModuleBindings(
     }),
     prompter: createPromptRendererBridge(renderer),
     format: createFormatMarkerBridge(),
+    bg: createBackgroundBridge(recorder),
+    prop: createPropBridge(recorder),
     promptRenderer: renderer,
   };
 

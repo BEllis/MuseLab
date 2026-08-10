@@ -2,11 +2,8 @@
  * @vitest-environment jsdom
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import {
-  createEmptyPromptsByLocale,
-  setNodeSpeaker,
-  setNodeTextTemplate,
-} from "../locale/prompts";
+import { createEmptyPromptsByLocale, setNodeActions } from "../locale/prompts";
+import { finalSpeakerHtml } from "../prompt/executePromptInstructions";
 import { createEmptyProject } from "../model/project";
 import type { Project, Story } from "../model/types";
 import {
@@ -28,13 +25,11 @@ function makeTemplateProject(): { project: Project; story: Story } {
         id: "scene-a",
         type: "scene",
         position: { x: 100, y: 0 },
-        backdropId: "muselab-default-backdrop",
       },
       {
         id: "scene-b",
         type: "scene",
         position: { x: 200, y: 0 },
-        backdropId: "muselab-default-backdrop",
       },
     ],
     edges: [
@@ -71,13 +66,17 @@ describe("createRunner cito template integration", () => {
 
     const { project } = makeTemplateProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
-    setNodeTextTemplate(
-      promptsByLocale.en,
-      "story-1",
-      "scene-a",
-      '<p>Hello @rt.GetString("name")!</p>'
-    );
-    setNodeSpeaker(promptsByLocale.en, "story-1", "scene-a", '@rt.GetString("name")');
+    setNodeActions(promptsByLocale.en, "story-1", "scene-a", [
+      { kind: "dialogue.setSpeaker", text: "Ada" },
+      { kind: "dialogue.show", channel: "main" },
+      {
+        kind: "dialogue.revealText",
+        channel: "main",
+        text: "Hello Ada!",
+        reveal: { mode: "instant" },
+      },
+      { kind: "waitForContinue" },
+    ]);
 
     const runner = createRunner(
       project,
@@ -90,7 +89,7 @@ describe("createRunner cito template integration", () => {
     const state = await runner.getRuntimeState();
 
     expect(state.currentHtml).toContain("Hello Ada!");
-    expect(state.currentSpeaker).toBe("Ada");
+    expect(finalSpeakerHtml(state.promptInstructions, "")).toBe("Ada");
     expect(state.promptInstructions.length).toBeGreaterThan(0);
     expect(state.promptInstructions.some((entry) => entry.kind === "appendHtml")).toBe(true);
   });

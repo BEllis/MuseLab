@@ -1,6 +1,7 @@
 import type { EndNodeLayout, LocalePrompts, Project } from "./types";
 import type { PromptsByLocale } from "../locale/prompts";
 import { expressionBlobKey } from "../assets/actorExpressions";
+import { collectActionMigratableIds, remapActionAssetIds } from "../scene/actionAssets";
 import { generateId, isObjectId, isReservedObjectId } from "./id";
 
 export type BlobKeyRemapping = { from: string; to: string };
@@ -34,16 +35,11 @@ function collectMigratableIds(project: Project): Set<string> {
 
     for (const node of story.nodes) {
       if (needsMigration(node.id)) ids.add(node.id);
-      if (node.backdropId && needsMigration(node.backdropId)) ids.add(node.backdropId);
       if (node.jumpTargetStoryId && needsMigration(node.jumpTargetStoryId)) {
         ids.add(node.jumpTargetStoryId);
       }
       if (node.jumpTargetStartNodeId && needsMigration(node.jumpTargetStartNodeId)) {
         ids.add(node.jumpTargetStartNodeId);
-      }
-      for (const config of node.actorConfigs ?? []) {
-        if (needsMigration(config.assetId)) ids.add(config.assetId);
-        if (needsMigration(config.expressionId)) ids.add(config.expressionId);
       }
       for (const config of node.soundConfigs ?? []) {
         if (needsMigration(config.assetId)) ids.add(config.assetId);
@@ -134,19 +130,12 @@ function applyIdMapToProject(project: Project, idMap: Map<string, string>): void
 
     for (const node of story.nodes) {
       node.id = remap(node.id, idMap) ?? node.id;
-      if (node.backdropId) {
-        node.backdropId = remap(node.backdropId, idMap) ?? node.backdropId;
-      }
       if (node.jumpTargetStoryId) {
         node.jumpTargetStoryId = remap(node.jumpTargetStoryId, idMap) ?? node.jumpTargetStoryId;
       }
       if (node.jumpTargetStartNodeId) {
         node.jumpTargetStartNodeId =
           remap(node.jumpTargetStartNodeId, idMap) ?? node.jumpTargetStartNodeId;
-      }
-      for (const config of node.actorConfigs ?? []) {
-        config.assetId = remap(config.assetId, idMap) ?? config.assetId;
-        config.expressionId = remap(config.expressionId, idMap) ?? config.expressionId;
       }
       for (const config of node.soundConfigs ?? []) {
         config.assetId = remap(config.assetId, idMap) ?? config.assetId;
@@ -233,8 +222,14 @@ function applyIdMapToPrompts(promptsByLocale: PromptsByLocale, idMap: Map<string
     const nextStories: LocalePrompts["stories"] = {};
     for (const [storyId, storyPrompts] of Object.entries(localePrompts.stories)) {
       const newStoryId = idMap.get(storyId) ?? storyId;
+      const nodes = remapRecordKeys(storyPrompts.nodes, idMap);
+      for (const entry of Object.values(nodes)) {
+        if (entry.actions) {
+          entry.actions = remapActionAssetIds(entry.actions, idMap);
+        }
+      }
       nextStories[newStoryId] = {
-        nodes: remapRecordKeys(storyPrompts.nodes, idMap),
+        nodes,
         edges: remapRecordKeys(storyPrompts.edges, idMap),
       };
     }
@@ -248,6 +243,13 @@ export function migrateProjectIdsToUuid(
   promptsByLocale: PromptsByLocale
 ): IdMigrationResult {
   const migratableIds = collectMigratableIds(project);
+  for (const localePrompts of Object.values(promptsByLocale)) {
+    for (const storyPrompts of Object.values(localePrompts.stories)) {
+      for (const entry of Object.values(storyPrompts.nodes)) {
+        collectActionMigratableIds(entry.actions ?? [], needsMigration, migratableIds);
+      }
+    }
+  }
   if (migratableIds.size === 0) {
     return { migrated: false, blobKeyRemappings: [] };
   }

@@ -5,6 +5,8 @@ import {
   museLabFormatCi,
   iFormatMarkerCi,
   museLabPromptRendererCi,
+  museLabBackgroundCi,
+  museLabPropCi,
 } from "@/cito/ciSources";
 import { BUILT_IN_MODULES, citoTypeToString, toModuleInterfaceShape } from "./builtInModules";
 
@@ -57,6 +59,8 @@ export function buildRenderParameterList(project: Project): string {
     "MuseLabRuntime rt",
     "MuseLabPromptRenderer prompter",
     "MuseLabFormat format",
+    "MuseLabBackground bg",
+    "MuseLabProp prop",
     ...customParams,
   ].join(", ");
 }
@@ -79,9 +83,14 @@ export function generateExportModuleInterface(service: ModuleInterface): string 
 
 export function buildExportRenderParameterList(project: Project): string {
   const customParams = project.modules.map((service) => `${service.name} ${service.bindingName}`);
-  return ["IMuseLabRuntime rt", "IMuseLabPromptRenderer prompter", "IMuseLabFormat format", ...customParams].join(
-    ", "
-  );
+  return [
+    "IMuseLabRuntime rt",
+    "IMuseLabPromptRenderer prompter",
+    "IMuseLabFormat format",
+    "IMuseLabBackground bg",
+    "IMuseLabProp prop",
+    ...customParams,
+  ].join(", ");
 }
 
 export function buildExportCiPreamble(project: Project): string {
@@ -99,6 +108,8 @@ export function buildCiPreamble(project: Project): string {
     iFormatMarkerCi.trim(),
     museLabFormatCi.trim(),
     museLabPromptRendererCi.trim(),
+    museLabBackgroundCi.trim(),
+    museLabPropCi.trim(),
     customStubs.trim(),
   ].filter(Boolean);
   return `${parts.join("\n\n")}\n`;

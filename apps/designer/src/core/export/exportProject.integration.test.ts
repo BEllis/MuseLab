@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
-import { createEmptyPromptsByLocale, setNodeTextTemplate } from "../locale/prompts";
+import { createEmptyPromptsByLocale, setNodeActions } from "../locale/prompts";
 import { makeRichExportProject } from "@/test/fixtures/richExportProject";
 import {
   assertRichEngineTranspileOutput,
@@ -25,12 +25,12 @@ describe("exportProject integration", () => {
 
     const project = makeRichExportProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
-    setNodeTextTemplate(
-      promptsByLocale.en,
-      "story-main",
-      "scene-main",
-      '<p>Welcome @rt.GetString("name")</p>'
-    );
+    setNodeActions(promptsByLocale.en, "story-main", "scene-main", [
+      { kind: "bg.show", assetId: "muselab-default-backdrop" },
+      { kind: "dialogue.show", channel: "main" },
+      { kind: "dialogue.revealText", channel: "main", text: "Welcome", reveal: { mode: "instant" } },
+      { kind: "waitForContinue" },
+    ]);
 
     const archive = await exportProject(
       { project, promptsByLocale },

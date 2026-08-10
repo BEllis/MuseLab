@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../model/types";
 import { normalizeLocales } from "../locale/localeTag";
-import { createEmptyPromptsByLocale } from "../locale/prompts";
+import { createEmptyPromptsByLocale, setEdgeOptionText, setNodeActions } from "../locale/prompts";
 import { generateMuseLabEngineCi } from "./generateMuseLabEngineCi";
 
 function makeExportProject(): Project {
@@ -24,7 +24,6 @@ function makeExportProject(): Project {
             id: "scene-1",
             type: "scene",
             position: { x: 100, y: 0 },
-            backdropId: "bg-1",
           },
         ],
         edges: [{ id: "edge-1", sourceNodeId: "start-1", targetNodeId: "scene-1" }],
@@ -37,12 +36,10 @@ describe("generateMuseLabEngineCi", () => {
   it("generates module interfaces, project data, and MuseLabEngine entry points", () => {
     const project = makeExportProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
-    promptsByLocale.en.stories["story-1"] = {
-      nodes: {
-        "scene-1": { textTemplate: "Hello @rt.GetString(\"name\")" },
-      },
-      edges: {},
-    };
+    setNodeActions(promptsByLocale.en, "story-1", "scene-1", [
+      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+    ]);
+    setEdgeOptionText(promptsByLocale.en, "story-1", "edge-1", "Continue");
 
     const ci = generateMuseLabEngineCi({ project, promptsByLocale });
 

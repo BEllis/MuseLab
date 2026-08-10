@@ -41,10 +41,14 @@ export type PromptRenderer = {
   revealWordsOverTimeBegin(durationMs: number): void;
   revealEnd(): void;
   waitForContinue(): void;
-  updateSpeaker(template: string): void;
+  speakerBegin(): void;
+  speakerEnd(): void;
+  showDialogue(channel: string): void;
+  hideDialogue(channel: string): void;
   reset(): void;
   clear(): void;
   render(): string;
+  getSpeakerHtml(): string;
   getInstructions(): PromptInstruction[];
 };
 
@@ -125,6 +129,10 @@ function markerToHtml(
       return "<i>";
     case "italicEnd":
       return "</i>";
+    case "underlineStart":
+      return "<u>";
+    case "underlineEnd":
+      return "</u>";
     case "colorStart": {
       const colorHex = marker.colorHex ?? "";
       if (!/^#[0-9A-Fa-f]{3,8}$/.test(colorHex)) return "";
@@ -234,6 +242,9 @@ export function createHtmlPromptRenderer(
   const recorder = options.recorder ?? createPromptInstructionRecorder();
   const parts: string[] = [];
   let shakeMode: ShakeMode = "none";
+  /** Non-null while SpeakerBegin/SpeakerEnd redirect output into the speaker. */
+  let speakerParts: string[] | null = null;
+  let speakerHtml = "";
   const fontContext: FontRenderContext = {
     project: options.project,
     fontBlockNestedSpans: [],
@@ -241,6 +252,10 @@ export function createHtmlPromptRenderer(
 
   const pushHtml = (html: string, plainText: string) => {
     if (!html) return;
+    if (speakerParts) {
+      speakerParts.push(html);
+      return;
+    }
     parts.push(html);
     recorder.appendRevealText(html, plainText);
   };
@@ -283,12 +298,24 @@ export function createHtmlPromptRenderer(
     waitForContinue() {
       recorder.waitForContinue();
     },
-    updateSpeaker(template: string) {
-      recorder.updateSpeaker(template);
+    speakerBegin() {
+      speakerParts = [];
+    },
+    speakerEnd() {
+      speakerHtml = (speakerParts ?? []).join("");
+      speakerParts = null;
+      recorder.updateSpeaker(speakerHtml);
+    },
+    showDialogue(channel: string) {
+      recorder.scene({ kind: "dialogue.show", channel });
+    },
+    hideDialogue(channel: string) {
+      recorder.scene({ kind: "dialogue.hide", channel });
     },
     reset() {
       parts.length = 0;
       shakeMode = "none";
+      speakerHtml = "";
       fontContext.fontBlockNestedSpans = [];
       recorder.reset();
     },
@@ -300,6 +327,9 @@ export function createHtmlPromptRenderer(
     },
     render() {
       return parts.join("");
+    },
+    getSpeakerHtml() {
+      return speakerHtml;
     },
     getInstructions() {
       return recorder.instructions;
@@ -321,10 +351,14 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     revealWordsOverTimeBegin: (durationMs: number) => renderer.revealWordsOverTimeBegin(durationMs),
     revealEnd: () => renderer.revealEnd(),
     waitForContinue: () => renderer.waitForContinue(),
-    updateSpeaker: (template: string) => renderer.updateSpeaker(template),
+    speakerBegin: () => renderer.speakerBegin(),
+    speakerEnd: () => renderer.speakerEnd(),
+    showDialogue: (channel: string) => renderer.showDialogue(channel),
+    hideDialogue: (channel: string) => renderer.hideDialogue(channel),
     reset: () => renderer.reset(),
     clear: () => renderer.clear(),
     render: () => renderer.render(),
+    getSpeakerHtml: () => renderer.getSpeakerHtml(),
     AddLiteral: (text: string) => renderer.addLiteral(text),
     AppendResult: (value: unknown) => renderer.appendResult(value),
     ApplyFormat: (marker: FormatMarker | null | undefined) => renderer.applyFormat(marker),
@@ -335,9 +369,13 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     RevealWordsOverTimeBegin: (durationMs: number) => renderer.revealWordsOverTimeBegin(durationMs),
     RevealEnd: () => renderer.revealEnd(),
     WaitForContinue: () => renderer.waitForContinue(),
-    UpdateSpeaker: (template: string) => renderer.updateSpeaker(template),
+    SpeakerBegin: () => renderer.speakerBegin(),
+    SpeakerEnd: () => renderer.speakerEnd(),
+    ShowDialogue: (channel: string) => renderer.showDialogue(channel),
+    HideDialogue: (channel: string) => renderer.hideDialogue(channel),
     Reset: () => renderer.reset(),
     Clear: () => renderer.clear(),
     Render: () => renderer.render(),
+    GetSpeakerHtml: () => renderer.getSpeakerHtml(),
   };
 }

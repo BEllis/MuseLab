@@ -43,5 +43,12 @@ export function compileCondition(
 }
 
 export function getConditionBindingNames(project: Project): string[] {
-  return ["rt", "prompter", "format", ...project.modules.map((service) => service.bindingName)];
+  return [
+    "rt",
+    "prompter",
+    "format",
+    "bg",
+    "prop",
+    ...project.modules.map((service) => service.bindingName),
+  ];
 }

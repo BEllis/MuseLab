@@ -1,3 +1,4 @@
+import type { SceneOp } from "@/core/scene/sceneOps";
 import type { PromptInstruction, RevealMode } from "./promptInstructions";
 import {
   DEFAULT_CHARS_PER_SECOND,
@@ -26,8 +27,11 @@ export type ExecutePromptInstructionsOptions = {
   onHtmlUpdate: (html: string) => void;
   initialSpeakerHtml?: string;
   onSpeakerUpdate?: (html: string) => void;
-  renderSpeakerTemplate?: (template: string) => Promise<string>;
   onPlaySound: PlaySoundCallback;
+  /** Applies a recorded stage operation; timed transitions resolve on completion. */
+  onSceneOp?: (op: SceneOp) => Promise<void> | void;
+  /** Called after every continue so hidden props can be released. */
+  onDialogueBoundary?: () => void;
   waitForContinue?: () => Promise<void>;
   skipRevealChunk?: RevealSkipControl;
   onRevealActiveChange?: (active: boolean) => void;
@@ -371,8 +375,9 @@ export async function executePromptInstructions(
     onHtmlUpdate,
     initialSpeakerHtml = "",
     onSpeakerUpdate,
-    renderSpeakerTemplate,
     onPlaySound,
+    onSceneOp,
+    onDialogueBoundary,
     waitForContinue,
     skipRevealChunk,
     onRevealActiveChange,
@@ -427,6 +432,15 @@ export async function executePromptInstructions(
       if (waitForContinue) {
         await waitForContinue();
       }
+      onDialogueBoundary?.();
+      instructionIndex += 1;
+      activeRevealStep = undefined;
+      saveCheckpoint(instructionIndex, visibleHtml, undefined);
+      continue;
+    }
+
+    if (instruction.kind === "scene") {
+      await onSceneOp?.(instruction.op);
       instructionIndex += 1;
       activeRevealStep = undefined;
       saveCheckpoint(instructionIndex, visibleHtml, undefined);
@@ -470,9 +484,7 @@ export async function executePromptInstructions(
     }
 
     if (instruction.kind === "updateSpeaker") {
-      if (renderSpeakerTemplate && onSpeakerUpdate) {
-        onSpeakerUpdate(await renderSpeakerTemplate(instruction.template));
-      }
+      onSpeakerUpdate?.(instruction.html);
       instructionIndex += 1;
       activeRevealStep = undefined;
       saveCheckpoint(instructionIndex, visibleHtml, undefined);
@@ -501,17 +513,30 @@ export async function executePromptInstructions(
   }
 }
 
-export async function renderFinalSpeakerHtml(
+export function finalSpeakerHtml(
   instructions: PromptInstruction[],
   initialSpeakerHtml: string,
-  renderSpeakerTemplate: (template: string) => Promise<string>,
-): Promise<string> {
+): string {
   let speakerHtml = initialSpeakerHtml;
   for (const instruction of instructions) {
     if (instruction.kind !== "updateSpeaker") continue;
-    speakerHtml = await renderSpeakerTemplate(instruction.template);
+    speakerHtml = instruction.html;
   }
   return speakerHtml;
+}
+
+/** Scene ops from a checkpoint onward, used to fast-forward a resumed scene. */
+export function collectSceneOps(
+  instructions: PromptInstruction[],
+  startIndex = 0,
+  endIndex = instructions.length,
+): SceneOp[] {
+  return instructions
+    .slice(startIndex, endIndex)
+    .filter((instruction): instruction is Extract<PromptInstruction, { kind: "scene" }> =>
+      instruction.kind === "scene",
+    )
+    .map((instruction) => instruction.op);
 }
 
 export function collectRemainingPlaySounds(

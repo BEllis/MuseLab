@@ -9,7 +9,7 @@ Copy everything below the line into an AI agent (Cursor, ChatGPT, Claude, etc.).
 
 They live in `apps/designer/` in the MuseLab repo (or in the agent documentation pack). Also attach `docs/cito-templates.md` for dialogue template syntax.
 
-Current format version: **6**.
+Current format version: **7**.
 
 ---
 
@@ -26,14 +26,14 @@ For distribution, that content is packed into a `.mlvn` zip (see **Packing a `.m
 
 1. Output **only** a single JSON object — no markdown fences, no commentary before or after.
 2. The object must validate against `muselab.bundle.schema.json`. Include at the bundle root:
-   - `"formatVersion": 6`
+   - `"formatVersion": 7`
    - `"schema": "https://muselab.dev/schemas/bundle.schema.json"`
 3. Every story, node, edge, locale, actor, expression, and non-reserved asset id must be a **UUID** (lowercase hex, RFC 4122 variant):
    - Pattern: `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx` where `y` is `8`, `9`, `a`, or `b`
    - Deterministic UUIDs are fine (e.g. `a1000000-0000-4000-8000-000000000001`). Do **not** use readable slug ids like `story-main` or `scene-opening` — the schema rejects them.
 4. Required project keys: `name`, `assets`, `stories`, `locales`. Recommended: `formatVersion`, `$schema`, `defaultLocale`.
 5. Do **not** put `nodes`, `edges`, or `globalState` at the project root (legacy only). Those belong inside each `stories[]` entry.
-6. Scene dialogue (`textTemplate`, `speaker`) and player choice labels (`optionText`) belong in `promptsByLocale.<locale>`, **not** in `project`.
+6. Scene visuals and dialogue are authored as ordered `actions` arrays in `promptsByLocale.<locale>` (not as node `backdropId` / `actorConfigs`, and not as `textTemplate` / `speaker`). Choice labels still use `optionText` on edges.
 7. For self-contained JSON output, embed small placeholder PNGs as `imageData` (base64, no `data:` prefix) on actor expressions. Do not use `blob:` URLs.
 
 ## Story requirements
@@ -57,7 +57,7 @@ Ask the user for preferences only if they were not already provided (genre, leng
 
 ```json
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "schema": "https://muselab.dev/schemas/bundle.schema.json",
   "project": {},
   "promptsByLocale": {
@@ -70,7 +70,7 @@ Ask the user for preferences only if they were not already provided (genre, leng
 
 ```json
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "$schema": "https://muselab.dev/schemas/story.schema.json",
   "name": "Story Title",
   "defaultLocale": "en",
@@ -117,17 +117,38 @@ For a single-story project, use one entry in `stories`.
 
 ### Locale prompts (`promptsByLocale.<tag>` / `prompts.<tag>.json`)
 
-Store all player-facing text per locale, keyed by story UUID:
+Store all player-facing scene scripts per locale, keyed by story UUID. Each scene node has an ordered `actions` array (backgrounds, props/characters, dialogue, waits). Edges still use `optionText` for choice labels.
 
 ```json
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "stories": {
     "a1000000-0000-4000-8000-000000000012": {
       "nodes": {
         "a1000000-0000-4000-8000-000000000014": {
-          "textTemplate": "The rain hasn't stopped for three days.",
-          "speaker": "Narrator"
+          "actions": [
+            { "kind": "bg.show", "assetId": "muselab-default-backdrop" },
+            {
+              "kind": "prop.add",
+              "id": "maya",
+              "assetId": "a1000000-0000-4000-8000-000000000010",
+              "variationId": "a1000000-0000-4000-8000-000000000011"
+            },
+            {
+              "kind": "prop.show",
+              "id": "maya",
+              "position": { "kind": "slot", "slot": "Left" }
+            },
+            { "kind": "dialogue.show", "channel": "main" },
+            { "kind": "dialogue.setSpeaker", "text": "Maya" },
+            {
+              "kind": "dialogue.revealText",
+              "channel": "main",
+              "text": "The rain hasn't stopped for three days.",
+              "reveal": { "mode": "instant" }
+            },
+            { "kind": "waitForContinue" }
+          ]
         }
       },
       "edges": {
@@ -140,7 +161,11 @@ Store all player-facing text per locale, keyed by story UUID:
 }
 ```
 
-Every project locale tag must have a matching `promptsByLocale` entry. Every **scene** node must have a `textTemplate` string (may be empty). Start/jump nodes usually omit prompt entries.
+Every project locale tag must have a matching `promptsByLocale` entry. Every **scene** node should have an `actions` array (may be empty). Start/jump nodes usually omit prompt entries.
+
+**Dialogue text** uses static tagged markup only: `<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`. Do **not** put Razor/`@Format.*` inside `dialogue.revealText` / `dialogue.setSpeaker` strings.
+
+**Positions** are either named slots (`Left`, `Centre`, `Right`, corners, …) or vectors in 16×9 stage space (`{ "kind": "vec", "x": 4, "y": 3 }`).
 
 ### Nodes (`stories[].nodes[]`)
 
@@ -148,8 +173,8 @@ Nodes have a required `type`:
 
 | `type` | Role |
 |--------|------|
-| `start` | Entry point. No backdrop/actors/sounds. At least one per story; `entryNodeId` must point at one. |
-| `scene` | Playable content: backdrop, actors, sounds, dialogue in prompts |
+| `start` | Entry point. No scene visuals. At least one per story; `entryNodeId` must point at one. |
+| `scene` | Playable content: optional `soundConfigs`; visuals and dialogue live in prompt `actions` |
 | `jump` | Cross-story redirect (`jumpTargetStoryId`, `jumpTargetStartNodeId`) |
 
 **Start node:**
@@ -171,50 +196,21 @@ Nodes have a required `type`:
   "type": "scene",
   "position": { "x": 380, "y": 200 },
   "label": "Opening",
-  "backdropId": "muselab-default-backdrop",
-  "actorConfigs": [
-    {
-      "assetId": "a1000000-0000-4000-8000-000000000010",
-      "expressionId": "a1000000-0000-4000-8000-000000000011"
-    }
-  ],
   "soundConfigs": []
 }
 ```
 
 **Required on every node:** `id`, `type`, `position`.
 
-**Scene-only fields:** `backdropId`, `actorConfigs`, `soundConfigs`.
-
-**Do not use** legacy `actorIds` — use `actorConfigs` with `{ assetId, expressionId }`.
+**Scene-only fields on the node:** `soundConfigs` (optional). Do **not** put `backdropId`, `actorConfigs`, `textTemplate`, or `speaker` on nodes or prompts — use `actions`.
 
 **Layout:** Place nodes left-to-right (`x` += 280 per step). Branch paths offset `y` by ±120. Keep coordinates non-negative. Node `label` values must be unique within a story.
 
-**Backdrop:** Use `"backdropId": "muselab-default-backdrop"` unless you define a custom backdrop asset. The app injects the built-in black 16:9 backdrop — you do not need to add that asset yourself (including it is optional).
+**Backgrounds and characters:** Show them with `bg.*` and `prop.*` actions. Characters and props share the prop API; use a stable instance `id` (e.g. `"maya"`) after `prop.add`.
 
-**Actors on stage:** List `actorConfigs` left-to-right. Each `expressionId` must exist on that actor asset.
+**Dialogue actions:** Prefer `dialogue.setSpeaker` + `dialogue.revealText` + `waitForContinue`. Tagged markup in reveal/speaker text only (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`).
 
-**Dialogue (`textTemplate`):** Plain text with Razor-style `@` syntax. Do **not** use HTML tags — `<` and `>` are escaped when rendered. Use `@Format.*` for bold, italic, color, and other styling. Separate blocks with blank lines.
-
-```
-@Format.ItalicStart()The door creaks open.@Format.ItalicEnd()
-
-You came back.
-
-@(rt.GetString("playerName") != "" ? rt.GetString("playerName") : "Stranger"), she whispers.
-```
-
-**Template syntax (Razor-style `@` with Cito):**
-
-| Syntax | Meaning |
-|--------|---------|
-| `@rt.GetString("flag")` | Insert a string from runtime state |
-| `@{ rt.SetBool("flag", true); }` | Set state (side effect; no visible output) |
-| `@if (rt.GetBool("metMaya")) { ... }` | Conditional block |
-| `@Format.BoldStart()` … `@Format.BoldEnd()` | Bold markup |
-| `@@` | Literal `@` |
-
-Available in expressions: `rt.GetString`, `rt.GetBool`, `rt.GetInt`, `rt.SetString`, `rt.SetBool`, `rt.SetInt`, `rt.Emit`, `rt.Call`, `rt.PlaySound`, `rt.PlaySoundClip`, `Format.*`, `prompter.*`. Side effects must use `@{ …; }`, not bare `@`. See `docs/cito-templates.md`.
+Story-level Razor wrappers (`promptStartTemplate`, `speakerStartTemplate`, …) may still wrap compiled dialogue output. Runtime state changes belong in `rt.set*` / `rt.emit` actions (or story-level templates), not inside dialogue strings.
 
 ### Links (`stories[].edges[]`)
 
@@ -303,10 +299,10 @@ Ids below are illustrative but schema-valid UUIDs. Reuse the pattern; generate u
 
 ```json
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "schema": "https://muselab.dev/schemas/bundle.schema.json",
   "project": {
-    "formatVersion": 6,
+    "formatVersion": 7,
     "$schema": "https://muselab.dev/schemas/story.schema.json",
     "name": "Rain Return",
     "defaultLocale": "en",
@@ -375,7 +371,7 @@ Ids below are illustrative but schema-valid UUIDs. Reuse the pattern; generate u
   },
   "promptsByLocale": {
     "en": {
-      "formatVersion": 6,
+      "formatVersion": 7,
       "stories": {
         "a1000000-0000-4000-8000-000000000012": {
           "nodes": {
@@ -411,7 +407,7 @@ Example `muselab.json`:
 
 ```json
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "schema": "https://muselab.dev/schemas/mlvn.schema.json",
   "manifest": "project.json",
   "promptsPattern": "prompts.{locale}.json"
@@ -424,7 +420,7 @@ When using archive-relative media, set asset/expression `path` values such as `a
 
 Before outputting, verify:
 
-- [ ] Bundle has `formatVersion: 6`, `schema`, `project`, `promptsByLocale`
+- [ ] Bundle has `formatVersion: 7`, `schema`, `project`, `promptsByLocale`
 - [ ] All story/node/edge/locale/asset/expression ids are UUIDs (except reserved `muselab-default-*`)
 - [ ] `locales` is a non-empty array of `{ id, locale, displayName }` objects
 - [ ] `defaultLocale` matches a locale tag
@@ -432,12 +428,12 @@ Before outputting, verify:
 - [ ] Each story has ≥1 `type: "start"` node; `entryNodeId` points at one
 - [ ] Every non-entry node is reachable from `entryNodeId`
 - [ ] Node labels are unique within each story
-- [ ] Scene nodes use `actorConfigs` / `soundConfigs` (arrays; use `[]` if empty)
-- [ ] Every `backdropId`, `actorConfigs[].assetId`, `expressionId`, `soundConfigs[].assetId`, `sourceNodeId`, and `targetNodeId` references an existing id
-- [ ] Actors have `expressions` with ≥1 entry; scene `expressionId`s match
+- [ ] Scene nodes may use `soundConfigs` (array; use `[]` if empty); visuals live in `actions`
+- [ ] Every `bg.*`/`prop.*`/`playSound` asset id, `soundConfigs[].assetId`, `sourceNodeId`, and `targetNodeId` references an existing id
+- [ ] Actors have `expressions` with ≥1 entry; `prop.add` / `prop.setVariation` variation ids match
 - [ ] Every edge has `sourcePortId: "out-{edgeId}"` and `targetPortId: "__free_in__"`
-- [ ] Every locale has prompts; every scene has `textTemplate`
-- [ ] No HTML tags in `textTemplate`; use `@Format.*` instead
+- [ ] Every locale has prompts; every scene has an `actions` array (may be empty)
+- [ ] Dialogue strings use tagged markup only (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=…>`)
 - [ ] JSON parses without error; no trailing commas; no comments
 
 If a validator is available (`scripts/validate_mlvn.py`), run it on the bundle and fix all errors before finishing.

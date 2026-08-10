@@ -11,7 +11,7 @@ Snapshot of the project state and what is implemented. See [PLAN.md](./PLAN.md) 
 | 1 | Scaffold: Vite + React + TS, Electron | Done | `@muselab/designer` in `apps/designer/`; `pnpm dev` (web), `pnpm electron:dev` (desktop) |
 | 2 | Core model: types, project, save/load | Done | `src/core/model/`, Zustand store; `.mlvn` zip archives + legacy JSON import |
 | 3 | AntV X6: custom node, native edges, persist positions | Done | `FlowCanvas`, `StoryNode`, `src/x6/`; project is source of truth |
-| 4 | Node editor: backdrop, actors, sounds, template | Done | `NodeEditorPanel` with sound config, locale prompts, speaker field |
+| 4 | Node editor: scene actions, sounds, preview | Done | `ActionPillEditor` + sound config; visuals/dialogue via locale `actions` |
 | 5 | Edge editor: option text and condition | Done | `EdgeEditorPanel`; option text on edge label |
 | 6 | Template engine: Cito compile + cito transpile, sanitized HTML | Done | `src/core/cito/`, `src/core/template/engine.ts` – Cito in `{{ }}`, DOMPurify allowlist |
 | 7 | Asset layer: resolver, file picker (Electron + Web) | Done | `resolver.ts`, `AssetsPanel`, Electron IPC + `asset://` protocol; web IndexedDB blobs |

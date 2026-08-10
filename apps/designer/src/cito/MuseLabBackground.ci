@@ -1,0 +1,22 @@
+public class MuseLabBackground
+{
+    public void Show(string assetId)
+    {
+    }
+
+    public void Clear()
+    {
+    }
+
+    public void Fade(string assetId, int durationMs)
+    {
+    }
+
+    public void SlideIn(string assetId, string direction, int durationMs)
+    {
+    }
+
+    public void SlideOut(string direction, int durationMs)
+    {
+    }
+}

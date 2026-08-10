@@ -14,7 +14,6 @@ export function makeRichExportProject(): Project {
         id: "scene-main",
         type: "scene",
         position: { x: 100, y: 0 },
-        backdropId: "muselab-default-backdrop",
       },
       {
         id: "jump-side",

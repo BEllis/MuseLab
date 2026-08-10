@@ -2,7 +2,7 @@
   <img src="docs/images/logo.png" alt="MuseLab: Visual Novel Designer" width="320">
 </p>
 
-Design and play branching visual novels in a node-based editor. Build scenes with backdrops, actors, sounds, and dynamic text templates, then test your story in the player.
+Design and play branching visual novels in a node-based editor. Build scenes with scripted actions (backgrounds, props/characters, dialogue), sounds, and branching choices, then test your story in the player.
 
 Version 0.1
 
@@ -27,8 +27,8 @@ Version 0.1
 ## Features
 
 - **Flow-based designer** – Place scene nodes on a canvas and connect them. Add option text and conditions so players see different choices depending on the story state.
-- **Rich scenes** – Each node can have a backdrop image, one or more actor images, sounds (with start/stop, loop, trim), and a text template for dialogue and narrative.
-- **Text templates** – Embed **Cito** (Ć language) in `{{ expression }}` blocks and `{{#if condition}}...{{/if}}` for conditionals. Use `rt.GetString("key")`, `rt.SetBool(...)`, `rt.Emit(...)`, `rt.Call(...)`, `rt.PlaySound(...)`, and `Format.*` markup helpers. See [docs/cito-templates.md](docs/cito-templates.md).
+- **Rich scenes** – Author ordered scene actions: backgrounds, props/characters (shared API), tagged dialogue, waits, and sounds. The editor uses a pill-based action list with live stage preview.
+- **Tagged dialogue** – Dialogue text supports `<b>`, `<i>`, `<u>`, `<shake>`, and `<color=…>` markup. Story-level Cito wrappers remain available for advanced cases; see [docs/cito-templates.md](docs/cito-templates.md).
 - **Assets** – Add backdrops, actors, and sounds from your computer. In the desktop app, use the file picker; in the browser, drag and drop.
 - **Player** – Run your story from the designer (Play button). The player shows your scenes with dialogue, choices, and branching based on conditions and state.
 - **Locales** – Support multiple languages. Dialogue and choice labels are stored per locale (`prompts.<locale>.json` inside `.mlvn` archives). Switch locale in the player; edit visible locales in the project panel.

@@ -40,7 +40,19 @@ public class MuseLabPromptRenderer
     {
     }
 
-    public void UpdateSpeaker(string template)
+    public void SpeakerBegin()
+    {
+    }
+
+    public void SpeakerEnd()
+    {
+    }
+
+    public void ShowDialogue(string channel)
+    {
+    }
+
+    public void HideDialogue(string channel)
     {
     }
 
@@ -53,6 +65,11 @@ public class MuseLabPromptRenderer
     }
 
     public string Render()
+    {
+        return "";
+    }
+
+    public string GetSpeakerHtml()
     {
         return "";
     }

@@ -80,7 +80,7 @@ describe("createPromptInstructionRecorder", () => {
 
     expect(recorder.instructions).toEqual([
       { kind: "appendHtml", html: "Hi" },
-      { kind: "updateSpeaker", template: "Maya" },
+      { kind: "updateSpeaker", html: "Maya" },
       { kind: "reset" },
       { kind: "appendHtml", html: "Bye" },
       { kind: "clear" },

@@ -1,5 +1,7 @@
-import type { ActorExpression, Asset, Project, StoryNode } from "../model/types";
+import type { ActorExpression, Asset, Project } from "../model/types";
+import type { PromptsByLocale } from "../locale/prompts";
 import { generateId } from "../model/id";
+import { collectActionAssetRefs } from "../scene/actionAssets";
 import expressionPlaceholderDataUrl from "@/assets/expression-placeholder.png?inline";
 
 export const DEFAULT_EXPRESSION_NAME = "default";
@@ -156,22 +158,27 @@ export function ensureAllActorExpressions(project: Project): void {
   }
 }
 
+/** Scenes whose scripted actions render a specific actor expression. */
 export function getExpressionUsage(
-  project: Project,
+  promptsByLocale: PromptsByLocale,
   actorId: string,
   expressionId: string
 ): number {
-  let count = 0;
-  for (const story of project.stories) {
-    for (const node of story.nodes) {
-      for (const config of node.actorConfigs ?? []) {
-        if (config.assetId === actorId && config.expressionId === expressionId) {
-          count += 1;
-        }
+  const seenScenes = new Set<string>();
+  for (const prompts of Object.values(promptsByLocale)) {
+    for (const [storyId, storyPrompts] of Object.entries(prompts.stories)) {
+      for (const [nodeId, entry] of Object.entries(storyPrompts.nodes)) {
+        const sceneKey = `${storyId}:${nodeId}`;
+        if (seenScenes.has(sceneKey)) continue;
+        const used = collectActionAssetRefs(entry.actions ?? []).some(
+          (ref) =>
+            ref.role === "prop" && ref.assetId === actorId && ref.variationId === expressionId
+        );
+        if (used) seenScenes.add(sceneKey);
       }
     }
   }
-  return count;
+  return seenScenes.size;
 }
 
 export function collectExpressionBlobKeys(project: Project): Set<string> {
@@ -192,39 +199,44 @@ export function getActorThumbnailExpressionId(actor: Asset): string {
   return getDefaultExpressionId(actor);
 }
 
-type LegacyStoryNode = StoryNode & { actorIds?: string[] };
-
-/** Migrate legacy actorIds to actorConfigs and normalize expression references. */
-export function migrateActorSceneReferences(project: Project): void {
+/**
+ * Repoint prop actions at a valid expression when the referenced one is gone.
+ * Actions are the only place expressions are selected, so this runs over prompts.
+ */
+export function normalizeActorExpressionReferences(
+  project: Project,
+  promptsByLocale: PromptsByLocale
+): void {
   ensureAllActorExpressions(project);
 
-  for (const story of project.stories) {
-    for (const node of story.nodes) {
-      if (node.type !== "scene" && node.type !== undefined) continue;
+  const resolveVariation = (assetId: string, variationId: string | undefined): string | undefined => {
+    const actor = project.assets.find(
+      (asset) => asset.id === assetId && asset.type === "actor"
+    );
+    if (!actor) return variationId;
+    if (variationId && findExpression(actor, variationId)) return variationId;
+    return getDefaultExpressionId(actor);
+  };
 
-      const legacyNode = node as LegacyStoryNode;
-      const legacyActorIds = legacyNode.actorIds;
-      if (legacyActorIds && legacyActorIds.length > 0) {
-        node.actorConfigs = legacyActorIds.map((actorId) => {
-          const actor = project.assets.find((asset) => asset.id === actorId && asset.type === "actor");
-          return {
-            assetId: actorId,
-            expressionId: actor ? getDefaultExpressionId(actor) : actorId,
-          };
+  for (const prompts of Object.values(promptsByLocale)) {
+    for (const storyPrompts of Object.values(prompts.stories)) {
+      for (const entry of Object.values(storyPrompts.nodes)) {
+        if (!entry.actions) continue;
+        const propAssets = new Map<string, string>();
+        entry.actions = entry.actions.map((action) => {
+          if (action.kind === "prop.add") {
+            propAssets.set(action.id, action.assetId);
+            const variationId = resolveVariation(action.assetId, action.variationId);
+            return variationId ? { ...action, variationId } : action;
+          }
+          if (action.kind === "prop.setVariation") {
+            const assetId = propAssets.get(action.id);
+            if (!assetId) return action;
+            const variationId = resolveVariation(assetId, action.variationId);
+            return variationId ? { ...action, variationId } : action;
+          }
+          return action;
         });
-        delete legacyNode.actorIds;
-      }
-
-      node.actorConfigs = node.actorConfigs ?? [];
-
-      for (const config of node.actorConfigs) {
-        const actor = project.assets.find(
-          (asset) => asset.id === config.assetId && asset.type === "actor"
-        );
-        if (!actor) continue;
-        if (!findExpression(actor, config.expressionId)) {
-          config.expressionId = getDefaultExpressionId(actor);
-        }
       }
     }
   }

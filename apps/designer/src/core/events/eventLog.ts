@@ -174,19 +174,9 @@ function coalesceEvent(existing: AppEvent, incoming: AppEvent): AppEvent | null 
         return null;
       }
       return { ...existing, after: incoming.after };
-    case "updateNodePrompt":
+    case "updateNodeActions":
       if (
-        existing.type !== "updateNodePrompt" ||
-        existing.storyId !== incoming.storyId ||
-        existing.locale !== incoming.locale ||
-        existing.nodeId !== incoming.nodeId
-      ) {
-        return null;
-      }
-      return { ...existing, after: incoming.after };
-    case "updateNodeSpeaker":
-      if (
-        existing.type !== "updateNodeSpeaker" ||
+        existing.type !== "updateNodeActions" ||
         existing.storyId !== incoming.storyId ||
         existing.locale !== incoming.locale ||
         existing.nodeId !== incoming.nodeId

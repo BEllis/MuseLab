@@ -301,6 +301,7 @@ function AssetTreeSection({
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const project = useProjectStore((s) => s.project);
+  const promptsByLocale = useProjectStore((s) => s.promptsByLocale);
   const selectedAssetId = useProjectStore((s) => s.selectedAssetId);
   const setSelectedAssetId = useProjectStore((s) => s.setSelectedAssetId);
   const addAsset = useProjectStore((s) => s.addAsset);
@@ -840,7 +841,7 @@ function AssetTreeSection({
       const label = expression.isDefault ? `${expression.name} (default)` : expression.name;
       const actor = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
       const expressionCount = actor?.expressions?.length ?? 0;
-      const usage = getExpressionUsage(project, actorId, expression.id);
+      const usage = getExpressionUsage(promptsByLocale, actorId, expression.id);
       const isLast = expressionCount <= 1;
       const canDelete = usage === 0 && !isLast;
       const deleteTitle = isLast

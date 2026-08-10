@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { strFromU8, unzipSync } from "fflate";
 import type { Project } from "../model/types";
-import { createEmptyPromptsByLocale, getNodeTextTemplateForLocale, parseLocalePrompts, setNodeTextTemplate } from "../locale/prompts";
+import { createEmptyPromptsByLocale, getNodeActionsForLocale, parseLocalePrompts, setNodeActions } from "../locale/prompts";
 import { parseProject } from "../model/project";
 import { migrateProjectBundle } from "../model/projectBundle";
 import { isStartNode } from "../model/nodeTypes";
@@ -64,12 +64,9 @@ describe("export round-trip", () => {
   it("generates resolver lookups that match TypeScript story path helpers", () => {
     const project = makeRoundTripProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
-    setNodeTextTemplate(
-      promptsByLocale.en,
-      "story-main",
-      "scene-main",
-      "Hello @rt.GetString(\"name\")"
-    );
+    setNodeActions(promptsByLocale.en, "story-main", "scene-main", [
+      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+    ]);
 
     const ci = generateMuseLabEngineCi({ project, promptsByLocale });
 
@@ -83,7 +80,9 @@ describe("export round-trip", () => {
   it("packs and restores project manifest and prompts from export archives", async () => {
     const project = makeRoundTripProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
-    setNodeTextTemplate(promptsByLocale.en, "story-main", "scene-main", "<p>Exported</p>");
+    setNodeActions(promptsByLocale.en, "story-main", "scene-main", [
+      { kind: "dialogue.revealText", channel: "main", text: "Exported", reveal: { mode: "instant" } },
+    ]);
 
     const bundle = { project, promptsByLocale };
     const ciSource = generateMuseLabEngineCi(bundle);
@@ -97,7 +96,7 @@ describe("export round-trip", () => {
 
     const restoredProject = parseProject(strFromU8(entries["project.json"]));
     const restoredPrompts = {
-      en: parseLocalePrompts(strFromU8(entries["prompts.en.json"]), restoredProject.stories[0]?.id),
+      en: parseLocalePrompts(strFromU8(entries["prompts.en.json"])),
     };
     const restoredBundle = migrateProjectBundle(restoredProject, restoredPrompts);
 
@@ -111,12 +110,14 @@ describe("export round-trip", () => {
     const restoredSceneId = restoredMain?.nodes.find((node) => node.type === "scene")?.id;
     expect(restoredSceneId).toBeDefined();
     expect(
-      getNodeTextTemplateForLocale(
+      getNodeActionsForLocale(
         restoredBundle.promptsByLocale,
         "en",
         restoredMain!.id,
         restoredSceneId!
       )
-    ).toBe("<p>Exported</p>");
+    ).toEqual([
+      { kind: "dialogue.revealText", channel: "main", text: "Exported", reveal: { mode: "instant" } },
+    ]);
   });
 });

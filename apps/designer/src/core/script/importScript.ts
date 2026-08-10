@@ -1,6 +1,5 @@
 import type { ProjectBundle } from "../model/projectBundle";
 import type {
-  ActorSceneConfig,
   Project,
   SoundConfig,
   Story,
@@ -29,20 +28,16 @@ import {
   ensureLocalePrompts,
   ensureStoryPrompts,
   setEdgeOptionText,
-  setNodeSpeaker,
-  setNodeTextTemplate,
+  setNodeActions,
 } from "../locale/prompts";
 import { normalizeLocaleTags } from "../locale/localeTag";
 import { applyAttributesField } from "../model/attributes";
-import { DEFAULT_BACKDROP_ID, resolveBackdropId } from "../assets/defaultBackdrop";
 import { importAttributes } from "./attributes";
 import {
   formatAssetPath,
   normalizeSoundAssetName,
-  resolveAssetById,
   resolveAssetIdByPath,
 } from "./assetPath";
-import { resolveExpressionIdByName } from "./expressionPath";
 import { assignScenePositions, assignStartNodePosition } from "./layout";
 import {
   collectScriptAssetReferences,
@@ -57,6 +52,8 @@ import type {
   MuseLabStoryScript,
 } from "./types";
 import { isProjectScript } from "./types";
+import type { SceneAction } from "../scene/actions";
+import { assertValidSceneActions } from "../scene/validateActions";
 
 export interface ImportScriptResult {
   bundle: ProjectBundle;
@@ -176,26 +173,6 @@ function applyStoryMetadata(
   );
 }
 
-function buildActorConfigs(
-  project: Project,
-  scene: MuseLabScriptScene
-): ActorSceneConfig[] {
-  const configs: ActorSceneConfig[] = [];
-  for (const [index, actorEntry] of (scene.actors ?? []).entries()) {
-    const assetId =
-      actorEntry.actor_id && project.assets.some((asset) => asset.id === actorEntry.actor_id)
-        ? actorEntry.actor_id
-        : resolveAssetIdByPath(project, "actor", actorEntry.actor_path);
-    const actor = resolveAssetById(project, assetId);
-    const expressionId = resolveExpressionIdByName(actor, actorEntry.expression);
-    const config: ActorSceneConfig = { assetId, expressionId };
-    const attrs = importAttributes(actorEntry.attributes, `scenes[].actors[${index}].attributes`);
-    if (attrs) config.attributes = attrs;
-    configs.push(config);
-  }
-  return configs;
-}
-
 function buildSoundConfig(project: Project, scene: MuseLabScriptScene): SoundConfig[] {
   if (!scene.sound) return [];
   const sound = scene.sound;
@@ -214,25 +191,6 @@ function buildSoundConfig(project: Project, scene: MuseLabScriptScene): SoundCon
   return [config];
 }
 
-function resolveBackdropIdFromScript(
-  project: Project,
-  scene: MuseLabScriptScene
-): string {
-  if (!scene.backdrop) {
-    return DEFAULT_BACKDROP_ID;
-  }
-  if (
-    scene.backdrop.backdrop_id &&
-    project.assets.some((asset) => asset.id === scene.backdrop!.backdrop_id)
-  ) {
-    return resolveBackdropId(project, scene.backdrop.backdrop_id);
-  }
-  return resolveBackdropId(
-    project,
-    resolveAssetIdByPath(project, "backdrop", scene.backdrop.backdrop_path)
-  );
-}
-
 function upsertSceneNode(
   project: Project,
   story: Story,
@@ -245,8 +203,6 @@ function upsertSceneNode(
     const attrs = importAttributes(scene.attributes, `scenes["${scene.node_name}"].attributes`);
     updateNode(project, storyId, existing.id, {
       label: scene.node_name,
-      backdropId: resolveBackdropIdFromScript(project, scene),
-      actorConfigs: buildActorConfigs(project, scene),
       soundConfigs: buildSoundConfig(project, scene),
       attributes: attrs ?? (mode === "replace" ? null : undefined),
     });
@@ -263,15 +219,13 @@ function upsertSceneNode(
   }
   updateNode(project, storyId, node.id, {
     label: scene.node_name,
-    backdropId: resolveBackdropIdFromScript(project, scene),
-    actorConfigs: buildActorConfigs(project, scene),
     soundConfigs: buildSoundConfig(project, scene),
     attributes: importAttributes(scene.attributes, `scenes["${scene.node_name}"].attributes`) ?? null,
   });
   return getStory(project, storyId).nodes.find((entry) => entry.id === node.id)!;
 }
 
-function applySceneDialogue(
+function applySceneActions(
   bundle: ProjectBundle,
   storyId: string,
   nodeId: string,
@@ -279,35 +233,24 @@ function applySceneDialogue(
   mode: ImportScriptMode,
   projectLocales: string[]
 ): void {
-  const dialogueLocales = Object.keys(scene.dialogue ?? {});
+  const actionLocales = Object.keys(scene.actions ?? {});
   const localesToWrite =
-    mode === "merge" ? dialogueLocales : [...new Set([...projectLocales, ...dialogueLocales])];
+    mode === "merge" ? actionLocales : [...new Set([...projectLocales, ...actionLocales])];
 
   for (const locale of localesToWrite) {
-    const entry = scene.dialogue?.[locale];
+    const actions: SceneAction[] | undefined = scene.actions?.[locale];
     const prompts = ensureLocalePrompts(bundle.promptsByLocale, locale);
     const storyPrompts = ensureStoryPrompts(prompts, storyId);
 
-    if (!entry) {
+    if (!actions) {
       if (mode === "replace") {
         delete storyPrompts.nodes[nodeId];
       }
       continue;
     }
 
-    if (entry.dialogue !== undefined) {
-      setNodeTextTemplate(prompts, storyId, nodeId, entry.dialogue);
-    } else if (mode === "replace") {
-      const current = storyPrompts.nodes[nodeId];
-      if (current) delete current.textTemplate;
-    }
-
-    if (entry.speaker !== undefined) {
-      setNodeSpeaker(prompts, storyId, nodeId, entry.speaker);
-    } else if (mode === "replace") {
-      const current = storyPrompts.nodes[nodeId];
-      if (current) delete current.speaker;
-    }
+    assertValidSceneActions(actions, { project: bundle.project });
+    setNodeActions(prompts, storyId, nodeId, actions);
   }
 }
 
@@ -532,7 +475,7 @@ export function importStoryScript(
 
   for (const scene of script.scenes) {
     const node = upsertSceneNode(project, story, storyId, scene, mode);
-    applySceneDialogue(bundle, storyId, node.id, scene, mode, normalizeLocaleTags(project.locales));
+    applySceneActions(bundle, storyId, node.id, scene, mode, normalizeLocaleTags(project.locales));
   }
 
   removeScenesNotInScript(project, bundle, story, storyId, script.scenes, mode);

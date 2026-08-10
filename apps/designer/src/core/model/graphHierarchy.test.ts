@@ -30,8 +30,6 @@ describe("validatePlayEntry", () => {
           id: "scene1",
           type: "scene",
           position: { x: 0, y: 0 },
-          backdropId: "muselab-default-backdrop",
-          actorConfigs: [],
           soundConfigs: [],
         },
       ],
@@ -91,7 +89,6 @@ describe("validatePlayEntry", () => {
           id: "scene1",
           type: "scene",
           position: { x: 100, y: 0 },
-          backdropId: "muselab-default-backdrop",
         },
       ],
     });

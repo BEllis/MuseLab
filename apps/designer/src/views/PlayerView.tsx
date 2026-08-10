@@ -12,6 +12,7 @@ import type { PromptsByLocale } from "@/core/locale/prompts";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { BackToDesignerButton } from "@/components/BackToDesignerButton";
 import { useAssetUrl } from "@/hooks/useAssetUrl";
+import { useSceneDirector, type UseSceneDirectorResult } from "@/hooks/useSceneDirector";
 import type { Project, Story, StoryNode } from "@/core/model/types";
 import {
   clampPlayerResolution,
@@ -72,6 +73,9 @@ function PlayerViewInner({
   const [customHeight, setCustomHeight] = useState(storedResolution.height);
   const [contentAreaSize, setContentAreaSize] = useState({ width: 1280, height: 720 });
   const contentAreaRef = useRef<HTMLDivElement>(null);
+  // The stage outlives individual nodes so backgrounds and props persist across
+  // scenes until a script or the dialogue boundary removes them.
+  const scene = useSceneDirector();
 
   useEffect(() => {
     let cancelled = false;
@@ -134,11 +138,13 @@ function PlayerViewInner({
   }, [entryId, runner]);
 
   const handleChoice = (targetId: string) => {
+    scene.dialogueBoundary();
     runner.goToNode(targetId);
     setTick((t) => t + 1);
   };
 
   const handleContinue = () => {
+    scene.dialogueBoundary();
     runner.finishStory();
     setTick((t) => t + 1);
   };
@@ -147,11 +153,12 @@ function PlayerViewInner({
     () =>
       entryId
         ? () => {
+            scene.reset();
             runner.goToNode(entryId);
             setTick((t) => t + 1);
           }
         : undefined,
-    [entryId, runner]
+    [entryId, runner, scene]
   );
 
   useEffect(() => {
@@ -381,6 +388,7 @@ function PlayerViewInner({
               locale={activeLocale}
               node={node}
               runtime={runtime}
+              scene={scene}
               singleChoice={singleChoice}
               handleChoice={handleChoice}
               handleContinue={handleContinue}
@@ -403,6 +411,7 @@ function PlayerStage({
   locale,
   node,
   runtime,
+  scene,
   singleChoice,
   handleChoice,
   handleContinue,
@@ -413,7 +422,7 @@ function PlayerStage({
   storyId: string;
   promptsByLocale: PromptsByLocale;
   locale: string;
-  node: Pick<StoryNode, "id" | "backdropId" | "actorConfigs">;
+  node: Pick<StoryNode, "id">;
   runtime: Pick<
     RuntimeState,
     | "currentHtml"
@@ -423,6 +432,7 @@ function PlayerStage({
     | "isTerminalScene"
     | "state"
   >;
+  scene: UseSceneDirectorResult;
   singleChoice: boolean;
   handleChoice: (targetId: string) => void;
   handleContinue: () => void;
@@ -439,8 +449,10 @@ function PlayerStage({
       variant="full"
       dialogueHtml={runtime.currentHtml}
       dialogueSpeaker={runtime.currentSpeaker}
-      templateState={runtime.state}
       promptInstructions={runtime.promptInstructions}
+      stageView={scene.stageView}
+      onSceneOp={scene.applySceneOp}
+      onDialogueBoundary={scene.dialogueBoundary}
       onPlaySound={(assetId, options) => {
         window.__playerPlaySound?.(assetId, options);
       }}

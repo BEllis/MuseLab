@@ -1,7 +1,8 @@
 import type { Graph, Node } from "@antv/x6";
 import type { Project, Story, StoryNode } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
-import { getDefaultLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
+import { getDefaultLocale, getNodeActionsForLocale } from "@/core/locale/prompts";
+import { summarizeSceneActions } from "@/core/scene/sceneSummary";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
 import { isJumpNode, isSceneNode } from "@/core/model/nodeTypes";
 import { getStoryOrNull } from "@/core/model/project";
@@ -36,7 +37,8 @@ function buildNodeData(
   project: Project,
   selectedNodeIds: ReadonlySet<string>,
   highlightedRootNodeIds: ReadonlySet<string>,
-  preview: string
+  preview: string,
+  backdropId: string | undefined
 ) {
   return {
     type: node.type,
@@ -44,7 +46,7 @@ function buildNodeData(
     preview: preview.slice(0, 60) || "(no text)",
     selected: selectedNodeIds.has(node.id),
     invalidRoot: highlightedRootNodeIds.has(node.id),
-    backdropId: node.backdropId,
+    backdropId,
     jumpTargetSummary: buildJumpTargetSummary(project, node),
   };
 }
@@ -116,15 +118,18 @@ export function syncProjectNode(
   promptsByLocale: PromptsByLocale
 ): void {
   const locale = getDefaultLocale(project);
-  const preview = isSceneNode(projectNode)
-    ? getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, projectNode.id)
-    : "";
+  const summary = isSceneNode(projectNode)
+    ? summarizeSceneActions(
+        getNodeActionsForLocale(promptsByLocale, locale, storyId, projectNode.id)
+      )
+    : null;
   const data = buildNodeData(
     projectNode,
     project,
     selectedNodeIds,
     highlightedRootNodeIds,
-    preview
+    summary?.previewText ?? "",
+    summary?.backgroundAssetId
   );
   const expectedShape = shapeForStoryNodeType(projectNode.type);
   const existing = graph.getCellById(projectNode.id);

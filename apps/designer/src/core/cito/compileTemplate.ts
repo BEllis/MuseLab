@@ -6,6 +6,7 @@ import {
   buildRenderParameterList,
 } from "../modules/generateModuleCi";
 import { isFormatExpression, normalizeFormatExpression } from "../modules/builtInModules";
+import { escapeCiString } from "./escapeCiString";
 import {
   parseTemplateSurface,
   validateRazorTemplate,
@@ -18,14 +19,6 @@ export type CompiledTemplate = {
   className: string;
   ciSource: string;
 };
-
-function escapeCiString(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\r/g, "\\r")
-    .replace(/\n/g, "\\n");
-}
 
 function emitExprStatement(expr: string): string {
   const normalized = normalizeFormatExpression(expr);
@@ -55,6 +48,22 @@ function segmentsToPrompterLines(segments: Segment[], lines: string[]): void {
     segmentsToPrompterLines(segment.body, lines);
     lines.push("}");
   }
+}
+
+/**
+ * Prompter statements for a Razor fragment, used to splice story-level prompt
+ * and speaker wrappers into generated scene templates.
+ */
+export function compileTemplateFragmentLines(
+  template: string,
+  project: Project
+): string[] {
+  const trimmed = template.trim();
+  if (!trimmed) return [];
+  validateRazorTemplate(trimmed, getOutputExpressionRoots(project));
+  const lines: string[] = [];
+  segmentsToPrompterLines(parseTemplateSurface(trimmed), lines);
+  return lines;
 }
 
 function buildRenderMethod(segments: Segment[]): string {
@@ -110,5 +119,12 @@ export function compileTemplate(
 }
 
 export function getTemplateBindingNames(project: Project): string[] {
-  return ["rt", "prompter", "format", ...project.modules.map((service) => service.bindingName)];
+  return [
+    "rt",
+    "prompter",
+    "format",
+    "bg",
+    "prop",
+    ...project.modules.map((service) => service.bindingName),
+  ];
 }

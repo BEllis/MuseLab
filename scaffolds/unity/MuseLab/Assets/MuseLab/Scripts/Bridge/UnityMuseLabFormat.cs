@@ -6,6 +6,8 @@ namespace MuseLab.Bridge
         public override string BoldEnd() => FormatMarkerCodec.Encode(FormatMarkerKind.BoldEnd);
         public override string ItalicStart() => FormatMarkerCodec.Encode(FormatMarkerKind.ItalicStart);
         public override string ItalicEnd() => FormatMarkerCodec.Encode(FormatMarkerKind.ItalicEnd);
+        public override string UnderlineStart() => FormatMarkerCodec.Encode(FormatMarkerKind.UnderlineStart);
+        public override string UnderlineEnd() => FormatMarkerCodec.Encode(FormatMarkerKind.UnderlineEnd);
 
         public override string ColorStart(string colorHex) =>
             FormatMarkerCodec.Encode(FormatMarkerKind.ColorStart, new FormatMarkerData { color = colorHex });

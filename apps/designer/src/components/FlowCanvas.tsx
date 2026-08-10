@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Graph, Keyboard, MiniMap, Selection } from "@antv/x6";
-import { getDefaultLocale, getNodeTextTemplateForLocale } from "@/core/locale/prompts";
+import { getDefaultLocale } from "@/core/locale/prompts";
 import { isSceneNode } from "@/core/model/nodeTypes";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
@@ -438,12 +438,6 @@ export function FlowCanvas() {
       if (!node || !isSceneNode(node)) return;
 
       const locale = getDefaultLocale(store.project);
-      const draftTemplate = getNodeTextTemplateForLocale(
-        store.promptsByLocale,
-        locale,
-        store.activeStoryId,
-        node.id
-      );
 
       store.setSelection([node.id], []);
       graphRef.current?.cleanSelection();
@@ -452,9 +446,9 @@ export function FlowCanvas() {
 
       const previewStore = useSceneEditorPreviewStore.getState();
       if (mode === "view") {
-        previewStore.showPreview({ locale, draftTemplate, editingTemplate: false });
+        previewStore.showPreview({ locale, editingActions: false });
       } else {
-        previewStore.showTemplateEditor(locale, draftTemplate);
+        previewStore.showActionEditor(locale);
       }
 
       setContextMenu(null);

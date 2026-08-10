@@ -1,5 +1,5 @@
 import { copyOptionalAttributes } from "./attributes";
-import type { ActorSceneConfig, SoundConfig, Story, StoryNode, StoryNodeType } from "./types";
+import type { SoundConfig, Story, StoryNode, StoryNodeType } from "./types";
 
 export function isStartNode(node: StoryNode): boolean {
   return node.type === "start";
@@ -19,14 +19,6 @@ export function getStartNodes(story: Story): StoryNode[] {
 
 export function countSceneNodes(story: Story): number {
   return story.nodes.filter(isSceneNode).length;
-}
-
-function normalizeActorSceneConfig(config: ActorSceneConfig): ActorSceneConfig {
-  return {
-    assetId: config.assetId,
-    expressionId: config.expressionId,
-    ...copyOptionalAttributes(config),
-  };
 }
 
 function normalizeSoundConfig(config: SoundConfig): SoundConfig {
@@ -68,8 +60,6 @@ export function normalizeStoryNode(node: StoryNode): StoryNode {
     type: "scene",
     position: node.position,
     label: node.label,
-    backdropId: node.backdropId,
-    actorConfigs: (node.actorConfigs ?? []).map(normalizeActorSceneConfig),
     soundConfigs: (node.soundConfigs ?? []).map(normalizeSoundConfig),
     ...copyOptionalAttributes(node),
   };
@@ -84,7 +74,6 @@ export function migrateStoryNodes(story: Story): void {
       node.type = "scene";
     }
     if (node.type === "scene") {
-      node.actorConfigs = node.actorConfigs ?? [];
       node.soundConfigs = node.soundConfigs ?? [];
     }
     if (node.type === "jump") {
@@ -97,8 +86,6 @@ export function migrateStoryNodes(story: Story): void {
     for (const node of story.nodes) {
       if (!hasIncoming.has(node.id)) {
         node.type = "start";
-        delete node.backdropId;
-        delete node.actorConfigs;
         delete node.soundConfigs;
       }
     }

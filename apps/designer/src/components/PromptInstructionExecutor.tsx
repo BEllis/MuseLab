@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PromptInstruction } from "@/core/prompt/promptInstructions";
 import { promptInstructionsNeedExecutor } from "@/core/prompt/promptInstructions";
+import type { SceneOp } from "@/core/scene/sceneOps";
 import {
+  collectSceneOps,
   executePromptInstructions,
-  renderFinalSpeakerHtml,
+  finalSpeakerHtml,
   type PromptExecutionCheckpoint,
   type RevealSkipControl,
 } from "@/core/prompt/executePromptInstructions";
@@ -12,8 +14,9 @@ export type PromptInstructionExecutorProps = {
   fullHtml: string;
   initialSpeakerHtml?: string;
   instructions: PromptInstruction[];
-  renderSpeakerTemplate?: (template: string) => Promise<string>;
   onPlaySound?: (assetId: string, options?: { startTime?: number; endTime?: number }) => void;
+  onSceneOp?: (op: SceneOp) => Promise<void> | void;
+  onDialogueBoundary?: () => void;
   onComplete?: () => void;
   onSkipChange?: (skipped: boolean) => void;
   children: (props: {
@@ -36,8 +39,9 @@ export function PromptInstructionExecutor({
   fullHtml,
   initialSpeakerHtml = "",
   instructions,
-  renderSpeakerTemplate,
   onPlaySound,
+  onSceneOp,
+  onDialogueBoundary,
   onComplete,
   onSkipChange,
   children,
@@ -65,11 +69,13 @@ export function PromptInstructionExecutor({
   const onCompleteRef = useRef(onComplete);
   const onPlaySoundRef = useRef(onPlaySound);
   const onSkipChangeRef = useRef(onSkipChange);
-  const renderSpeakerTemplateRef = useRef(renderSpeakerTemplate);
+  const onSceneOpRef = useRef(onSceneOp);
+  const onDialogueBoundaryRef = useRef(onDialogueBoundary);
   onCompleteRef.current = onComplete;
   onPlaySoundRef.current = onPlaySound;
   onSkipChangeRef.current = onSkipChange;
-  renderSpeakerTemplateRef.current = renderSpeakerTemplate;
+  onSceneOpRef.current = onSceneOp;
+  onDialogueBoundaryRef.current = onDialogueBoundary;
   const instructionsKey = JSON.stringify(instructions);
   const initialSpeakerKey = initialSpeakerHtml;
 
@@ -115,11 +121,17 @@ export function PromptInstructionExecutor({
     abortRef.current?.abort();
     continueResolverRef.current?.();
     setVisibleHtml(fullHtml);
-    const renderSpeaker = renderSpeakerTemplateRef.current;
-    if (renderSpeaker) {
-      void renderFinalSpeakerHtml(instructions, initialSpeakerHtml, renderSpeaker).then(
-        setVisibleSpeakerHtml,
-      );
+    setVisibleSpeakerHtml(finalSpeakerHtml(instructions, initialSpeakerHtml));
+    // Fast-forward the stage so skipping lands on the scene's final visuals.
+    const applySceneOp = onSceneOpRef.current;
+    if (applySceneOp) {
+      const startIndex = checkpointRef.current?.instructionIndex ?? 0;
+      void (async () => {
+        for (const op of collectSceneOps(instructions, startIndex)) {
+          await applySceneOp(op);
+        }
+        onDialogueBoundaryRef.current?.();
+      })();
     }
     skipLatchActiveRef.current = false;
     isCompleteRef.current = true;
@@ -156,7 +168,6 @@ export function PromptInstructionExecutor({
 
     setVisibleHtml("");
 
-    const renderSpeaker = renderSpeakerTemplateRef.current;
     void executePromptInstructions({
       instructions,
       checkpoint: checkpointRef.current ?? undefined,
@@ -168,11 +179,12 @@ export function PromptInstructionExecutor({
         setVisibleHtml(html);
       },
       initialSpeakerHtml,
-      onSpeakerUpdate: renderSpeaker ? setVisibleSpeakerHtml : undefined,
-      renderSpeakerTemplate: renderSpeaker,
+      onSpeakerUpdate: setVisibleSpeakerHtml,
       onPlaySound: (assetId, options) => {
         onPlaySoundRef.current?.(assetId, options);
       },
+      onSceneOp: (op) => onSceneOpRef.current?.(op),
+      onDialogueBoundary: () => onDialogueBoundaryRef.current?.(),
       waitForContinue,
       skipRevealChunk: skipRevealChunkControlRef.current,
       onRevealActiveChange: handleRevealActiveChange,

@@ -88,6 +88,16 @@ namespace MuseLab.Export
             }
         }
 
+        public static void ReleaseTexture(string assetId)
+        {
+            if (string.IsNullOrEmpty(assetId)) return;
+            // Variation keys are assetId:variationId; textures are keyed by assetId for now.
+            var textureKey = assetId.Contains(':') ? assetId.Split(':')[0] : assetId;
+            if (!TextureCache.TryGetValue(textureKey, out var texture)) return;
+            TextureCache.Remove(textureKey);
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        }
+
         public static void ClearCache()
         {
             foreach (var texture in TextureCache.Values)

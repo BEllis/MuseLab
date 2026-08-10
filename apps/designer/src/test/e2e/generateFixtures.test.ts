@@ -8,7 +8,7 @@ import {
 import {
   createEmptyPromptsByLocale,
   setEdgeOptionText,
-  setNodeTextTemplate,
+  setNodeActions,
 } from "../../core/locale/prompts";
 import {
   addEdge,
@@ -37,12 +37,16 @@ describe("generate e2e fixtures", () => {
     const scene = addNode(playableProject, playableStoryId, { x: 420, y: 120 }, "scene");
     const edge = addEdge(playableProject, playableStoryId, startId, scene.id);
     const playablePrompts = createEmptyPromptsByLocale(playableProject.locales);
-    setNodeTextTemplate(
-      playablePrompts.en,
-      playableStoryId,
-      scene.id,
-      "<p>Welcome to MuseLab</p>"
-    );
+    setNodeActions(playablePrompts.en, playableStoryId, scene.id, [
+      { kind: "dialogue.show", channel: "main" },
+      {
+        kind: "dialogue.revealText",
+        channel: "main",
+        text: "Welcome to MuseLab",
+        reveal: { mode: "instant" },
+      },
+      { kind: "waitForContinue" },
+    ]);
     setEdgeOptionText(playablePrompts.en, playableStoryId, edge.id, "Begin");
 
     mkdirSync(outDir, { recursive: true });

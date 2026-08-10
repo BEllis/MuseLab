@@ -13,13 +13,11 @@ const sceneA: StoryNode = {
   id: "scene-a",
   type: "scene",
   position: { x: 100, y: 0 },
-  backdropId: "muselab-default-backdrop",
 };
 const sceneB: StoryNode = {
   id: "scene-b",
   type: "scene",
   position: { x: 200, y: 0 },
-  backdropId: "muselab-default-backdrop",
 };
 const jump: StoryNode = {
   id: "jump",

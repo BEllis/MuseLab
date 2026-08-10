@@ -3,9 +3,7 @@ import type { Node } from "@antv/x6";
 import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
-import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
-import type { ActorSceneConfig } from "@/core/model/types";
 
 export type StoryNodeData = {
   type?: "start" | "scene" | "jump";
@@ -33,7 +31,7 @@ function SceneNodeBody({
   selected: boolean;
   invalidRoot: boolean;
   assetDropTarget: boolean;
-  stageNode: { id: string; backdropId: string; actorConfigs: ActorSceneConfig[] };
+  stageNode: { id: string };
   project: ReturnType<typeof useProjectStore.getState>["project"];
   story: ReturnType<typeof useActiveStory>["story"];
   storyId: string;
@@ -93,11 +91,7 @@ export function StoryNodeView({ node }: { node: Node }) {
   const invalidRoot = data?.invalidRoot ?? false;
   const assetDropTarget = data?.assetDropTarget ?? false;
 
-  const stageNode = {
-    id: node.id,
-    backdropId: domainNode?.backdropId ?? data?.backdropId ?? DEFAULT_BACKDROP_ID,
-    actorConfigs: domainNode?.actorConfigs ?? [],
-  };
+  const stageNode = { id: node.id };
 
   useLayoutEffect(() => {
     const el = rootRef.current;

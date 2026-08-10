@@ -29,7 +29,7 @@ function defaultBackdropHasCustomMedia(asset: Asset): boolean {
   return Boolean(asset.path || asset.imageData || asset.blobStored);
 }
 
-/** Ensures every project has the default backdrop and nodes without one use it. */
+/** Ensures every project has the built-in default backdrop asset available. */
 export function ensureDefaultBackdrop(project: Project): void {
   const existing = project.assets.find((asset) => asset.id === DEFAULT_BACKDROP_ID);
   if (!existing) {
@@ -42,12 +42,6 @@ export function ensureDefaultBackdrop(project: Project): void {
       (!existing.url || existing.url.startsWith("blob:"))
     ) {
       existing.url = defaultBackdropDataUrl;
-    }
-  }
-
-  for (const story of project.stories) {
-    for (const node of story.nodes) {
-      node.backdropId = resolveBackdropId(project, node.backdropId);
     }
   }
 }

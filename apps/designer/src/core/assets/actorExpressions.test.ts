@@ -10,6 +10,7 @@ import {
   resolveExpression,
 } from "./actorExpressions";
 import { updateAsset as updateAssetInProject } from "../model/project";
+import { createEmptyPromptsByLocale, setNodeActions } from "../locale/prompts";
 
 function actorAsset(overrides: Partial<Asset> = {}): Asset {
   return {
@@ -110,35 +111,16 @@ describe("isExpressionNameUnique", () => {
 
 describe("getExpressionUsage", () => {
   it("counts scene references", () => {
-    const project: Project = {
-      name: "Test",
-      assets: [],
-      locales: normalizeLocales(["en"]),
-      modules: [],
-      stories: [
-        {
-          id: "s1",
-          name: "Main",
-          nodes: [
-            {
-              id: "n1",
-              type: "scene",
-              position: { x: 0, y: 0 },
-              actorConfigs: [{ assetId: "actor1", expressionId: "expr1" }],
-            },
-            {
-              id: "n2",
-              type: "scene",
-              position: { x: 0, y: 0 },
-              actorConfigs: [{ assetId: "actor1", expressionId: "expr1" }],
-            },
-          ],
-          edges: [],
-          globalState: {},
-        },
-      ],
-    };
-    expect(getExpressionUsage(project, "actor1", "expr1")).toBe(2);
-    expect(getExpressionUsage(project, "actor1", "expr2")).toBe(0);
+    const locales = normalizeLocales(["en"]);
+    const promptsByLocale = createEmptyPromptsByLocale(locales);
+    setNodeActions(promptsByLocale.en, "s1", "n1", [
+      { kind: "prop.add", id: "hero", assetId: "actor1", variationId: "expr1" },
+    ]);
+    setNodeActions(promptsByLocale.en, "s1", "n2", [
+      { kind: "prop.add", id: "hero", assetId: "actor1", variationId: "expr1" },
+    ]);
+
+    expect(getExpressionUsage(promptsByLocale, "actor1", "expr1")).toBe(2);
+    expect(getExpressionUsage(promptsByLocale, "actor1", "expr2")).toBe(0);
   });
 });

@@ -1,25 +1,9 @@
 import type { Attributes } from "../model/attributes";
+import type { SceneAction } from "../scene/actions";
 
 export { MUSELAB_SCRIPT_FORMAT_VERSION } from "../model/formatVersion";
 
 export type ImportScriptMode = "merge" | "replace";
-
-export interface MuseLabScriptDialogueLocale {
-  speaker?: string;
-  dialogue?: string;
-}
-
-export interface MuseLabScriptActor {
-  actor_id?: string;
-  actor_path: string;
-  expression: string;
-  attributes?: Attributes;
-}
-
-export interface MuseLabScriptBackdrop {
-  backdrop_id?: string;
-  backdrop_path: string;
-}
 
 export interface MuseLabScriptSound {
   sound_id?: string;
@@ -47,10 +31,9 @@ export interface MuseLabScriptScene {
   node_id?: string;
   node_name: string;
   attributes?: Attributes;
-  actors?: MuseLabScriptActor[];
-  backdrop?: MuseLabScriptBackdrop;
   sound?: MuseLabScriptSound;
-  dialogue?: Record<string, MuseLabScriptDialogueLocale>;
+  /** Scripted scene actions per locale; the only source of scene visuals and dialogue. */
+  actions?: Record<string, SceneAction[]>;
   options?: MuseLabScriptOption[];
 }
 

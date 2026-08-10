@@ -32,6 +32,7 @@ import type {
   ActorExpression,
   ModuleInterface,
   EndNodeLayout,
+  SceneAction,
 } from "@/core/model/types";
 import { isSceneNode } from "@/core/model/nodeTypes";
 import {
@@ -156,8 +157,7 @@ import {
   createEmptyLocalePrompts,
   ensurePromptsForProjectLocales,
   ensureStoryPromptsForAllLocales,
-  getNodeSpeaker,
-  getNodeTextTemplate,
+  getNodeActions,
   type PromptsByLocale,
 } from "@/core/locale/prompts";
 import {
@@ -523,16 +523,10 @@ interface ProjectState {
     options?: MutationOptions
   ) => void;
   updateNode: (nodeId: string, patch: NodePatch, options?: MutationOptions) => void;
-  updateNodePrompt: (
+  updateNodeActions: (
     locale: string,
     nodeId: string,
-    textTemplate: string,
-    options?: MutationOptions
-  ) => void;
-  updateNodeSpeaker: (
-    locale: string,
-    nodeId: string,
-    speaker: string,
+    actions: SceneAction[],
     options?: MutationOptions
   ) => void;
   updateEdgePrompt: (
@@ -1448,7 +1442,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     );
   },
 
-  updateNodePrompt: (locale, nodeId, textTemplate, options) => {
+  updateNodeActions: (locale, nodeId, actions, options) => {
     const state = get();
     const storyId = state.activeStoryId;
     const tag = assertValidLocaleTag(locale);
@@ -1457,32 +1451,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set,
       {
         ...createEventMeta(),
-        type: "updateNodePrompt",
+        type: "updateNodeActions",
         storyId,
         locale: tag,
         nodeId,
-        before: getNodeTextTemplate(state.promptsByLocale[tag], storyId, nodeId),
-        after: textTemplate,
-      },
-      options
-    );
-  },
-
-  updateNodeSpeaker: (locale, nodeId, speaker, options) => {
-    const state = get();
-    const storyId = state.activeStoryId;
-    const tag = assertValidLocaleTag(locale);
-    dispatchEvent(
-      get,
-      set,
-      {
-        ...createEventMeta(),
-        type: "updateNodeSpeaker",
-        storyId,
-        locale: tag,
-        nodeId,
-        before: getNodeSpeaker(state.promptsByLocale[tag], storyId, nodeId),
-        after: speaker,
+        before: getNodeActions(state.promptsByLocale[tag], storyId, nodeId),
+        after: actions,
       },
       options
     );

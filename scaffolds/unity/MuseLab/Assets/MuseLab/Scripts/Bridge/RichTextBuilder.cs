@@ -93,6 +93,8 @@ namespace MuseLab.Bridge
                 case FormatMarkerKind.BoldEnd: return "</b>";
                 case FormatMarkerKind.ItalicStart: return "<i>";
                 case FormatMarkerKind.ItalicEnd: return "</i>";
+                case FormatMarkerKind.UnderlineStart: return "<u>";
+                case FormatMarkerKind.UnderlineEnd: return "</u>";
                 case FormatMarkerKind.ColorStart:
                     if (string.IsNullOrEmpty(data.color) || data.color.Length < 4) return "";
                     return $"<color={data.color}>";

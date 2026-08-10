@@ -287,12 +287,11 @@ describe("executePromptInstructions", () => {
       instructions: [
         { kind: "appendHtml", html: "Hello" },
         { kind: "waitForContinue" },
-        { kind: "updateSpeaker", template: "Maya" },
+        { kind: "updateSpeaker", html: "<b>Maya</b>" },
         { kind: "appendHtml", html: " there" },
       ],
       onHtmlUpdate: (html) => updates.push(html),
       onSpeakerUpdate: (html) => speakerUpdates.push(html),
-      renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
       onPlaySound: () => {},
       waitForContinue: () =>
         new Promise<void>((resolve) => {
@@ -320,14 +319,13 @@ describe("executePromptInstructions", () => {
     await executePromptInstructions({
       instructions: [
         { kind: "appendHtml", html: "Hello" },
-        { kind: "updateSpeaker", template: "Maya" },
+        { kind: "updateSpeaker", html: "<b>Maya</b>" },
         { kind: "reset" },
         { kind: "appendHtml", html: "Fresh" },
       ],
       initialSpeakerHtml: "<i>Unknown</i>",
       onHtmlUpdate: (html) => updates.push(html),
       onSpeakerUpdate: (html) => speakerUpdates.push(html),
-      renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
       onPlaySound: () => {},
     });
 
@@ -342,13 +340,12 @@ describe("executePromptInstructions", () => {
     await executePromptInstructions({
       instructions: [
         { kind: "appendHtml", html: "Hello" },
-        { kind: "updateSpeaker", template: "Maya" },
+        { kind: "updateSpeaker", html: "<b>Maya</b>" },
         { kind: "clear" },
         { kind: "appendHtml", html: "Again" },
       ],
       onHtmlUpdate: (html) => updates.push(html),
       onSpeakerUpdate: (html) => speakerUpdates.push(html),
-      renderSpeakerTemplate: async (template) => `<b>${template}</b>`,
       onPlaySound: () => {},
     });
 

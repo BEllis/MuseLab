@@ -14,12 +14,8 @@ import type {
   EndNodeLayout,
 } from "./types";
 import { getPlayEntryNodeId } from "./graphHierarchy";
-import {
-  DEFAULT_BACKDROP_ID,
-  ensureDefaultBackdrop,
-  isDefaultBackdrop,
-  resolveBackdropId,
-} from "../assets/defaultBackdrop";
+import { ensureDefaultBackdrop, isDefaultBackdrop } from "../assets/defaultBackdrop";
+import type { PromptsByLocale } from "../locale/prompts";
 import { ensureDefaultFont, isDefaultFont } from "../assets/defaultFont";
 import {
   createExpression,
@@ -31,7 +27,6 @@ import {
   getDefaultExpressionId,
   getExpressionUsage,
   isExpressionNameUnique,
-  migrateActorSceneReferences,
   normalizeExpressionName,
 } from "../assets/actorExpressions";
 import {
@@ -527,8 +522,6 @@ function createNodeForType(
     type: "scene",
     position,
     label,
-    backdropId: DEFAULT_BACKDROP_ID,
-    actorConfigs: [],
     soundConfigs: [],
   };
 }
@@ -587,8 +580,6 @@ export function cloneNode(
       type: "scene",
       position,
       label: clonedLabel,
-      backdropId: resolveBackdropId(project, source.backdropId ?? DEFAULT_BACKDROP_ID),
-      actorConfigs: (source.actorConfigs ?? []).map((config) => ({ ...config })),
       soundConfigs: (source.soundConfigs ?? []).map((config) => ({ ...config })),
     };
   } else if (isJumpNode(source)) {
@@ -664,9 +655,6 @@ export function updateNode(
       patch = rest;
     }
     delete node.label;
-  }
-  if ("backdropId" in patch) {
-    patch = { ...patch, backdropId: resolveBackdropId(project, patch.backdropId) };
   }
   if ("attributes" in patch) {
     applyAttributesField(node, patch.attributes);
@@ -912,7 +900,8 @@ export function replaceActorExpressionMedia(
 export function removeActorExpression(
   project: Project,
   actorId: string,
-  expressionId: string
+  expressionId: string,
+  promptsByLocale: PromptsByLocale = {}
 ): void {
   const asset = project.assets.find((entry) => entry.id === actorId && entry.type === "actor");
   if (!asset?.expressions) return;
@@ -920,7 +909,7 @@ export function removeActorExpression(
   if (asset.expressions.length <= 1) {
     throw new Error("Cannot remove the last expression from an actor");
   }
-  if (getExpressionUsage(project, actorId, expressionId) > 0) {
+  if (getExpressionUsage(promptsByLocale, actorId, expressionId) > 0) {
     throw new Error("Cannot remove an expression that is used in scenes");
   }
 
@@ -1104,15 +1093,6 @@ export function normalizeProjectAttributes(project: Project): void {
         node.attributes,
         `stories.${story.id}.nodes.${node.id}.attributes`
       );
-      if (node.actorConfigs) {
-        for (let i = 0; i < node.actorConfigs.length; i++) {
-          const config = node.actorConfigs[i];
-          config.attributes = normalizeOptionalAttributes(
-            config.attributes,
-            `stories.${story.id}.nodes.${node.id}.actorConfigs[${i}].attributes`
-          );
-        }
-      }
       if (node.soundConfigs) {
         for (let i = 0; i < node.soundConfigs.length; i++) {
           const config = node.soundConfigs[i];
@@ -1304,7 +1284,6 @@ export function parseProject(json: string): Project {
 /** Apply node-type migration and strip legacy-only fields after prompts are extracted. */
 export function finalizeProjectNodes(project: Project): void {
   ensureAllActorExpressions(project);
-  migrateActorSceneReferences(project);
   migrateJumpNodeTargets(project);
   for (const story of project.stories) {
     migrateStoryNodes(story);

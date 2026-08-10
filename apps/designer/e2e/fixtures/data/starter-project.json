@@ -1,9 +1,9 @@
 {
-  "formatVersion": 6,
+  "formatVersion": 7,
   "schema": "https://muselab.dev/schemas/bundle.schema.json",
   "project": {
     "$schema": "https://muselab.dev/schemas/story.schema.json",
-    "formatVersion": 6,
+    "formatVersion": 7,
     "name": "E2E Starter",
     "assets": [
       {
@@ -21,11 +21,11 @@
     ],
     "stories": [
       {
-        "id": "99bd34b7-5919-415c-8df2-1cd497f30e09",
+        "id": "e2854082-2648-47fe-bfa2-f6b274e6cc70",
         "name": "Main",
         "nodes": [
           {
-            "id": "3d1aff3e-f3d3-4d26-abe3-ac3f2992b8dc",
+            "id": "b02015a7-6f5f-46e1-9364-07f3a92afd84",
             "type": "start",
             "position": {
               "x": 100,
@@ -36,12 +36,12 @@
         ],
         "edges": [],
         "globalState": {},
-        "entryNodeId": "3d1aff3e-f3d3-4d26-abe3-ac3f2992b8dc"
+        "entryNodeId": "b02015a7-6f5f-46e1-9364-07f3a92afd84"
       }
     ],
     "locales": [
       {
-        "id": "5b49167a-f38e-4c83-b33e-ec824c8931ff",
+        "id": "1274461d-b486-40ec-a006-64d61649358f",
         "locale": "en",
         "displayName": "en"
       }
@@ -55,7 +55,7 @@
     }
   },
   "session": {
-    "activeStoryId": "99bd34b7-5919-415c-8df2-1cd497f30e09",
+    "activeStoryId": "e2854082-2648-47fe-bfa2-f6b274e6cc70",
     "selectedNodeIds": [],
     "selectedEdgeIds": [],
     "selectedAssetId": null,

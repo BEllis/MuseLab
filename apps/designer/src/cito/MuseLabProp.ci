@@ -1,0 +1,82 @@
+public class MuseLabProp
+{
+    public void Add(string id, string assetId)
+    {
+    }
+
+    public void AddVariant(string id, string assetId, string variationId)
+    {
+    }
+
+    public void Remove(string id)
+    {
+    }
+
+    public void Show(string id)
+    {
+    }
+
+    public void ShowAt(string id, string slot)
+    {
+    }
+
+    public void ShowAtXY(string id, double x, double y)
+    {
+    }
+
+    public void Hide(string id)
+    {
+    }
+
+    public void FadeIn(string id, int durationMs)
+    {
+    }
+
+    public void FadeInAt(string id, string slot, int durationMs)
+    {
+    }
+
+    public void FadeInAtXY(string id, double x, double y, int durationMs)
+    {
+    }
+
+    public void FadeOut(string id, int durationMs)
+    {
+    }
+
+    public void SlideIn(string id, string slot, string direction, int durationMs)
+    {
+    }
+
+    public void SlideInXY(string id, double x, double y, string direction, int durationMs)
+    {
+    }
+
+    public void SlideOut(string id, string direction, int durationMs)
+    {
+    }
+
+    public void Move(string id, string slot, int durationMs)
+    {
+    }
+
+    public void MoveXY(string id, double x, double y, int durationMs)
+    {
+    }
+
+    public void SetPosition(string id, string slot)
+    {
+    }
+
+    public void SetPositionXY(string id, double x, double y)
+    {
+    }
+
+    public void SetZ(string id, int z)
+    {
+    }
+
+    public void SetVariation(string id, string variationId)
+    {
+    }
+}

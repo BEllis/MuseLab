@@ -156,9 +156,11 @@ describe("createPromptRendererBridge", () => {
     const renderer = createHtmlPromptRenderer();
     const prompter = createPromptRendererBridge(renderer);
 
-    prompter.updateSpeaker("Maya");
+    prompter.speakerBegin();
+    prompter.addLiteral("Maya");
+    prompter.speakerEnd();
 
-    expect(renderer.getInstructions()).toEqual([{ kind: "updateSpeaker", template: "Maya" }]);
+    expect(renderer.getInstructions()).toEqual([{ kind: "updateSpeaker", html: "Maya" }]);
   });
 
   it("clears rendered output and instructions on reset and clear", () => {
@@ -166,7 +168,9 @@ describe("createPromptRendererBridge", () => {
     const prompter = createPromptRendererBridge(renderer);
 
     prompter.addLiteral("Hello");
-    prompter.updateSpeaker("Maya");
+    prompter.speakerBegin();
+    prompter.addLiteral("Maya");
+    prompter.speakerEnd();
     prompter.reset();
     prompter.addLiteral("World");
     prompter.clear();
@@ -175,7 +179,7 @@ describe("createPromptRendererBridge", () => {
     expect(renderer.render()).toBe("!");
     expect(renderer.getInstructions()).toEqual([
       { kind: "appendHtml", html: "Hello" },
-      { kind: "updateSpeaker", template: "Maya" },
+      { kind: "updateSpeaker", html: "Maya" },
       { kind: "reset" },
       { kind: "appendHtml", html: "World" },
       { kind: "clear" },

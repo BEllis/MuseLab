@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MuseLab.Scene;
 
 namespace MuseLab.Playback
 {
@@ -200,14 +201,26 @@ namespace MuseLab.Playback
             });
         }
 
-        public void UpdateSpeaker(string template)
+        public void UpdateSpeaker(string html)
         {
             if (block.Kind == RevealBlockKind.OverTime)
             {
-                block.Items.Add(new OverTimeItem { Kind = OverTimeItem.ItemKind.UpdateSpeaker, SpeakerTemplate = template });
+                block.Items.Add(new OverTimeItem { Kind = OverTimeItem.ItemKind.UpdateSpeaker, SpeakerTemplate = html });
                 return;
             }
-            instructions.Add(new PromptInstruction { Kind = PromptInstructionKind.UpdateSpeaker, SpeakerTemplate = template });
+            instructions.Add(new PromptInstruction
+            {
+                Kind = PromptInstructionKind.UpdateSpeaker,
+                SpeakerHtml = html,
+                SpeakerTemplate = html,
+            });
+        }
+
+        public void Scene(SceneOp op)
+        {
+            if (block.Kind == RevealBlockKind.OverTime) FlushOverTimeItems();
+            block = new RevealBlockState();
+            instructions.Add(new PromptInstruction { Kind = PromptInstructionKind.Scene, SceneOp = op });
         }
 
         public void Reset()
@@ -263,7 +276,12 @@ namespace MuseLab.Playback
                         instructions.Add(new PromptInstruction { Kind = PromptInstructionKind.Wait, Milliseconds = item.Milliseconds });
                         break;
                     case OverTimeItem.ItemKind.UpdateSpeaker:
-                        instructions.Add(new PromptInstruction { Kind = PromptInstructionKind.UpdateSpeaker, SpeakerTemplate = item.SpeakerTemplate });
+                        instructions.Add(new PromptInstruction
+                        {
+                            Kind = PromptInstructionKind.UpdateSpeaker,
+                            SpeakerHtml = item.SpeakerTemplate,
+                            SpeakerTemplate = item.SpeakerTemplate,
+                        });
                         break;
                     case OverTimeItem.ItemKind.Sound:
                         instructions.Add(new PromptInstruction

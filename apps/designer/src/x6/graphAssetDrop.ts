@@ -1,5 +1,6 @@
 import type { Graph } from "@antv/x6";
-import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
+import { assetDropForNode } from "@/core/assets/applyAssetToNode";
+import { getDefaultLocale, getNodeActionsForLocale } from "@/core/locale/prompts";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
 import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
 
@@ -73,10 +74,21 @@ export function bindGraphAssetDrop(graph: Graph): () => void {
     const domainNode = story.nodes.find((node) => node.id === nodeId);
     if (!domainNode) return;
 
-    const patch = patchNodeForAssetDrop(state.project, domainNode, data);
-    if (!patch) return;
+    const locale = getDefaultLocale(state.project);
+    const actions = getNodeActionsForLocale(
+      state.promptsByLocale,
+      locale,
+      state.activeStoryId,
+      nodeId
+    );
+    const result = assetDropForNode(state.project, domainNode, data, actions);
+    if (!result) return;
 
-    state.updateNode(nodeId, patch);
+    if (result.kind === "nodePatch") {
+      state.updateNode(nodeId, result.patch);
+    } else {
+      state.updateNodeActions(locale, nodeId, [...actions, ...result.actions]);
+    }
     state.setSelection([nodeId], []);
   };
 

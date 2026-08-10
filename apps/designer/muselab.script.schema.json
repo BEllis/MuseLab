@@ -72,34 +72,6 @@
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
-    "dialogueLocale": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "speaker": { "type": "string" },
-        "dialogue": { "type": "string" }
-      }
-    },
-    "scriptActor": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["actor_path", "expression"],
-      "properties": {
-        "actor_id": { "$ref": "#/$defs/uuid" },
-        "actor_path": { "type": "string", "minLength": 1 },
-        "expression": { "type": "string", "minLength": 1 },
-        "attributes": { "$ref": "#/$defs/attributes" }
-      }
-    },
-    "scriptBackdrop": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["backdrop_path"],
-      "properties": {
-        "backdrop_id": { "$ref": "#/$defs/uuid" },
-        "backdrop_path": { "type": "string", "minLength": 1 }
-      }
-    },
     "scriptSound": {
       "type": "object",
       "additionalProperties": false,
@@ -129,6 +101,14 @@
         "attributes": { "$ref": "#/$defs/attributes" }
       }
     },
+    "scriptSceneAction": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
     "scriptScene": {
       "type": "object",
       "additionalProperties": false,
@@ -137,15 +117,14 @@
         "node_id": { "$ref": "#/$defs/uuid" },
         "node_name": { "type": "string", "minLength": 1 },
         "attributes": { "$ref": "#/$defs/attributes" },
-        "actors": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/scriptActor" }
-        },
-        "backdrop": { "$ref": "#/$defs/scriptBackdrop" },
         "sound": { "$ref": "#/$defs/scriptSound" },
-        "dialogue": {
+        "actions": {
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/dialogueLocale" }
+          "description": "Ordered scene actions keyed by locale tag.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/scriptSceneAction" }
+          }
         },
         "options": {
           "type": "array",

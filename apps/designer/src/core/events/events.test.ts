@@ -18,6 +18,7 @@ import {
 import { collectAssetIdsFromEventLog } from "@/core/events/eventLogAssets";
 import { buildNavigationAfterSwitchStory } from "@/core/events/capture";
 import type { AppState } from "@/core/events/appState";
+import type { SceneAction } from "@/core/scene/actions";
 
 function starterAppState(): AppState {
   const bundle = migrateProjectBundle(createStarterProject("Test"));
@@ -290,20 +291,22 @@ describe("eventLog", () => {
     expect(parsed.before.defaultExpressionId).toBeNull();
   });
 
-  it("coalesces repeated text edits into one undo step", () => {
+  it("coalesces repeated action edits into one undo step", () => {
     let log = createEventLogState();
     const base = {
       ...createEventMeta(),
-      type: "updateNodePrompt" as const,
+      type: "updateNodeActions" as const,
       storyId: "story-1",
       locale: "en",
       nodeId: "node-1",
-      before: "",
+      before: [] as SceneAction[],
     };
-    log = recordEvent(log, { ...base, after: "H" }, { mergeKey: "node-text:node-1:en" });
-    log = recordEvent(log, { ...base, after: "He" }, { mergeKey: "node-text:node-1:en" });
+    const firstActions: SceneAction[] = [{ kind: "dialogue.setSpeaker", text: "H" }];
+    const secondActions: SceneAction[] = [{ kind: "dialogue.setSpeaker", text: "He" }];
+    log = recordEvent(log, { ...base, after: firstActions }, { mergeKey: "node-actions:node-1:en" });
+    log = recordEvent(log, { ...base, after: secondActions }, { mergeKey: "node-actions:node-1:en" });
     expect(log.events).toHaveLength(1);
-    expect(log.events[0]).toMatchObject({ after: "He" });
+    expect(log.events[0]).toMatchObject({ after: secondActions });
     expect(canUndoEventLog(log)).toBe(true);
   });
 

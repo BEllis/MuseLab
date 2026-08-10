@@ -4,33 +4,18 @@ import { useActiveStory } from "@/hooks/useActiveStory";
 import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import type { MutationOptions } from "@/store/projectStore";
 import type { NodePatch } from "@/core/events/types";
-import type { Attributes, Project, SoundConfig, StoryNode, ActorSceneConfig } from "@/core/model/types";
+import type { Attributes, SoundConfig, StoryNode } from "@/core/model/types";
+import type { SceneAction } from "@/core/scene/actions";
 import { getNodeDisplayName, isNodeLabelUnique } from "@/core/model/nodeNames";
 import { getStartNodes, isJumpNode, isSceneNode, isStartNode } from "@/core/model/nodeTypes";
-import {
-  getDefaultLocale,
-  getNodeSpeakerForLocale,
-  getNodeTextTemplateForLocale,
-} from "@/core/locale/prompts";
-import {
-  countTemplateLiteralChars,
-  getTemplateLiteralText,
-  templateHasPlaySound,
-} from "@/core/cito/templateStats";
-import { getAssetDragData, isAssetDrag } from "@/utils/dragDrop";
-import { patchNodeForAssetDrop } from "@/core/assets/applyAssetToNode";
-import { useAssetUrl } from "@/hooks/useAssetUrl";
-import { useActorExpressionUrl } from "@/hooks/useActorExpressionUrl";
-import { DEFAULT_BACKDROP_ID } from "@/core/assets/defaultBackdrop";
+import { getDefaultLocale, getNodeActionsForLocale } from "@/core/locale/prompts";
+import { summarizeSceneActions } from "@/core/scene/sceneSummary";
 import { AddButton } from "../AddButton";
 import { CloseButton } from "../CloseButton";
 import { EditButton } from "../EditButton";
 import { ViewButton } from "../ViewButton";
 import { InspectorPanelHeader, InspectorPanelId } from "../InspectorPanelMeta";
 import { AttributesEditor } from "../AttributesEditor/AttributesEditor";
-
-const ACTOR_THUMB_SIZE = 36;
-const NODE_ACTOR_DRAG_TYPE = "application/x-muselab-node-actor-index";
 
 function PromptSoundIcon() {
   return (
@@ -54,21 +39,20 @@ function PromptSoundIcon() {
 function PromptLocaleRow({
   locale,
   displayName,
-  template,
-  speaker,
+  actions,
   onView,
   onEdit,
 }: {
   locale: string;
   displayName: string;
-  template: string;
-  speaker: string;
+  actions: SceneAction[];
   onView: () => void;
   onEdit: () => void;
 }) {
-  const charCount = countTemplateLiteralChars(template);
-  const hasSound = templateHasPlaySound(template);
-  const speakerLabel = getTemplateLiteralText(speaker).trim();
+  const summary = summarizeSceneActions(actions);
+  const charCount = summary.previewText.length;
+  const hasSound = actions.some((action) => action.kind === "playSound");
+  const speakerLabel = summary.speaker.trim();
 
   return (
     <div
@@ -136,7 +120,7 @@ function PromptLocaleRow({
           flexShrink: 0,
           fontVariantNumeric: "tabular-nums",
         }}
-        title="Literal characters (excluding Razor)"
+        title="Dialogue characters in this scene"
       >
         {charCount}
       </span>
@@ -315,154 +299,6 @@ function SoundConfigRow({
   );
 }
 
-function ActorRow({
-  project,
-  config,
-  name,
-  index,
-  onRemove,
-  onExpressionChange,
-  onReorderDrop,
-  onReorderDragOver,
-  onReorderDragLeave,
-  isDropTarget,
-  onFocusPreview,
-  nodeId,
-  onAttributesChange,
-  flushHistoryCoalesce,
-}: {
-  project: Project;
-  config: ActorSceneConfig;
-  name: string;
-  index: number;
-  nodeId: string;
-  onRemove: () => void;
-  onExpressionChange: (expressionId: string) => void;
-  onAttributesChange: (attributes: Attributes | undefined, mergeKey: string) => void;
-  onReorderDrop: (fromIndex: number, toIndex: number) => void;
-  onReorderDragOver: () => void;
-  onReorderDragLeave: () => void;
-  isDropTarget: boolean;
-  onFocusPreview: () => void;
-  flushHistoryCoalesce: () => void;
-}) {
-  const actor = project.assets.find((asset) => asset.id === config.assetId && asset.type === "actor");
-  const expressions = actor?.expressions ?? [];
-  const thumbUrl = useActorExpressionUrl(project, config.assetId, config.expressionId);
-
-  const onDragStart = useCallback(
-    (e: React.DragEvent) => {
-      e.dataTransfer.setData(NODE_ACTOR_DRAG_TYPE, String(index));
-      e.dataTransfer.effectAllowed = "move";
-    },
-    [index]
-  );
-
-  const onDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (e.dataTransfer.types.includes(NODE_ACTOR_DRAG_TYPE)) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        onReorderDragOver();
-      }
-    },
-    [onReorderDragOver]
-  );
-
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      const raw = e.dataTransfer.getData(NODE_ACTOR_DRAG_TYPE);
-      if (raw === "") return;
-      const fromIndex = parseInt(raw, 10);
-      if (Number.isNaN(fromIndex) || fromIndex === index) return;
-      e.preventDefault();
-      onReorderDrop(fromIndex, index);
-    },
-    [index, onReorderDrop]
-  );
-
-  return (
-    <div
-      style={{
-        padding: "4px 6px",
-        borderRadius: "6px",
-        background: isDropTarget ? "var(--app-accent-soft)" : "transparent",
-        marginBottom: "4px",
-      }}
-    >
-      <div
-        draggable
-        tabIndex={0}
-        onFocus={onFocusPreview}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragLeave={onReorderDragLeave}
-        onDrop={onDrop}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          fontSize: "12px",
-          cursor: "grab",
-        }}
-      >
-        <div
-          style={{
-            width: ACTOR_THUMB_SIZE,
-            height: ACTOR_THUMB_SIZE,
-            flexShrink: 0,
-            borderRadius: "4px",
-            overflow: "hidden",
-            background: "var(--app-border-subtle)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {thumbUrl ? (
-            <img
-              src={thumbUrl}
-              alt=""
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          ) : (
-            <span style={{ fontSize: "10px", color: "var(--app-text-subtle)" }}>…</span>
-          )}
-        </div>
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={name}>
-          {name}
-        </span>
-        <select
-          value={config.expressionId}
-          onChange={(e) => onExpressionChange(e.target.value)}
-          onFocus={onFocusPreview}
-          style={{ maxWidth: "96px", fontSize: "11px" }}
-        >
-          {expressions.map((expression) => (
-            <option key={expression.id} value={expression.id}>
-              {expression.name}
-            </option>
-          ))}
-        </select>
-        <CloseButton onClick={onRemove} title="Remove actor" />
-      </div>
-      <AttributesEditor
-        title="Placement attributes"
-        attributes={config.attributes}
-        onChange={onAttributesChange}
-        mergeKeyPrefix={`attribute:node:${nodeId}:actor:${config.assetId}`}
-        flushHistoryCoalesce={flushHistoryCoalesce}
-        compact
-      />
-    </div>
-  );
-}
-
 function NodeAttributesSection({
   nodeId,
   attributes,
@@ -493,18 +329,14 @@ export function NodeEditorPanel() {
   const updateNode = useProjectStore((s) => s.updateNode);
   const flushHistoryCoalesce = useProjectStore((s) => s.flushHistoryCoalesce);
   const showPreview = useSceneEditorPreviewStore((s) => s.showPreview);
-  const showTemplateEditor = useSceneEditorPreviewStore((s) => s.showTemplateEditor);
+  const showActionEditor = useSceneEditorPreviewStore((s) => s.showActionEditor);
 
   const node =
     selectedNodeIds.length === 1
       ? story.nodes.find((n) => n.id === selectedNodeIds[0])
       : null;
 
-  const backdrops = project.assets.filter((a) => a.type === "backdrop");
-  const actors = project.assets.filter((a) => a.type === "actor");
   const sounds = project.assets.filter((a) => a.type === "sound");
-
-  const backdropUrl = useAssetUrl(project, node?.backdropId ?? DEFAULT_BACKDROP_ID);
 
   const update = useCallback(
     (patch: NodePatch, options?: MutationOptions) => {
@@ -513,97 +345,22 @@ export function NodeEditorPanel() {
     [node, updateNode]
   );
 
-  const [backdropDropActive, setBackdropDropActive] = useState(false);
-  const [actorsDropActive, setActorsDropActive] = useState(false);
-  const [actorReorderDropIndex, setActorReorderDropIndex] = useState<number | null>(null);
-  const onBackdropDragOver = useCallback((e: React.DragEvent) => {
-    if (isAssetDrag(e.dataTransfer)) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
-      setBackdropDropActive(true);
-    }
-  }, []);
-
-  const onBackdropDragLeave = useCallback((e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setBackdropDropActive(false);
-  }, []);
-
-  const onBackdropDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setBackdropDropActive(false);
-      const data = getAssetDragData(e.dataTransfer);
-      if (data?.type === "backdrop" && node) {
-        const patch = patchNodeForAssetDrop(project, node, data);
-        if (patch) update(patch);
-      }
-    },
-    [node, project, update]
-  );
-
-  const onActorsDragOver = useCallback((e: React.DragEvent) => {
-    if (isAssetDrag(e.dataTransfer)) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
-      setActorsDropActive(true);
-    }
-  }, []);
-
-  const onActorsDragLeave = useCallback((e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setActorsDropActive(false);
-  }, []);
-
-  const onActorsDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setActorsDropActive(false);
-      const data = getAssetDragData(e.dataTransfer);
-      if (data?.type === "actor" && node) {
-        const patch = patchNodeForAssetDrop(project, node, data);
-        if (patch) update(patch);
-      }
-    },
-    [node, project, update]
-  );
-
-  const reorderActors = useCallback(
-    (fromIndex: number, toIndex: number) => {
-      if (!node) return;
-      const configs = [...(node.actorConfigs ?? [])];
-      if (fromIndex < 0 || fromIndex >= configs.length || toIndex < 0 || toIndex >= configs.length) return;
-      const [removed] = configs.splice(fromIndex, 1);
-      configs.splice(toIndex, 0, removed);
-      update({ actorConfigs: configs });
-      setActorReorderDropIndex(null);
-    },
-    [node, project, update]
-  );
-
   const openScenePreview = useCallback(() => {
     showPreview({ locale: getDefaultLocale(project) });
   }, [project, showPreview]);
 
   const openPromptView = useCallback(
     (locale: string) => {
-      if (!node) return;
-      showPreview({
-        locale,
-        draftTemplate: getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id),
-        editingTemplate: false,
-      });
+      showPreview({ locale, editingActions: false });
     },
-    [node, promptsByLocale, showPreview, storyId]
+    [showPreview]
   );
 
-  const openTemplateEditor = useCallback(
+  const openActionEditor = useCallback(
     (locale: string) => {
-      if (!node) return;
-      showTemplateEditor(
-        locale,
-        getNodeTextTemplateForLocale(promptsByLocale, locale, storyId, node.id)
-      );
+      showActionEditor(locale);
     },
-    [node, promptsByLocale, showTemplateEditor, storyId]
+    [showActionEditor]
   );
 
   if (!node) return null;
@@ -722,40 +479,6 @@ export function NodeEditorPanel() {
     update({ soundConfigs });
   };
 
-  const removeActor = (assetId: string) => {
-    update({ actorConfigs: (node.actorConfigs ?? []).filter((config) => config.assetId !== assetId) });
-  };
-
-  const updateActorExpression = (assetId: string, expressionId: string) => {
-    update({
-      actorConfigs: (node.actorConfigs ?? []).map((config) =>
-        config.assetId === assetId ? { ...config, expressionId } : config
-      ),
-    });
-  };
-
-  const updateActorAttributes = (
-    assetId: string,
-    attributes: Attributes | undefined,
-    mergeKey: string
-  ) => {
-    update(
-      {
-        actorConfigs: (node.actorConfigs ?? []).map((config) => {
-          if (config.assetId !== assetId) return config;
-          const next = { ...config };
-          if (attributes) {
-            next.attributes = attributes;
-          } else {
-            delete next.attributes;
-          }
-          return next;
-        }),
-      },
-      { mergeKey }
-    );
-  };
-
   const updateSoundAttributes = (
     index: number,
     attributes: Attributes | undefined,
@@ -772,10 +495,6 @@ export function NodeEditorPanel() {
     update({ soundConfigs }, { mergeKey });
   };
 
-  const currentBackdrop =
-    backdrops.find((a) => a.id === node.backdropId) ??
-    backdrops.find((a) => a.id === DEFAULT_BACKDROP_ID);
-
   return (
     <div className="app-inspector-panel-body">
       <InspectorPanelHeader title="Scene" onClose={() => clearSelection()} />
@@ -789,131 +508,6 @@ export function NodeEditorPanel() {
         onBlur={() => flushHistoryCoalesce()}
         placeholder="Scene"
       />
-
-      <div style={{ marginBottom: "8px" }}>
-        <div style={{ marginBottom: "4px" }}>Backdrop</div>
-        <div
-          tabIndex={0}
-          onFocus={openScenePreview}
-          onDragOver={onBackdropDragOver}
-          onDragLeave={onBackdropDragLeave}
-          onDrop={onBackdropDrop}
-          style={{
-            marginTop: "4px",
-            minHeight: "56px",
-            border: `2px dashed ${backdropDropActive ? "var(--app-accent-border)" : "var(--app-border)"}`,
-            borderRadius: "8px",
-            background: backdropDropActive ? "var(--app-accent-soft-bg)" : "var(--app-surface-muted)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          {currentBackdrop ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "8px" }}>
-              {backdropUrl ? (
-                <img
-                  src={backdropUrl}
-                  alt=""
-                  style={{
-                    width: "48px",
-                    height: "48px",
-                    objectFit: "cover",
-                    borderRadius: "4px",
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "48px",
-                    height: "48px",
-                    background: "var(--app-border-subtle)",
-                    borderRadius: "4px",
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              <span style={{ flex: 1, fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {currentBackdrop.name}
-              </span>
-              {node.backdropId !== DEFAULT_BACKDROP_ID && (
-                <button
-                  type="button"
-                  onClick={() => update({ backdropId: DEFAULT_BACKDROP_ID })}
-                  title="Use default backdrop"
-                  className="app-toolbar-button"
-                  style={{ padding: "2px 8px", fontSize: "11px" }}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          ) : (
-            <span style={{ fontSize: "12px", color: "var(--app-text-subtle)" }}>
-              {backdropDropActive ? "Drop here" : "Drop backdrop from Assets"}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: "8px" }}>
-        <div style={{ marginBottom: "4px" }}>Actors</div>
-        <div
-          onDragOver={onActorsDragOver}
-          onDragLeave={onActorsDragLeave}
-          onDrop={onActorsDrop}
-          style={{
-            minHeight: "48px",
-            border: `2px dashed ${actorsDropActive ? "var(--app-accent-border)" : "var(--app-border)"}`,
-            borderRadius: "8px",
-            background: actorsDropActive ? "var(--app-accent-soft-bg)" : "var(--app-surface-muted)",
-            padding: "8px",
-          }}
-        >
-          {(node.actorConfigs ?? []).length > 0 ? (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) setActorReorderDropIndex(null);
-              }}
-            >
-              {(node.actorConfigs ?? []).map((config, index) => {
-                const actor = actors.find((a) => a.id === config.assetId);
-                return (
-                  <ActorRow
-                    key={config.assetId}
-                    project={project}
-                    config={config}
-                    name={actor?.name ?? config.assetId}
-                    index={index}
-                    nodeId={node.id}
-                    onRemove={() => removeActor(config.assetId)}
-                    onExpressionChange={(expressionId) => updateActorExpression(config.assetId, expressionId)}
-                    onAttributesChange={(next, mergeKey) =>
-                      updateActorAttributes(config.assetId, next, mergeKey)
-                    }
-                    onReorderDrop={reorderActors}
-                    onReorderDragOver={() => setActorReorderDropIndex(index)}
-                    onReorderDragLeave={() => setActorReorderDropIndex(null)}
-                    isDropTarget={actorReorderDropIndex === index}
-                    onFocusPreview={openScenePreview}
-                    flushHistoryCoalesce={flushHistoryCoalesce}
-                  />
-                );
-              })}
-              <span style={{ fontSize: "11px", color: "var(--app-text-subtle)", marginTop: "4px" }}>
-                Drag to reorder · Drop another actor from Assets
-              </span>
-            </div>
-          ) : (
-            <span style={{ fontSize: "12px", color: "var(--app-text-subtle)", display: "block", textAlign: "center" }}>
-              {actorsDropActive ? "Drop here" : "Drop actors from Assets"}
-            </span>
-          )}
-        </div>
-      </div>
 
       <div style={{ marginBottom: "8px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
@@ -937,22 +531,16 @@ export function NodeEditorPanel() {
       </div>
 
       <div style={{ marginBottom: "8px" }}>
-        <div style={{ marginBottom: "4px" }}>Prompt</div>
+        <div style={{ marginBottom: "4px" }}>Scene script</div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {project.locales.map((entry) => (
             <PromptLocaleRow
               key={entry.id}
               locale={entry.locale}
               displayName={entry.displayName}
-              template={getNodeTextTemplateForLocale(
-                promptsByLocale,
-                entry.locale,
-                storyId,
-                node.id
-              )}
-              speaker={getNodeSpeakerForLocale(promptsByLocale, entry.locale, storyId, node.id)}
+              actions={getNodeActionsForLocale(promptsByLocale, entry.locale, storyId, node.id)}
               onView={() => openPromptView(entry.locale)}
-              onEdit={() => openTemplateEditor(entry.locale)}
+              onEdit={() => openActionEditor(entry.locale)}
             />
           ))}
         </div>

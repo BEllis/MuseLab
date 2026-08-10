@@ -12,6 +12,8 @@ const SCENE_ID = "a1000000-0000-4000-8000-000000000002";
 const EDGE_ID = "a1000000-0000-4000-8000-000000000003";
 const SERVICE_ID = "a1000000-0000-4000-8000-000000000004";
 const BACKDROP_ID = "a1000000-0000-4000-8000-000000000005";
+const ACTOR_ID = "a1000000-0000-4000-8000-000000000007";
+const EXPRESSION_ID = "a1000000-0000-4000-8000-000000000008";
 const LOCALE_EN = {
   id: "a1000000-0000-4000-8000-000000000006",
   locale: "en",
@@ -42,8 +44,6 @@ describe("MuseLab JSON schemas", () => {
               type: "scene",
               position: { x: 100, y: 100 },
               label: "Opening",
-              backdropId: "muselab-default-backdrop",
-              actorConfigs: [],
               soundConfigs: [],
             },
           ],
@@ -154,8 +154,6 @@ describe("MuseLab JSON schemas", () => {
                 type: "scene",
                 position: { x: 100, y: 100 },
                 label: "Opening",
-                backdropId: "muselab-default-backdrop",
-                actorConfigs: [],
                 soundConfigs: [],
               },
             ],
@@ -173,8 +171,16 @@ describe("MuseLab JSON schemas", () => {
             [STORY_ID]: {
               nodes: {
                 [SCENE_ID]: {
-                  textTemplate: "<p>The rain hasn't stopped for three days.</p>",
-                  speaker: "Narrator",
+                  actions: [
+                    { kind: "bg.show", assetId: "muselab-default-backdrop" },
+                    { kind: "dialogue.setSpeaker", text: "Narrator" },
+                    {
+                      kind: "dialogue.revealText",
+                      channel: "main",
+                      text: "The rain hasn't stopped for three days.",
+                      reveal: { mode: "instant" },
+                    },
+                  ],
                 },
               },
               edges: {},
@@ -245,14 +251,21 @@ describe("MuseLab JSON schemas", () => {
     );
   });
 
-  it("validates nested locale prompts with speaker", () => {
+  it("validates nested locale prompts with actions", () => {
     const result = validateLocalePrompts({
       stories: {
         [STORY_ID]: {
           nodes: {
             [SCENE_ID]: {
-              textTemplate: "<p>Hello</p>",
-              speaker: "Maya",
+              actions: [
+                { kind: "dialogue.setSpeaker", text: "Maya" },
+                {
+                  kind: "dialogue.revealText",
+                  channel: "main",
+                  text: "Hello",
+                  reveal: { mode: "instant" },
+                },
+              ],
             },
           },
           edges: {
@@ -270,7 +283,7 @@ describe("MuseLab JSON schemas", () => {
   it("rejects legacy flat prompts without stories wrapper", () => {
     const result = validateLocalePrompts({
       nodes: {
-        [SCENE_ID]: { textTemplate: "<p>Legacy</p>" },
+        [SCENE_ID]: { actions: [] },
       },
       edges: {},
     });
@@ -327,6 +340,12 @@ describe("MuseLab JSON schemas", () => {
             tint: { type: "string", value: "#ffffff" },
           },
         },
+        {
+          id: ACTOR_ID,
+          type: "actor",
+          name: "Maya",
+          expressions: [{ id: EXPRESSION_ID, name: "default" }],
+        },
       ],
       stories: [
         {
@@ -348,15 +367,6 @@ describe("MuseLab JSON schemas", () => {
                   },
                 },
               },
-              actorConfigs: [
-                {
-                  assetId: BACKDROP_ID,
-                  expressionId: SCENE_ID,
-                  attributes: {
-                    x: { type: "number", value: 12.5 },
-                  },
-                },
-              ],
               soundConfigs: [
                 {
                   assetId: BACKDROP_ID,

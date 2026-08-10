@@ -1,6 +1,6 @@
 import type { Project } from "@/core/model/types";
 import type { PromptsByLocale } from "@/core/locale/prompts";
-import { getNodeSpeaker, getNodeTextTemplate } from "@/core/locale/prompts";
+import { getNodeActions } from "@/core/locale/prompts";
 import { getStory, getStoryGroup, getAssetGroup } from "@/core/model/project";
 import { collectDescendantGroupIds, getStoryGroups } from "@/core/model/storyTree";
 import { collectDescendantAssetGroupIds, getAssetGroups, getAssetGroupsForType } from "@/core/model/assetTree";
@@ -303,10 +303,9 @@ export function captureRemoveNodePayload(
   }
   const nodePromptsByLocale: Record<string, NodePromptValue> = {};
   for (const locale of state.project.locales.map((entry) => entry.locale)) {
-    const textTemplate = getNodeTextTemplate(state.promptsByLocale[locale], storyId, nodeId);
-    const speaker = getNodeSpeaker(state.promptsByLocale[locale], storyId, nodeId);
-    if (textTemplate || speaker) {
-      nodePromptsByLocale[locale] = { textTemplate, speaker };
+    const actions = getNodeActions(state.promptsByLocale[locale], storyId, nodeId);
+    if (actions.length > 0) {
+      nodePromptsByLocale[locale] = { actions: clone(actions) };
     }
   }
   return {
@@ -368,10 +367,9 @@ export function captureNodePromptsByLocale(
 ): Record<string, NodePromptValue> {
   const result: Record<string, NodePromptValue> = {};
   for (const locale of locales) {
-    const textTemplate = getNodeTextTemplate(promptsByLocale[locale], storyId, nodeId);
-    const speaker = getNodeSpeaker(promptsByLocale[locale], storyId, nodeId);
-    if (textTemplate || speaker) {
-      result[locale] = { textTemplate, speaker };
+    const actions = getNodeActions(promptsByLocale[locale], storyId, nodeId);
+    if (actions.length > 0) {
+      result[locale] = { actions: clone(actions) };
     }
   }
   return result;

@@ -1,6 +1,8 @@
 import type { Attributes } from "./attributes";
+import type { SceneAction } from "../scene/actions";
 
 export type { AttributeValue, AttributeValueType, Attributes } from "./attributes";
+export type { SceneAction } from "../scene/actions";
 
 /** Asset type: backdrop (image), actor (sprite), sound (audio), or font */
 export type AssetType = "backdrop" | "actor" | "sound" | "font";
@@ -69,14 +71,6 @@ export interface AssetGroup {
   sortOrder?: number;
 }
 
-/** Per-scene actor placement: which expression image to show. */
-export interface ActorSceneConfig {
-  assetId: string;
-  expressionId: string;
-  /** Optional per-scene placement metadata (position, animation overrides, etc.). */
-  attributes?: Attributes;
-}
-
 /** Sound config per node: which sound and how it behaves when the node loads */
 export interface SoundConfig {
   assetId: string;
@@ -97,9 +91,10 @@ export interface StoryNode {
   type: StoryNodeType;
   position: { x: number; y: number };
   label?: string;
-  /** Scene nodes only */
-  backdropId?: string;
-  actorConfigs?: ActorSceneConfig[];
+  /**
+   * Scene nodes only. Backgrounds and characters are not stored here: every
+   * visual is a scripted scene action in the node's locale prompts.
+   */
   soundConfigs?: SoundConfig[];
   /** Jump nodes only */
   jumpTargetStoryId?: string;
@@ -177,9 +172,14 @@ export interface Locale {
   displayName: string;
 }
 
-/** Localized text content stored in prompts.<locale>.json */
+/** Localized scene content stored in prompts.<locale>.json */
+export interface StoryNodePrompt {
+  /** Ordered scene actions; the authoritative description of this scene. */
+  actions?: SceneAction[];
+}
+
 export interface StoryPrompts {
-  nodes: Record<string, { textTemplate?: string; speaker?: string }>;
+  nodes: Record<string, StoryNodePrompt>;
   edges: Record<string, { optionText?: string }>;
 }
 

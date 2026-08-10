@@ -3,6 +3,8 @@ export type FormatMarkerKind =
   | "boldEnd"
   | "italicStart"
   | "italicEnd"
+  | "underlineStart"
+  | "underlineEnd"
   | "colorStart"
   | "colorEnd"
   | "shakeCharsStart"
@@ -35,6 +37,8 @@ export type FormatMarkerRuntime = {
   boldEnd(): FormatMarker;
   italicStart(): FormatMarker;
   italicEnd(): FormatMarker;
+  underlineStart(): FormatMarker;
+  underlineEnd(): FormatMarker;
   colorStart(colorHex: string): FormatMarker;
   colorEnd(): FormatMarker;
   shakeCharsStart(): FormatMarker;
@@ -67,6 +71,8 @@ export function createFormatMarkerRuntime(): FormatMarkerRuntime {
     boldEnd: () => marker("boldEnd"),
     italicStart: () => marker("italicStart"),
     italicEnd: () => marker("italicEnd"),
+    underlineStart: () => marker("underlineStart"),
+    underlineEnd: () => marker("underlineEnd"),
     colorStart: (colorHex) => marker("colorStart", { colorHex }),
     colorEnd: () => marker("colorEnd"),
     shakeCharsStart: () => marker("shakeCharsStart"),
@@ -104,6 +110,8 @@ export function createFormatMarkerBridge(runtime: FormatMarkerRuntime = createFo
     BoldEnd: runtime.boldEnd,
     ItalicStart: runtime.italicStart,
     ItalicEnd: runtime.italicEnd,
+    UnderlineStart: runtime.underlineStart,
+    UnderlineEnd: runtime.underlineEnd,
     ColorStart: runtime.colorStart,
     ColorEnd: runtime.colorEnd,
     ShakeCharsStart: runtime.shakeCharsStart,

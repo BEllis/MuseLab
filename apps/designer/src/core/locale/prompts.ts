@@ -1,14 +1,9 @@
-import type { LocalePrompts, Project, StoryEdge, StoryNode, StoryPrompts } from "../model/types";
+import type { LocalePrompts, Project, SceneAction, StoryPrompts } from "../model/types";
 import { getDefaultLocaleTag, normalizeLocaleTags } from "./localeTag";
 import type { Locale } from "../model/types";
 import { MUSELAB_FORMAT_VERSION, PROMPTS_SCHEMA_ID } from "../model/formatVersion";
 
 export type PromptsByLocale = Record<string, LocalePrompts>;
-
-type LegacyFlatLocalePrompts = {
-  nodes?: Record<string, { textTemplate?: string; speaker?: string }>;
-  edges?: Record<string, { optionText?: string }>;
-};
 
 export function createEmptyStoryPrompts(): StoryPrompts {
   return { nodes: {}, edges: {} };
@@ -83,65 +78,26 @@ function getStoryPrompts(
   return prompts?.stories[storyId];
 }
 
-export function getNodeTextTemplate(
+export function getNodeActions(
   prompts: LocalePrompts | undefined,
   storyId: string,
   nodeId: string
-): string {
-  return getStoryPrompts(prompts, storyId)?.nodes[nodeId]?.textTemplate ?? "";
+): SceneAction[] {
+  return getStoryPrompts(prompts, storyId)?.nodes[nodeId]?.actions ?? [];
 }
 
-export function getNodeSpeaker(
-  prompts: LocalePrompts | undefined,
+export function setNodeActions(
+  prompts: LocalePrompts,
   storyId: string,
-  nodeId: string
-): string {
-  return getStoryPrompts(prompts, storyId)?.nodes[nodeId]?.speaker ?? "";
-}
-
-function pruneNodePromptEntry(storyPrompts: StoryPrompts, nodeId: string): void {
-  const entry = storyPrompts.nodes[nodeId];
-  if (!entry?.textTemplate && !entry?.speaker) {
+  nodeId: string,
+  actions: SceneAction[]
+): void {
+  const storyPrompts = ensureStoryPrompts(prompts, storyId);
+  if (actions.length === 0) {
     delete storyPrompts.nodes[nodeId];
-  }
-}
-
-export function setNodeTextTemplate(
-  prompts: LocalePrompts,
-  storyId: string,
-  nodeId: string,
-  value: string
-): void {
-  const storyPrompts = ensureStoryPrompts(prompts, storyId);
-  if (!value) {
-    if (storyPrompts.nodes[nodeId]) {
-      delete storyPrompts.nodes[nodeId].textTemplate;
-      pruneNodePromptEntry(storyPrompts, nodeId);
-    }
     return;
   }
-  const entry = storyPrompts.nodes[nodeId] ?? {};
-  entry.textTemplate = value;
-  storyPrompts.nodes[nodeId] = entry;
-}
-
-export function setNodeSpeaker(
-  prompts: LocalePrompts,
-  storyId: string,
-  nodeId: string,
-  value: string
-): void {
-  const storyPrompts = ensureStoryPrompts(prompts, storyId);
-  if (!value) {
-    if (storyPrompts.nodes[nodeId]) {
-      delete storyPrompts.nodes[nodeId].speaker;
-      pruneNodePromptEntry(storyPrompts, nodeId);
-    }
-    return;
-  }
-  const entry = storyPrompts.nodes[nodeId] ?? {};
-  entry.speaker = value;
-  storyPrompts.nodes[nodeId] = entry;
+  storyPrompts.nodes[nodeId] = { actions };
 }
 
 export function getEdgeOptionText(
@@ -167,22 +123,13 @@ export function setEdgeOptionText(
   storyPrompts.edges[edgeId] = { optionText: value };
 }
 
-export function getNodeTextTemplateForLocale(
+export function getNodeActionsForLocale(
   promptsByLocale: PromptsByLocale,
   locale: string,
   storyId: string,
   nodeId: string
-): string {
-  return getNodeTextTemplate(promptsByLocale[locale], storyId, nodeId);
-}
-
-export function getNodeSpeakerForLocale(
-  promptsByLocale: PromptsByLocale,
-  locale: string,
-  storyId: string,
-  nodeId: string
-): string {
-  return getNodeSpeaker(promptsByLocale[locale], storyId, nodeId);
+): SceneAction[] {
+  return getNodeActions(promptsByLocale[locale], storyId, nodeId);
 }
 
 export function getEdgeOptionTextForLocale(
@@ -233,10 +180,9 @@ export function cloneNodePrompts(
   for (const prompts of Object.values(promptsByLocale)) {
     const storyPrompts = ensureStoryPrompts(prompts, storyId);
     const source = storyPrompts.nodes[sourceNodeId];
-    if (source?.textTemplate || source?.speaker) {
+    if (source?.actions?.length) {
       storyPrompts.nodes[targetNodeId] = {
-        ...(source.textTemplate ? { textTemplate: source.textTemplate } : {}),
-        ...(source.speaker ? { speaker: source.speaker } : {}),
+        actions: JSON.parse(JSON.stringify(source.actions)) as SceneAction[],
       };
     } else {
       delete storyPrompts.nodes[targetNodeId];
@@ -289,40 +235,28 @@ export function renameLocaleInPrompts(
   return next;
 }
 
-function migrateLegacyFlatPrompts(data: LegacyFlatLocalePrompts, storyId: string): LocalePrompts {
-  return {
-    stories: {
-      [storyId]: {
-        nodes: data.nodes && typeof data.nodes === "object" ? { ...data.nodes } : {},
-        edges: data.edges && typeof data.edges === "object" ? { ...data.edges } : {},
-      },
-    },
-  };
-}
-
-export function parseLocalePrompts(json: string, defaultStoryId?: string): LocalePrompts {
-  const data = JSON.parse(json) as LegacyFlatLocalePrompts & LocalePrompts;
-  if (data.stories && typeof data.stories === "object") {
-    const stories: LocalePrompts["stories"] = {};
-    for (const [storyId, storyPrompts] of Object.entries(data.stories)) {
-      stories[storyId] = {
-        nodes:
-          storyPrompts?.nodes && typeof storyPrompts.nodes === "object"
-            ? { ...storyPrompts.nodes }
-            : {},
-        edges:
-          storyPrompts?.edges && typeof storyPrompts.edges === "object"
-            ? { ...storyPrompts.edges }
-            : {},
-      };
+export function parseLocalePrompts(json: string): LocalePrompts {
+  const data = JSON.parse(json) as LocalePrompts;
+  if (!data.stories || typeof data.stories !== "object") {
+    throw new Error("Prompts file is missing a stories object");
+  }
+  const stories: LocalePrompts["stories"] = {};
+  for (const [storyId, storyPrompts] of Object.entries(data.stories)) {
+    const nodes: StoryPrompts["nodes"] = {};
+    for (const [nodeId, entry] of Object.entries(storyPrompts?.nodes ?? {})) {
+      if (Array.isArray(entry?.actions) && entry.actions.length > 0) {
+        nodes[nodeId] = { actions: entry.actions };
+      }
     }
-    return { stories };
+    stories[storyId] = {
+      nodes,
+      edges:
+        storyPrompts?.edges && typeof storyPrompts.edges === "object"
+          ? { ...storyPrompts.edges }
+          : {},
+    };
   }
-
-  if (!defaultStoryId) {
-    throw new Error("Legacy flat prompts require a default story id");
-  }
-  return migrateLegacyFlatPrompts(data, defaultStoryId);
+  return { stories };
 }
 
 export function serializeLocalePrompts(prompts: LocalePrompts): string {
@@ -330,11 +264,8 @@ export function serializeLocalePrompts(prompts: LocalePrompts): string {
   for (const [storyId, storyPrompts] of Object.entries(prompts.stories)) {
     const nodes: StoryPrompts["nodes"] = {};
     for (const [nodeId, entry] of Object.entries(storyPrompts.nodes)) {
-      if (entry?.textTemplate || entry?.speaker) {
-        nodes[nodeId] = {
-          ...(entry.textTemplate ? { textTemplate: entry.textTemplate } : {}),
-          ...(entry.speaker ? { speaker: entry.speaker } : {}),
-        };
+      if (entry?.actions?.length) {
+        nodes[nodeId] = { actions: entry.actions };
       }
     }
 
@@ -363,58 +294,4 @@ export function serializeLocalePrompts(prompts: LocalePrompts): string {
 
 export function clonePromptsByLocale(promptsByLocale: PromptsByLocale): PromptsByLocale {
   return JSON.parse(JSON.stringify(promptsByLocale)) as PromptsByLocale;
-}
-
-type LegacyStoryNode = StoryNode & { textTemplate?: string };
-type LegacyStoryEdge = StoryEdge & { optionText?: string };
-
-export function migrateLegacyInlinePrompts(
-  project: Project,
-  promptsByLocale: PromptsByLocale
-): PromptsByLocale {
-  const defaultStoryId = project.stories[0]?.id;
-  if (!defaultStoryId) {
-    return ensurePromptsForProjectLocales(project, promptsByLocale);
-  }
-
-  const migratedByLocale: PromptsByLocale = {};
-  for (const [locale, rawPrompts] of Object.entries(promptsByLocale)) {
-    if (rawPrompts.stories && Object.keys(rawPrompts.stories).length > 0) {
-      migratedByLocale[locale] = rawPrompts;
-    } else {
-      const legacy = rawPrompts as unknown as LegacyFlatLocalePrompts;
-      migratedByLocale[locale] = migrateLegacyFlatPrompts(legacy, defaultStoryId);
-    }
-  }
-
-  const targetLocale = getDefaultLocale(project);
-  const prompts = ensureLocalePrompts({ ...migratedByLocale }, targetLocale);
-  const story = project.stories[0];
-  if (!story) {
-    return ensurePromptsForProjectLocales(project, migratedByLocale);
-  }
-
-  const storyPrompts = ensureStoryPrompts(prompts, story.id);
-  for (const node of story.nodes as LegacyStoryNode[]) {
-    const textTemplate = node.textTemplate;
-    if (textTemplate) {
-      setNodeTextTemplate(prompts, story.id, node.id, textTemplate);
-    }
-    delete node.textTemplate;
-  }
-
-  for (const edge of story.edges as LegacyStoryEdge[]) {
-    const optionText = edge.optionText;
-    if (optionText) {
-      setEdgeOptionText(prompts, story.id, edge.id, optionText);
-    }
-    delete edge.optionText;
-  }
-
-  void storyPrompts;
-
-  return ensurePromptsForProjectLocales(project, {
-    ...migratedByLocale,
-    [targetLocale]: prompts,
-  });
 }
