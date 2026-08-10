@@ -21,11 +21,11 @@
     ],
     "stories": [
       {
-        "id": "1d73097f-8be5-4ed2-8bec-8126299388c1",
+        "id": "80c5e380-c95f-4973-be10-62c3fdbe5204",
         "name": "Main",
         "nodes": [
           {
-            "id": "495ac582-de19-4988-8311-f7927ac02bfa",
+            "id": "6f4ebae4-595f-4ff8-9608-aa7b52aaee9f",
             "type": "start",
             "position": {
               "x": 100,
@@ -34,7 +34,7 @@
             "label": "Start"
           },
           {
-            "id": "4bb8c44d-d1fc-4577-8b69-9fbc490a802c",
+            "id": "35505dc7-24b9-4209-bd9c-7cd2d9e3a07d",
             "type": "scene",
             "position": {
               "x": 420,
@@ -46,20 +46,20 @@
         ],
         "edges": [
           {
-            "id": "f81bf295-6c64-4a55-8562-5c146e875f62",
-            "sourceNodeId": "495ac582-de19-4988-8311-f7927ac02bfa",
-            "targetNodeId": "4bb8c44d-d1fc-4577-8b69-9fbc490a802c",
-            "sourcePortId": "out-f81bf295-6c64-4a55-8562-5c146e875f62",
+            "id": "173b4262-2475-4619-a143-3be06dab3606",
+            "sourceNodeId": "6f4ebae4-595f-4ff8-9608-aa7b52aaee9f",
+            "targetNodeId": "35505dc7-24b9-4209-bd9c-7cd2d9e3a07d",
+            "sourcePortId": "out-173b4262-2475-4619-a143-3be06dab3606",
             "targetPortId": "__free_in__"
           }
         ],
         "globalState": {},
-        "entryNodeId": "495ac582-de19-4988-8311-f7927ac02bfa"
+        "entryNodeId": "6f4ebae4-595f-4ff8-9608-aa7b52aaee9f"
       }
     ],
     "locales": [
       {
-        "id": "a2732fbb-819d-4e84-b9f4-0b6317232e4b",
+        "id": "6298794f-02d2-4dcd-b87d-3d662533762a",
         "locale": "en",
         "displayName": "en"
       }
@@ -70,9 +70,9 @@
   "promptsByLocale": {
     "en": {
       "stories": {
-        "1d73097f-8be5-4ed2-8bec-8126299388c1": {
+        "80c5e380-c95f-4973-be10-62c3fdbe5204": {
           "nodes": {
-            "4bb8c44d-d1fc-4577-8b69-9fbc490a802c": {
+            "35505dc7-24b9-4209-bd9c-7cd2d9e3a07d": {
               "actions": [
                 {
                   "kind": "dialogue.show",
@@ -93,7 +93,7 @@
             }
           },
           "edges": {
-            "f81bf295-6c64-4a55-8562-5c146e875f62": {
+            "173b4262-2475-4619-a143-3be06dab3606": {
               "optionText": "Begin"
             }
           }
@@ -102,7 +102,7 @@
     }
   },
   "session": {
-    "activeStoryId": "1d73097f-8be5-4ed2-8bec-8126299388c1",
+    "activeStoryId": "80c5e380-c95f-4973-be10-62c3fdbe5204",
     "selectedNodeIds": [],
     "selectedEdgeIds": [],
     "selectedAssetId": null,

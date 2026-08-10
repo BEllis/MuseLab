@@ -28,7 +28,7 @@ Version 0.1
 
 - **Flow-based designer** – Place scene nodes on a canvas and connect them. Add option text and conditions so players see different choices depending on the story state.
 - **Rich scenes** – Author ordered scene actions: backgrounds, props/characters (shared API), tagged dialogue, waits, and sounds. The editor uses a pill-based action list with live stage preview.
-- **Tagged dialogue** – Dialogue text supports `<b>`, `<i>`, `<u>`, `<shake>`, and `<color=…>` markup. Story-level Cito wrappers remain available for advanced cases; see [docs/cito-templates.md](docs/cito-templates.md).
+- **Tagged dialogue** – Dialogue supports `<b>`, `<i>`, `<u>`, `<shake>`, `<color=…>`, plus Razor `@rt` / `@if` for variables and branches. See [docs/cito-templates.md](docs/cito-templates.md).
 - **Assets** – Add backdrops, actors, and sounds from your computer. In the desktop app, use the file picker; in the browser, drag and drop.
 - **Player** – Run your story from the designer (Play button). The player shows your scenes with dialogue, choices, and branching based on conditions and state.
 - **Locales** – Support multiple languages. Dialogue and choice labels are stored per locale (`prompts.<locale>.json` inside `.mlvn` archives). Switch locale in the player; edit visible locales in the project panel.

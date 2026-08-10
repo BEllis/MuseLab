@@ -1,8 +1,10 @@
 /**
  * Author-facing inline markup for dialogue text.
  *
- * Supported: <b> <i> <u> <shake> <color="red"> and their closing tags.
- * This is never stored as Cito; the scene compiler lowers it to Format.* calls.
+ * Supported tags: <b> <i> <u> <shake> <color="red"> and their closing tags.
+ * Tags are lowered to Format.* calls inside literal runs of dialogue text.
+ * Razor (`@rt…`, `@if`, `@Format…`) is handled by the dialogue text compiler
+ * as an outer surface around these tagged runs.
  */
 
 export const TAGGED_TEXT_TAGS = ["b", "i", "u", "shake", "color"] as const;

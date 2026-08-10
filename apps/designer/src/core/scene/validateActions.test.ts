@@ -10,6 +10,7 @@ const project = {
   locales: [{ locale: "en", name: "English" }],
   defaultLocale: "en",
   stories: [],
+  modules: [],
   assets: [
     { id: "bg-1", type: "backdrop", name: "Street" },
     { id: "actor-1", type: "actor", name: "Maya" },
@@ -50,5 +51,28 @@ describe("validateSceneActions", () => {
     expect(() =>
       assertValidSceneActions([{ kind: "bg.show", assetId: "" }], { project })
     ).toThrow(/Choose an asset|asset/i);
+  });
+
+  it("accepts Razor expressions mixed with tagged markup", () => {
+    const actions: SceneAction[] = [
+      {
+        kind: "dialogue.revealText",
+        channel: "main",
+        text: 'Hi @rt.GetString("name"). @if (rt.GetBool("flag")) { <i>ok</i> }',
+        reveal: { mode: "instant" },
+      },
+    ];
+    expect(validateSceneActions(actions, { project })).toEqual([]);
+  });
+
+  it("rejects malformed Razor in dialogue text", () => {
+    const actions: SceneAction[] = [
+      {
+        kind: "dialogue.setSpeaker",
+        text: "@if (rt.GetBool(\"x\") { broken",
+      },
+    ];
+    const issues = validateSceneActions(actions, { project });
+    expect(issues.length).toBeGreaterThan(0);
   });
 });

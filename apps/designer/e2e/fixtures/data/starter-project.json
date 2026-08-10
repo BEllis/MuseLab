@@ -21,11 +21,11 @@
     ],
     "stories": [
       {
-        "id": "e2854082-2648-47fe-bfa2-f6b274e6cc70",
+        "id": "aa39f42b-4ef1-4ab3-8c0c-ef74b3c4652c",
         "name": "Main",
         "nodes": [
           {
-            "id": "b02015a7-6f5f-46e1-9364-07f3a92afd84",
+            "id": "7d01cb7f-2f72-42cf-a4ef-c4da1465998e",
             "type": "start",
             "position": {
               "x": 100,
@@ -36,12 +36,12 @@
         ],
         "edges": [],
         "globalState": {},
-        "entryNodeId": "b02015a7-6f5f-46e1-9364-07f3a92afd84"
+        "entryNodeId": "7d01cb7f-2f72-42cf-a4ef-c4da1465998e"
       }
     ],
     "locales": [
       {
-        "id": "1274461d-b486-40ec-a006-64d61649358f",
+        "id": "ebd61d81-0995-4a4b-861c-0350e22f0222",
         "locale": "en",
         "displayName": "en"
       }
@@ -55,7 +55,7 @@
     }
   },
   "session": {
-    "activeStoryId": "e2854082-2648-47fe-bfa2-f6b274e6cc70",
+    "activeStoryId": "aa39f42b-4ef1-4ab3-8c0c-ef74b3c4652c",
     "selectedNodeIds": [],
     "selectedEdgeIds": [],
     "selectedAssetId": null,

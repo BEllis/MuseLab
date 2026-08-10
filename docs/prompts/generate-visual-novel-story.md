@@ -163,7 +163,12 @@ Store all player-facing scene scripts per locale, keyed by story UUID. Each scen
 
 Every project locale tag must have a matching `promptsByLocale` entry. Every **scene** node should have an `actions` array (may be empty). Start/jump nodes usually omit prompt entries.
 
-**Dialogue text** uses static tagged markup only: `<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`. Do **not** put Razor/`@Format.*` inside `dialogue.revealText` / `dialogue.setSpeaker` strings.
+**Dialogue text** supports:
+- Static tagged markup: `<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`
+- Razor/`@` for variables and branches: `@rt.GetString("name")`, `@if (rt.GetBool("metMaya")) { … }`
+- `@Format.*` helpers when you need formatting that spans expressions
+
+Keep markup tags balanced inside each literal run (do not wrap a bare `@rt…` expression with an unclosed `<b>`). Prefer putting full tagged phrases inside each `@if` branch.
 
 **Positions** are either named slots (`Left`, `Centre`, `Right`, corners, …) or vectors in 16×9 stage space (`{ "kind": "vec", "x": 4, "y": 3 }`).
 
@@ -208,9 +213,9 @@ Nodes have a required `type`:
 
 **Backgrounds and characters:** Show them with `bg.*` and `prop.*` actions. Characters and props share the prop API; use a stable instance `id` (e.g. `"maya"`) after `prop.add`.
 
-**Dialogue actions:** Prefer `dialogue.setSpeaker` + `dialogue.revealText` + `waitForContinue`. Tagged markup in reveal/speaker text only (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`).
+**Dialogue actions:** Prefer `dialogue.setSpeaker` + `dialogue.revealText` + `waitForContinue`. Text may mix tagged markup (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`) with Razor `@rt` / `@if` / `@Format.*` for variables and branches.
 
-Story-level Razor wrappers (`promptStartTemplate`, `speakerStartTemplate`, …) may still wrap compiled dialogue output. Runtime state changes belong in `rt.set*` / `rt.emit` actions (or story-level templates), not inside dialogue strings.
+Story-level Razor wrappers (`promptStartTemplate`, `speakerStartTemplate`, …) may still wrap compiled dialogue output. Explicit state changes can also use `rt.set*` / `rt.emit` actions.
 
 ### Links (`stories[].edges[]`)
 
@@ -433,7 +438,7 @@ Before outputting, verify:
 - [ ] Actors have `expressions` with ≥1 entry; `prop.add` / `prop.setVariation` variation ids match
 - [ ] Every edge has `sourcePortId: "out-{edgeId}"` and `targetPortId: "__free_in__"`
 - [ ] Every locale has prompts; every scene has an `actions` array (may be empty)
-- [ ] Dialogue strings use tagged markup only (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=…>`)
+- [ ] Dialogue strings may use tagged markup and/or Razor `@rt` / `@if` / `@Format.*`
 - [ ] JSON parses without error; no trailing commas; no comments
 
 If a validator is available (`scripts/validate_mlvn.py`), run it on the bundle and fix all errors before finishing.

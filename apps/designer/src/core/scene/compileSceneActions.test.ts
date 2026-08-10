@@ -62,4 +62,22 @@ describe("compileSceneActions", () => {
     const compiled = compileSceneActions(actions, project);
     expect(compiled.ciSource).toContain("prop.MoveXY(\"box\", 4, 3, 250);");
   });
+
+  it("compiles Razor variables and @if inside dialogue text", () => {
+    const actions: SceneAction[] = [
+      {
+        kind: "dialogue.revealText",
+        channel: "main",
+        text: 'Hello, @rt.GetString("name")! @if (rt.GetBool("metMaya")) { <b>Welcome back.</b> }',
+        reveal: { mode: "instant" },
+      },
+    ];
+    const compiled = compileSceneActions(actions, project);
+    expect(compiled.ciSource).toContain('prompter.AddLiteral("Hello, ");');
+    expect(compiled.ciSource).toContain('prompter.AppendResult((rt.GetString("name")));');
+    expect(compiled.ciSource).toContain('if (rt.GetBool("metMaya")) {');
+    expect(compiled.ciSource).toContain("format.BoldStart()");
+    expect(compiled.ciSource).toContain('prompter.AddLiteral("Welcome back.")');
+    expect(compiled.ciSource).toContain("format.BoldEnd()");
+  });
 });

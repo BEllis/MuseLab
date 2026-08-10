@@ -1,15 +1,15 @@
 import type { Project } from "../model/types";
 import { escapeCiString } from "../cito/escapeCiString";
-import { compileTemplateFragmentLines } from "../cito/compileTemplate";
 import { hashId } from "../cito/hashId";
 import {
   buildCiPreamble,
   buildExportRenderParameterList,
   buildRenderParameterList,
 } from "../modules/generateModuleCi";
+import { compileTemplateFragmentLines } from "../cito/compileTemplate";
 import type { RevealSpec, SceneAction } from "./actions";
 import type { StagePosition } from "./positions";
-import { parseTaggedText, type TaggedTextNode } from "./taggedText";
+import { emitDialogueText } from "./dialogueText";
 
 export type CompiledSceneActions = {
   className: string;
@@ -62,51 +62,6 @@ function positionCall(
   return `${binding}.${method}(${args.join(", ")});`;
 }
 
-function openFormatCall(node: Extract<TaggedTextNode, { kind: "open" }>): string {
-  switch (node.tag) {
-    case "b":
-      return "format.BoldStart()";
-    case "i":
-      return "format.ItalicStart()";
-    case "u":
-      return "format.UnderlineStart()";
-    case "shake":
-      return "format.ShakePhraseStart()";
-    case "color":
-      return `format.ColorStart(${lit(node.color ?? "#ffffff")})`;
-  }
-}
-
-function closeFormatCall(node: Extract<TaggedTextNode, { kind: "close" }>): string {
-  switch (node.tag) {
-    case "b":
-      return "format.BoldEnd()";
-    case "i":
-      return "format.ItalicEnd()";
-    case "u":
-      return "format.UnderlineEnd()";
-    case "shake":
-      return "format.ShakePhraseEnd()";
-    case "color":
-      return "format.ColorEnd()";
-  }
-}
-
-/** Lower author tags into interleaved prompter literal / format calls. */
-function emitTaggedText(text: string, lines: string[]): void {
-  for (const node of parseTaggedText(text)) {
-    if (node.kind === "text") {
-      if (node.text) lines.push(`prompter.AddLiteral(${lit(node.text)});`);
-      continue;
-    }
-    if (node.kind === "open") {
-      lines.push(`prompter.ApplyFormat(${openFormatCall(node)});`);
-      continue;
-    }
-    lines.push(`prompter.ApplyFormat(${closeFormatCall(node)});`);
-  }
-}
-
 function emitRevealBegin(reveal: RevealSpec, lines: string[]): boolean {
   switch (reveal.mode) {
     case "instant":
@@ -128,9 +83,14 @@ function emitRevealBegin(reveal: RevealSpec, lines: string[]): boolean {
 
 export function sceneActionToCito(
   action: SceneAction,
-  speakerWrap: { start: string[]; end: string[] } = { start: [], end: [] }
+  options: {
+    project?: Project;
+    speakerWrap?: { start: string[]; end: string[] };
+  } = {}
 ): string[] {
   const lines: string[] = [];
+  const speakerWrap = options.speakerWrap ?? { start: [], end: [] };
+  const project = options.project;
 
   switch (action.kind) {
     case "bg.show":
@@ -244,13 +204,13 @@ export function sceneActionToCito(
     case "dialogue.setSpeaker":
       lines.push("prompter.SpeakerBegin();");
       lines.push(...speakerWrap.start);
-      emitTaggedText(action.text, lines);
+      emitDialogueText(action.text, lines, project);
       lines.push(...speakerWrap.end);
       lines.push("prompter.SpeakerEnd();");
       break;
     case "dialogue.revealText": {
       const opened = emitRevealBegin(action.reveal, lines);
-      emitTaggedText(action.text, lines);
+      emitDialogueText(action.text, lines, project);
       if (opened) lines.push("prompter.RevealEnd();");
       break;
     }
@@ -313,7 +273,7 @@ export function sceneActionsToCitoBody(
 
   const lines: string[] = [...fragment(wrap?.promptStart)];
   for (const action of actions) {
-    lines.push(...sceneActionToCito(action, speakerWrap));
+    lines.push(...sceneActionToCito(action, { project, speakerWrap }));
   }
   lines.push(...fragment(wrap?.promptEnd));
   lines.push("return prompter.Render();");

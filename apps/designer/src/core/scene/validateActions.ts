@@ -1,7 +1,7 @@
 import type { Asset, Project } from "../model/types";
 import type { SceneAction } from "./actions";
 import { isVectorInBounds, STAGE_HEIGHT, STAGE_WIDTH, type StagePosition } from "./positions";
-import { validateTaggedText } from "./taggedText";
+import { validateDialogueText } from "./dialogueText";
 
 export type SceneActionIssue = {
   index: number;
@@ -194,15 +194,14 @@ export function validateSceneActions(
       }
 
       case "dialogue.revealText": {
-        const textIssue = validateTaggedText(action.text);
-        push(index, textIssue);
+        push(index, validateDialogueText(action.text, project));
         if (action.reveal.mode === "charsOverTime" || action.reveal.mode === "wordsOverTime") {
           push(index, durationIssue(action.reveal.durationMs));
         }
         break;
       }
       case "dialogue.setSpeaker":
-        push(index, validateTaggedText(action.text));
+        push(index, validateDialogueText(action.text, project));
         break;
       case "dialogue.show":
       case "dialogue.hide":

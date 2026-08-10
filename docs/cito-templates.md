@@ -1,6 +1,13 @@
 # MuseLab text templates
 
-Scene dialogue, speaker names, and player choice visibility are driven by **text templates**. MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (transpiled with **cito**) inside those templates. You write **Razor-style `@` syntax** with Cito expressions; at runtime MuseLab compiles them to `.ci`, transpiles to JavaScript, and executes the result against typed built-in APIs.
+Scene dialogue, speaker names, and player choice visibility are driven by **text templates** and **scene actions**. MuseLab embeds the [Ć programming language](https://github.com/Marco012/cito) (transpiled with **cito**) inside Razor-style `@` surfaces. At runtime MuseLab compiles them to `.ci`, transpiles to JavaScript, and executes the result against typed built-in APIs.
+
+In **scene actions**, `dialogue.revealText` / `dialogue.setSpeaker` text may mix:
+- **Tagged markup** for styling: `<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`
+- **Razor** for variables and branches: `@rt.GetString("name")`, `@if (rt.GetBool("flag")) { … }`
+- **`@Format.*`** when formatting must span an expression
+
+Markup tags must stay balanced inside each literal run (put full tagged phrases inside each `@if` branch rather than wrapping a bare `@rt…` expression with an unclosed tag).
 
 Templates appear in:
 

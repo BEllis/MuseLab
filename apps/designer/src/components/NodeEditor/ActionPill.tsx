@@ -12,6 +12,7 @@ import {
   TextField,
   VariationField,
 } from "./ActionFields";
+import { DialogueTextField } from "./DialogueTextField";
 import { labelStyle } from "./actionFieldStyles";
 
 export type ActionPillProps = {
@@ -312,20 +313,21 @@ function ActionBody({
       );
     case "dialogue.setSpeaker":
       return (
-        <TextField
+        <DialogueTextField
+          project={project}
           value={action.text}
           onChange={(text) => onChange({ ...action, text })}
-          placeholder="speaker name"
-          width="180px"
+          placeholder="Speaker (text or @rt…)"
         />
       );
     case "dialogue.revealText":
       return (
         <>
-          <TextField
+          <DialogueTextField
+            project={project}
             value={action.text}
             onChange={(text) => onChange({ ...action, text })}
-            placeholder="Dialogue text. Tags: <b> <i> <u> <shake> <color=…>"
+            placeholder="Dialogue: tags <b>…</b> or Razor @rt / @if"
             multiline
           />
           <RevealField
