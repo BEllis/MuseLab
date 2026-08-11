@@ -470,15 +470,6 @@ namespace MuseLab.UI
 
             dialoguePanel = CreateRect(stageRoot, "DialoguePanel");
             LayoutDialoguePanel(SceneDirector.DefaultDialogueWidthPercent);
-            var dialogueBg = dialoguePanel.gameObject.AddComponent<Image>();
-            dialogueBg.sprite = UiSpriteFactory.CreateVerticalGradient(
-                4,
-                64,
-                MuseLabUiStyles.DialoguePanelGradientBottom,
-                MuseLabUiStyles.DialoguePanelGradientTop,
-                0.7f,
-                MuseLabUiStyles.DialoguePanelGradientMid);
-            dialogueBg.type = Image.Type.Simple;
 
             dialogueCaption = DialogueCaptionBox.Create(dialoguePanel, export.RootPath);
 

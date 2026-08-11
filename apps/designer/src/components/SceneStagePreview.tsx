@@ -347,8 +347,6 @@ export function SceneStagePreview({
               flexDirection: "column",
               justifyContent: "flex-end",
               padding: compact ? "3px 4px 4px" : "16px 24px 24px",
-              background:
-                "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)",
               pointerEvents: compact ? "none" : undefined,
             }}
           >

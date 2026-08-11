@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Project } from "@/core/model/types";
 import {
   createSceneAction,
@@ -62,6 +62,8 @@ export function ActionPillEditor({
   const [openGroup, setOpenGroup] = useState<SceneActionGroup | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const issues = useMemo(
     () => validateSceneActions(actions, { project }),
@@ -78,9 +80,13 @@ export function ActionPillEditor({
   }, [issues]);
   const { knownIdsAt, assetIdsAt } = useMemo(() => propContext(actions), [actions]);
 
-  const appendAction = (kind: SceneActionKind) => {
-    onChange([...actions, createSceneAction(kind)]);
+  const insertAction = (kind: SceneActionKind) => {
+    const insertAt = selectedIndex === null ? actions.length : selectedIndex + 1;
+    const next = [...actions];
+    next.splice(insertAt, 0, createSceneAction(kind));
+    onChange(next);
     onCommit?.();
+    setSelectedIndex(insertAt);
     setOpenGroup(null);
   };
 
@@ -91,6 +97,14 @@ export function ActionPillEditor({
   const removeAction = (index: number) => {
     onChange(actions.filter((_, i) => i !== index));
     onCommit?.();
+    setSelectedIndex((current) => {
+      if (current === null) return null;
+      if (current === index) {
+        if (actions.length <= 1) return null;
+        return index >= actions.length - 1 ? index - 1 : index;
+      }
+      return current > index ? current - 1 : current;
+    });
   };
 
   const moveAction = (from: number, to: number) => {
@@ -100,7 +114,27 @@ export function ActionPillEditor({
     next.splice(to, 0, moved);
     onChange(next);
     onCommit?.();
+    setSelectedIndex((current) => {
+      if (current === null) return null;
+      if (current === from) return to;
+      if (from < to && current > from && current <= to) return current - 1;
+      if (from > to && current >= to && current < from) return current + 1;
+      return current;
+    });
   };
+
+  useLayoutEffect(() => {
+    if (selectedIndex !== null && selectedIndex >= actions.length) {
+      setSelectedIndex(actions.length === 0 ? null : actions.length - 1);
+    }
+  }, [actions.length, selectedIndex]);
+
+  useLayoutEffect(() => {
+    if (selectedIndex === null) return;
+    const pill = listRef.current?.querySelector(`[data-testid="action-pill-${selectedIndex}"]`);
+    if (!(pill instanceof HTMLElement)) return;
+    pill.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex, actions.length]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: "8px", ...style }}>
@@ -157,7 +191,7 @@ export function ActionPillEditor({
                   <li key={kind}>
                     <button
                       type="button"
-                      onClick={() => appendAction(kind)}
+                      onClick={() => insertAction(kind)}
                       style={{
                         display: "block",
                         width: "100%",
@@ -206,6 +240,7 @@ export function ActionPillEditor({
       </div>
 
       <ul
+        ref={listRef}
         style={{
           flex: 1,
           minHeight: 0,
@@ -217,6 +252,7 @@ export function ActionPillEditor({
           flexDirection: "column",
           gap: "6px",
         }}
+        onClick={() => setSelectedIndex(null)}
         onDragEnd={() => {
           setDragIndex(null);
           setDropIndex(null);
@@ -238,15 +274,20 @@ export function ActionPillEditor({
             issues={issuesByIndex.get(index) ?? []}
             onChange={(next) => replaceAction(index, next)}
             onRemove={() => removeAction(index)}
-            onDragStart={() => setDragIndex(index)}
+            onDragStart={() => {
+              setDragIndex(index);
+              setSelectedIndex(index);
+            }}
             onDragOver={() => setDropIndex(index)}
             onDrop={() => {
               if (dragIndex !== null) moveAction(dragIndex, index);
               setDragIndex(null);
               setDropIndex(null);
             }}
+            onSelect={() => setSelectedIndex(index)}
             isDragging={dragIndex === index}
             isDropTarget={dropIndex === index && dragIndex !== null && dragIndex !== index}
+            isSelected={selectedIndex === index}
           />
         ))}
       </ul>

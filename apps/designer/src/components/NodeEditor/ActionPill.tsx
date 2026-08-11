@@ -29,8 +29,10 @@ export type ActionPillProps = {
   onDragStart: () => void;
   onDragOver: () => void;
   onDrop: () => void;
+  onSelect: () => void;
   isDragging: boolean;
   isDropTarget: boolean;
+  isSelected: boolean;
 };
 
 function ActionBody({
@@ -467,14 +469,21 @@ export function ActionPill({
   onDragStart,
   onDragOver,
   onDrop,
+  onSelect,
   isDragging,
   isDropTarget,
+  isSelected,
 }: ActionPillProps) {
   const accent = sceneActionGroupColor(action.kind);
 
   return (
     <li
       data-testid={`action-pill-${index}`}
+      aria-selected={isSelected}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         onDragOver();
@@ -489,10 +498,18 @@ export function ActionPill({
         gap: "8px",
         padding: "6px 8px",
         borderRadius: "8px",
-        border: `1px solid ${issues.length > 0 ? "#b45309" : "var(--app-border)"}`,
+        border: `1px solid ${
+          issues.length > 0 ? "#b45309" : isSelected ? "var(--app-accent-border)" : "var(--app-border)"
+        }`,
         borderLeft: `4px solid ${accent}`,
-        background: isDropTarget ? "var(--app-surface-hover, rgba(127,127,127,0.12))" : "var(--app-surface)",
+        background: isDropTarget
+          ? "var(--app-surface-hover, rgba(127,127,127,0.12))"
+          : isSelected
+            ? "var(--app-accent-soft-bg)"
+            : "var(--app-surface)",
+        boxShadow: isSelected ? "0 0 0 1px var(--app-accent)" : undefined,
         opacity: isDragging ? 0.45 : 1,
+        cursor: "pointer",
       }}
     >
       <span
@@ -533,7 +550,10 @@ export function ActionPill({
 
       <button
         type="button"
-        onClick={onRemove}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
         aria-label={`Delete ${sceneActionLabel(action.kind)}`}
         title="Delete action"
         style={{

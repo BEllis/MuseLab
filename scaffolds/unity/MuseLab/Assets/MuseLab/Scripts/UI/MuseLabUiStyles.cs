@@ -9,9 +9,6 @@ namespace MuseLab.UI
         public static readonly Color BorderBlue = new(0.12f, 0.35f, 0.54f, 1f);
         public static readonly Color TextDark = new(0.06f, 0.09f, 0.16f, 1f);
         public static readonly Color SplashBackground = new(0.08f, 0.09f, 0.12f, 1f);
-        public static readonly Color DialoguePanelGradientBottom = new(0f, 0f, 0f, 0.92f);
-        public static readonly Color DialoguePanelGradientMid = new(0f, 0f, 0f, 0.6f);
-        public static readonly Color DialoguePanelGradientTop = new(0f, 0f, 0f, 0f);
         public const float DialoguePanelHeight = 220f;
         public const float DialoguePanelPaddingHorizontal = 24f;
         public const float DialoguePanelPaddingTop = 16f;
@@ -23,7 +20,7 @@ namespace MuseLab.UI
         public const float DialogueFontSize = 16f;
         public const float DialogueLineSpacing = 9.6f;
         public const float BorderWidth = 4f;
-        public const float CornerRadius = 12f;
+        public const float CornerRadius = 24f;
 
         public static void EnsureMainCamera(Color background)
         {

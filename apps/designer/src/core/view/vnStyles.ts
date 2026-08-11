@@ -50,7 +50,7 @@ export const vnSpeakerTabStyle: CSSProperties = {
   background: "#c5dff0",
   border: "2px solid #1e5a8a",
   borderBottom: "none",
-  borderRadius: "12px 12px 0 0",
+  borderRadius: "24px 24px 0 0",
   padding: "4px 14px",
   color: "#1e5a8a",
   fontSize: "14px",
@@ -62,7 +62,7 @@ export const compactVnSpeakerTabStyle: CSSProperties = {
   marginLeft: "4px",
   marginBottom: "-1px",
   borderWidth: "1px",
-  borderRadius: "4px 4px 0 0",
+  borderRadius: "8px 8px 0 0",
   padding: "0 4px",
   fontSize: "4px",
   lineHeight: 1.25,
@@ -93,6 +93,7 @@ export function vnDialogueBoxChromeStyle(compact: boolean): CSSProperties {
   const height = compact ? compactVnDialogueBoxHeight : vnDialogueBoxHeight;
   return {
     ...vnDialogueBoxStyle(compact),
+    borderRadius: compact ? "8px" : "24px",
     position: "relative",
     height,
     minHeight: height,
