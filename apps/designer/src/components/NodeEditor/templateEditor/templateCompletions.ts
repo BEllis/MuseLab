@@ -127,7 +127,8 @@ export function templateCompletionSource(modules: TemplateCompletionModule[]) {
         modules.find((entry) => entry.bindingName === binding) ??
         (binding === "Format" ? modules.find((entry) => entry.bindingName === "format") : undefined);
       if (!module) return null;
-      return { from, options: methodCompletions(module) };
+      // Filter against the method prefix after the last dot, not `Format.` / `rt.`.
+      return { from: from + dotIndex + 1, options: methodCompletions(module) };
     }
 
     return { from, options: bindingCompletions(modules) };

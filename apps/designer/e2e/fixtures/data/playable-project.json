@@ -21,11 +21,11 @@
     ],
     "stories": [
       {
-        "id": "80c5e380-c95f-4973-be10-62c3fdbe5204",
+        "id": "5774976f-0d32-4318-b04c-db7a5ed489a5",
         "name": "Main",
         "nodes": [
           {
-            "id": "6f4ebae4-595f-4ff8-9608-aa7b52aaee9f",
+            "id": "fd3012d7-5bd5-4318-861c-edd1c9f996e4",
             "type": "start",
             "position": {
               "x": 100,
@@ -34,7 +34,7 @@
             "label": "Start"
           },
           {
-            "id": "35505dc7-24b9-4209-bd9c-7cd2d9e3a07d",
+            "id": "f4e55271-b874-475a-98b4-8569dcdc8008",
             "type": "scene",
             "position": {
               "x": 420,
@@ -46,20 +46,20 @@
         ],
         "edges": [
           {
-            "id": "173b4262-2475-4619-a143-3be06dab3606",
-            "sourceNodeId": "6f4ebae4-595f-4ff8-9608-aa7b52aaee9f",
-            "targetNodeId": "35505dc7-24b9-4209-bd9c-7cd2d9e3a07d",
-            "sourcePortId": "out-173b4262-2475-4619-a143-3be06dab3606",
+            "id": "5c5952ec-ec3b-4381-9ab1-64790e5b6854",
+            "sourceNodeId": "fd3012d7-5bd5-4318-861c-edd1c9f996e4",
+            "targetNodeId": "f4e55271-b874-475a-98b4-8569dcdc8008",
+            "sourcePortId": "out-5c5952ec-ec3b-4381-9ab1-64790e5b6854",
             "targetPortId": "__free_in__"
           }
         ],
         "globalState": {},
-        "entryNodeId": "6f4ebae4-595f-4ff8-9608-aa7b52aaee9f"
+        "entryNodeId": "fd3012d7-5bd5-4318-861c-edd1c9f996e4"
       }
     ],
     "locales": [
       {
-        "id": "6298794f-02d2-4dcd-b87d-3d662533762a",
+        "id": "c92336d9-8720-44a3-9b26-7e240bc9f6c7",
         "locale": "en",
         "displayName": "en"
       }
@@ -70,17 +70,15 @@
   "promptsByLocale": {
     "en": {
       "stories": {
-        "80c5e380-c95f-4973-be10-62c3fdbe5204": {
+        "5774976f-0d32-4318-b04c-db7a5ed489a5": {
           "nodes": {
-            "35505dc7-24b9-4209-bd9c-7cd2d9e3a07d": {
+            "f4e55271-b874-475a-98b4-8569dcdc8008": {
               "actions": [
                 {
-                  "kind": "dialogue.show",
-                  "channel": "main"
+                  "kind": "dialogue.show"
                 },
                 {
                   "kind": "dialogue.revealText",
-                  "channel": "main",
                   "text": "Welcome to MuseLab",
                   "reveal": {
                     "mode": "instant"
@@ -93,7 +91,7 @@
             }
           },
           "edges": {
-            "173b4262-2475-4619-a143-3be06dab3606": {
+            "5c5952ec-ec3b-4381-9ab1-64790e5b6854": {
               "optionText": "Begin"
             }
           }
@@ -102,7 +100,7 @@
     }
   },
   "session": {
-    "activeStoryId": "80c5e380-c95f-4973-be10-62c3fdbe5204",
+    "activeStoryId": "5774976f-0d32-4318-b04c-db7a5ed489a5",
     "selectedNodeIds": [],
     "selectedEdgeIds": [],
     "selectedAssetId": null,

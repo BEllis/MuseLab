@@ -139,11 +139,10 @@ Store all player-facing scene scripts per locale, keyed by story UUID. Each scen
               "id": "maya",
               "position": { "kind": "slot", "slot": "Left" }
             },
-            { "kind": "dialogue.show", "channel": "main" },
+            { "kind": "dialogue.show" },
             { "kind": "dialogue.setSpeaker", "text": "Maya" },
             {
               "kind": "dialogue.revealText",
-              "channel": "main",
               "text": "The rain hasn't stopped for three days.",
               "reveal": { "mode": "instant" }
             },
@@ -213,7 +212,9 @@ Nodes have a required `type`:
 
 **Backgrounds and characters:** Show them with `bg.*` and `prop.*` actions. Characters and props share the prop API; use a stable instance `id` (e.g. `"maya"`) after `prop.add`.
 
-**Dialogue actions:** Prefer `dialogue.setSpeaker` + `dialogue.revealText` + `waitForContinue`. Text may mix tagged markup (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`) with Razor `@rt` / `@if` / `@Format.*` for variables and branches.
+**Dialogue actions:** Prefer `dialogue.setSpeaker` + `dialogue.revealText` + `waitForContinue`. Optional `dialogue.show` / `dialogue.hide` toggle the dialogue box; `dialogue.show` may include `characterId` (an actor asset id) for later theming. The box is 50% of stage width by default; `dialogue.setWidth` with `widthPercent` (1–100) changes it. Text may mix tagged markup (`<b>`, `<i>`, `<u>`, `<shake>`, `<color=#rrggbb>`) with Razor `@rt` / `@if` / `@Format.*` for variables and branches.
+
+**Prop highlight:** `prop.highlight` / `prop.unhighlight` take a prop instance `id`. Multiple props may be highlighted at once.
 
 Story-level Razor wrappers (`promptStartTemplate`, `speakerStartTemplate`, …) may still wrap compiled dialogue output. Explicit state changes can also use `rt.set*` / `rt.emit` actions.
 

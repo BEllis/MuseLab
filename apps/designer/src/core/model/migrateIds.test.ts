@@ -47,7 +47,7 @@ describe("migrateProjectIdsToUuid", () => {
     const promptsByLocale = createEmptyPromptsByLocale(["en"]);
     setNodeActions(promptsByLocale.en, "main", "scene1", [
       { kind: "prop.add", id: "hero", assetId: "hero1", variationId: "expr1" },
-      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hello", reveal: { mode: "instant" } },
     ]);
     setEdgeOptionText(promptsByLocale.en, "main", "edge1", "Continue");
 
@@ -74,7 +74,7 @@ describe("migrateProjectIdsToUuid", () => {
     );
     expect(actions).toEqual([
       { kind: "prop.add", id: "hero", assetId: hero.id, variationId: expression.id },
-      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hello", reveal: { mode: "instant" } },
     ]);
     expect(getEdgeOptionTextForLocale(bundle.promptsByLocale, "en", story.id, edge.id)).toBe(
       "Continue"

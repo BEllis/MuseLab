@@ -1,4 +1,4 @@
-import { DEFAULT_DIALOGUE_CHANNEL, DEFAULT_PROP_Z } from "./actions";
+import { DEFAULT_DIALOGUE_WIDTH_PERCENT, DEFAULT_PROP_Z } from "./actions";
 import { AssetReferenceCounter, assetReferenceKey } from "./assetReferences";
 import {
   offstagePosition,
@@ -27,6 +27,7 @@ export type ScenePropState = {
   opacity: number;
   zIndex: number;
   scale: number;
+  highlighted: boolean;
 };
 
 export type SceneBackgroundState = {
@@ -44,7 +45,12 @@ export type SceneSnapshot = {
   outgoingBackground: SceneBackgroundState | null;
   /** Ordered back to front. */
   props: ScenePropState[];
-  dialogueChannels: Record<string, boolean>;
+  /** When false, the dialogue box is hidden even if it has text. Defaults true. */
+  dialogueVisible: boolean;
+  /** Optional actor id for later per-character dialogue theming. */
+  dialogueCharacterId?: string;
+  /** Dialogue box width as a percent of stage width. */
+  dialogueWidthPercent: number;
   loadedAssetKeys: string[];
 };
 
@@ -80,7 +86,10 @@ export class SceneDirector {
   private background: SceneBackgroundState | null = null;
   private outgoing: SceneBackgroundState | null = null;
   private readonly props = new Map<string, ScenePropState>();
-  private readonly dialogueChannels = new Map<string, boolean>();
+  private dialogueVisible = true;
+  private dialogueCharacterId: string | undefined;
+  private dialogueWidthPercent = DEFAULT_DIALOGUE_WIDTH_PERCENT;
+  private backgroundTweenAbort: AbortController | null = null;
   private readonly assets: AssetReferenceCounter;
   private readonly listeners = new Set<() => void>();
   private readonly scheduler: FrameScheduler;
@@ -113,7 +122,9 @@ export class SceneDirector {
         props: [...this.props.values()]
           .map((prop) => ({ ...prop }))
           .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id)),
-        dialogueChannels: Object.fromEntries(this.dialogueChannels),
+        dialogueVisible: this.dialogueVisible,
+        dialogueCharacterId: this.dialogueCharacterId,
+        dialogueWidthPercent: this.dialogueWidthPercent,
         loadedAssetKeys: this.assets.loadedKeys().sort(),
       };
     }
@@ -130,8 +141,50 @@ export class SceneDirector {
     return this.assets.isLoaded(assetReferenceKey(assetId, variationId));
   }
 
-  isDialogueVisible(channel = DEFAULT_DIALOGUE_CHANNEL): boolean {
-    return this.dialogueChannels.get(channel) ?? false;
+  isDialogueVisible(): boolean {
+    return this.dialogueVisible;
+  }
+
+  private cancelBackgroundTween(): void {
+    this.backgroundTweenAbort?.abort();
+    this.backgroundTweenAbort = null;
+  }
+
+  /** Abort an in-flight background fade and snap it to the end state. */
+  private settleBackgroundTransition(): void {
+    this.cancelBackgroundTween();
+    if (this.outgoing) this.finishBackgroundTransition();
+  }
+
+  private runBackgroundTween(
+    durationMs: number,
+    onUpdate: (progress: number) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const controller = new AbortController();
+    this.backgroundTweenAbort = controller;
+    const onAbort = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+
+    const run = async () => {
+      try {
+        await this.tween(durationMs, onUpdate, controller.signal);
+        if (this.backgroundTweenAbort === controller) {
+          this.backgroundTweenAbort = null;
+          this.finishBackgroundTransition();
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        throw error;
+      } finally {
+        signal?.removeEventListener("abort", onAbort);
+      }
+    };
+
+    if (this.skipTransitions) return run();
+    void run();
+    return Promise.resolve();
   }
 
   private notify(): void {
@@ -205,6 +258,7 @@ export class SceneDirector {
   async applyOp(op: SceneOp, signal?: AbortSignal): Promise<void> {
     switch (op.kind) {
       case "bg.show": {
+        this.settleBackgroundTransition();
         const previous = this.background;
         this.background = this.makeBackground(op.assetId, 1, { x: 0, y: 0 });
         this.releaseBackground(previous);
@@ -213,6 +267,7 @@ export class SceneDirector {
       }
 
       case "bg.clear": {
+        this.settleBackgroundTransition();
         this.releaseBackground(this.background);
         this.releaseBackground(this.outgoing);
         this.background = null;
@@ -222,11 +277,12 @@ export class SceneDirector {
       }
 
       case "bg.fade": {
+        this.settleBackgroundTransition();
         this.beginBackgroundTransition(op.assetId, { x: 0, y: 0 }, 0);
         const incoming = this.background;
         const outgoing = this.outgoing;
         this.notify();
-        await this.tween(
+        await this.runBackgroundTween(
           op.durationMs,
           (progress) => {
             if (incoming) incoming.opacity = progress;
@@ -234,11 +290,11 @@ export class SceneDirector {
           },
           signal
         );
-        this.finishBackgroundTransition();
         return;
       }
 
       case "bg.slideIn": {
+        this.settleBackgroundTransition();
         const offset = this.slideOffset(op.direction);
         this.beginBackgroundTransition(op.assetId, offset, 1);
         const incoming = this.background;
@@ -257,6 +313,7 @@ export class SceneDirector {
       }
 
       case "bg.slideOut": {
+        this.settleBackgroundTransition();
         const current = this.background;
         if (!current) return;
         const offset = this.slideOffset(op.direction);
@@ -296,6 +353,7 @@ export class SceneDirector {
           opacity: 1,
           zIndex: DEFAULT_PROP_Z,
           scale: 1,
+          highlighted: false,
         });
         this.notify();
         return;
@@ -429,14 +487,44 @@ export class SceneDirector {
         return;
       }
 
+      case "prop.highlight": {
+        const prop = this.requireProp(op.id, "highlight");
+        prop.highlighted = true;
+        this.notify();
+        return;
+      }
+
+      case "prop.unhighlight": {
+        const prop = this.requireProp(op.id, "remove the highlight from");
+        prop.highlighted = false;
+        this.notify();
+        return;
+      }
+
       case "dialogue.show": {
-        this.dialogueChannels.set(op.channel, true);
+        this.dialogueVisible = true;
+        this.dialogueCharacterId = op.characterId;
         this.notify();
         return;
       }
 
       case "dialogue.hide": {
-        this.dialogueChannels.set(op.channel, false);
+        this.dialogueVisible = false;
+        this.notify();
+        return;
+      }
+
+      case "dialogue.setWidth": {
+        if (
+          !Number.isInteger(op.widthPercent) ||
+          op.widthPercent < 1 ||
+          op.widthPercent > 100
+        ) {
+          throw new SceneActionError(
+            `Dialogue width must be an integer from 1 to 100 percent, got ${op.widthPercent}.`
+          );
+        }
+        this.dialogueWidthPercent = op.widthPercent;
         this.notify();
         return;
       }
@@ -473,10 +561,13 @@ export class SceneDirector {
 
   /** Drop the whole stage, releasing every asset reference. */
   reset(): void {
+    this.cancelBackgroundTween();
     this.props.clear();
     this.background = null;
     this.outgoing = null;
-    this.dialogueChannels.clear();
+    this.dialogueVisible = true;
+    this.dialogueCharacterId = undefined;
+    this.dialogueWidthPercent = DEFAULT_DIALOGUE_WIDTH_PERCENT;
     this.assets.releaseAll();
     this.notify();
   }

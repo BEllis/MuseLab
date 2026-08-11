@@ -122,6 +122,8 @@ export function createPropBridge(recorder: PromptInstructionRecorder) {
     setZ: (id: string, z: number) => recorder.scene({ kind: "prop.setZ", id, z }),
     setVariation: (id: string, variationId: string) =>
       recorder.scene({ kind: "prop.setVariation", id, variationId }),
+    highlight: (id: string) => recorder.scene({ kind: "prop.highlight", id }),
+    unhighlight: (id: string) => recorder.scene({ kind: "prop.unhighlight", id }),
   };
 
   return {
@@ -146,5 +148,7 @@ export function createPropBridge(recorder: PromptInstructionRecorder) {
     SetPositionXY: api.setPositionXY,
     SetZ: api.setZ,
     SetVariation: api.setVariation,
+    Highlight: api.highlight,
+    Unhighlight: api.unhighlight,
   };
 }

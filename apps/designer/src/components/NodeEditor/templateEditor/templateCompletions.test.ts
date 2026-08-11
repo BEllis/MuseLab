@@ -46,6 +46,30 @@ describe("templateCompletionSource", () => {
   it("suggests methods after binding dot inside @ block", () => {
     const result = source(createContext("Hello @rt."));
     expect(result?.options.some((o) => o.label === "GetString")).toBe(true);
+    expect(result?.from).toBe("Hello @rt.".length);
+  });
+
+  it("suggests Format methods after @Format.", () => {
+    const result = source(createContext("@Format."));
+    expect(result?.options.some((o) => o.label === "BoldStart")).toBe(true);
+    expect(result?.from).toBe("@Format.".length);
+  });
+
+  it("filters Format methods by the prefix after the dot", () => {
+    const result = source(createContext("@Format.Bo"));
+    expect(result?.from).toBe("@Format.".length);
+    expect(result?.options.some((o) => o.label === "BoldStart")).toBe(true);
+  });
+
+  it("suggests methods after a lowercase format alias", () => {
+    const result = source(createContext("@format."));
+    expect(result?.options.some((o) => o.label === "ItalicEnd")).toBe(true);
+  });
+
+  it("suggests methods after a nested binding in an @if condition", () => {
+    const result = source(createContext("@if (rt."));
+    expect(result?.options.some((o) => o.label === "GetBool")).toBe(true);
+    expect(result?.from).toBe("@if (rt.".length);
   });
 
   it("does not suggest after a space in literal text", () => {

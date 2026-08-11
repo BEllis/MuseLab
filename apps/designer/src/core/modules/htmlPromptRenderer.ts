@@ -43,8 +43,9 @@ export type PromptRenderer = {
   waitForContinue(): void;
   speakerBegin(): void;
   speakerEnd(): void;
-  showDialogue(channel: string): void;
-  hideDialogue(channel: string): void;
+  showDialogue(characterId?: string): void;
+  hideDialogue(): void;
+  setDialogueWidth(widthPercent: number): void;
   reset(): void;
   clear(): void;
   render(): string;
@@ -306,11 +307,18 @@ export function createHtmlPromptRenderer(
       speakerParts = null;
       recorder.updateSpeaker(speakerHtml);
     },
-    showDialogue(channel: string) {
-      recorder.scene({ kind: "dialogue.show", channel });
+    showDialogue(characterId?: string) {
+      recorder.scene(
+        characterId
+          ? { kind: "dialogue.show", characterId }
+          : { kind: "dialogue.show" }
+      );
     },
-    hideDialogue(channel: string) {
-      recorder.scene({ kind: "dialogue.hide", channel });
+    hideDialogue() {
+      recorder.scene({ kind: "dialogue.hide" });
+    },
+    setDialogueWidth(widthPercent: number) {
+      recorder.scene({ kind: "dialogue.setWidth", widthPercent });
     },
     reset() {
       parts.length = 0;
@@ -353,8 +361,9 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     waitForContinue: () => renderer.waitForContinue(),
     speakerBegin: () => renderer.speakerBegin(),
     speakerEnd: () => renderer.speakerEnd(),
-    showDialogue: (channel: string) => renderer.showDialogue(channel),
-    hideDialogue: (channel: string) => renderer.hideDialogue(channel),
+    showDialogue: (characterId?: string) => renderer.showDialogue(characterId),
+    hideDialogue: () => renderer.hideDialogue(),
+    setDialogueWidth: (widthPercent: number) => renderer.setDialogueWidth(widthPercent),
     reset: () => renderer.reset(),
     clear: () => renderer.clear(),
     render: () => renderer.render(),
@@ -371,8 +380,10 @@ export function createPromptRendererBridge(renderer: PromptRenderer) {
     WaitForContinue: () => renderer.waitForContinue(),
     SpeakerBegin: () => renderer.speakerBegin(),
     SpeakerEnd: () => renderer.speakerEnd(),
-    ShowDialogue: (channel: string) => renderer.showDialogue(channel),
-    HideDialogue: (channel: string) => renderer.hideDialogue(channel),
+    ShowDialogue: () => renderer.showDialogue(),
+    ShowDialogueAs: (characterId: string) => renderer.showDialogue(characterId),
+    HideDialogue: () => renderer.hideDialogue(),
+    SetDialogueWidth: (widthPercent: number) => renderer.setDialogueWidth(widthPercent),
     Reset: () => renderer.reset(),
     Clear: () => renderer.clear(),
     Render: () => renderer.render(),

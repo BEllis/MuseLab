@@ -29,6 +29,26 @@ describe("validateSceneActions", () => {
     expect(validateSceneActions(actions, { project })).toEqual([]);
   });
 
+  it("rejects highlighting a prop that was never added", () => {
+    const actions: SceneAction[] = [{ kind: "prop.highlight", id: "ghost" }];
+    const issues = validateSceneActions(actions, { project });
+    expect(issues[0]?.message).toMatch(/never added|no active prop|Call Prop\.Add/i);
+  });
+
+  it("rejects dialogue width outside 1-100", () => {
+    const issues = validateSceneActions(
+      [{ kind: "dialogue.setWidth", widthPercent: 150 }],
+      { project }
+    );
+    expect(issues[0]?.message).toMatch(/1 to 100/);
+  });
+
+  it("rejects a dialogue character that is not an actor", () => {
+    const actions: SceneAction[] = [{ kind: "dialogue.show", characterId: "bg-1" }];
+    const issues = validateSceneActions(actions, { project });
+    expect(issues.some((issue) => issue.message.includes("backdrop"))).toBe(true);
+  });
+
   it("rejects showing a prop that was never added", () => {
     const actions: SceneAction[] = [
       { kind: "prop.show", id: "ghost", position: { kind: "slot", slot: "Left" } },
@@ -57,8 +77,7 @@ describe("validateSceneActions", () => {
     const actions: SceneAction[] = [
       {
         kind: "dialogue.revealText",
-        channel: "main",
-        text: 'Hi @rt.GetString("name"). @if (rt.GetBool("flag")) { <i>ok</i> }',
+        text: 'Hi @rt.GetString("name")! @if (rt.GetBool("flag")) { <i>ok</i> }',
         reveal: { mode: "instant" },
       },
     ];
@@ -74,5 +93,30 @@ describe("validateSceneActions", () => {
     ];
     const issues = validateSceneActions(actions, { project });
     expect(issues.length).toBeGreaterThan(0);
+  });
+
+  it("rejects markup tags that wrap @ expressions", () => {
+    const actions: SceneAction[] = [
+      {
+        kind: "dialogue.revealText",
+        text: '<b>Hello @rt.GetString("name")</b>',
+        reveal: { mode: "instant" },
+      },
+    ];
+    const issues = validateSceneActions(actions, { project });
+    expect(issues.some((issue) => /crosses an @ expression|cannot wrap/i.test(issue.message))).toBe(
+      true
+    );
+  });
+
+  it("rejects unclosed markup in dialogue text", () => {
+    const actions: SceneAction[] = [
+      {
+        kind: "dialogue.setSpeaker",
+        text: "<b>Maya",
+      },
+    ];
+    const issues = validateSceneActions(actions, { project });
+    expect(issues.some((issue) => /Unclosed markup tag/i.test(issue.message))).toBe(true);
   });
 });

@@ -194,12 +194,25 @@ export function sceneActionToCito(
     case "prop.setVariation":
       lines.push(`prop.SetVariation(${lit(action.id)}, ${lit(action.variationId)});`);
       break;
+    case "prop.highlight":
+      lines.push(`prop.Highlight(${lit(action.id)});`);
+      break;
+    case "prop.unhighlight":
+      lines.push(`prop.Unhighlight(${lit(action.id)});`);
+      break;
 
     case "dialogue.show":
-      lines.push(`prompter.ShowDialogue(${lit(action.channel)});`);
+      if (action.characterId) {
+        lines.push(`prompter.ShowDialogueAs(${lit(action.characterId)});`);
+      } else {
+        lines.push("prompter.ShowDialogue();");
+      }
       break;
     case "dialogue.hide":
-      lines.push(`prompter.HideDialogue(${lit(action.channel)});`);
+      lines.push("prompter.HideDialogue();");
+      break;
+    case "dialogue.setWidth":
+      lines.push(`prompter.SetDialogueWidth(${Math.trunc(action.widthPercent)});`);
       break;
     case "dialogue.setSpeaker":
       lines.push("prompter.SpeakerBegin();");

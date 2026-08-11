@@ -3,8 +3,11 @@ import type { Direction, StagePosition } from "./positions";
 /** Default z layer for props added without an explicit SetZ. */
 export const DEFAULT_PROP_Z = 100;
 
-/** Dialogue channel used when an action does not name one. */
-export const DEFAULT_DIALOGUE_CHANNEL = "main";
+/** Extra scale applied to highlighted props. */
+export const PROP_HIGHLIGHT_SCALE = 1.08;
+
+/** Dialogue box width as a percent of stage width. */
+export const DEFAULT_DIALOGUE_WIDTH_PERCENT = 50;
 
 export type RevealSpec =
   | { mode: "instant" }
@@ -39,11 +42,14 @@ export type SceneAction =
   | { kind: "prop.setPosition"; id: string; position: StagePosition }
   | { kind: "prop.setZ"; id: string; z: number }
   | { kind: "prop.setVariation"; id: string; variationId: string }
+  | { kind: "prop.highlight"; id: string }
+  | { kind: "prop.unhighlight"; id: string }
   // Dialogue
-  | { kind: "dialogue.show"; channel: string }
-  | { kind: "dialogue.hide"; channel: string }
+  | { kind: "dialogue.show"; characterId?: string }
+  | { kind: "dialogue.hide" }
+  | { kind: "dialogue.setWidth"; widthPercent: number }
   | { kind: "dialogue.setSpeaker"; text: string }
-  | { kind: "dialogue.revealText"; channel: string; text: string; reveal: RevealSpec }
+  | { kind: "dialogue.revealText"; text: string; reveal: RevealSpec }
   | { kind: "dialogue.clear" }
   | { kind: "dialogue.reset" }
   // Control
@@ -83,8 +89,11 @@ export const SCENE_ACTION_KINDS: SceneActionKind[] = [
   "prop.setPosition",
   "prop.setZ",
   "prop.setVariation",
+  "prop.highlight",
+  "prop.unhighlight",
   "dialogue.show",
   "dialogue.hide",
+  "dialogue.setWidth",
   "dialogue.setSpeaker",
   "dialogue.revealText",
   "dialogue.clear",
@@ -163,16 +172,20 @@ export function createSceneAction(kind: SceneActionKind): SceneAction {
       return { kind, id: "", z: DEFAULT_PROP_Z };
     case "prop.setVariation":
       return { kind, id: "", variationId: "" };
+    case "prop.highlight":
+    case "prop.unhighlight":
+      return { kind, id: "" };
     case "dialogue.show":
-      return { kind, channel: DEFAULT_DIALOGUE_CHANNEL };
+      return { kind };
     case "dialogue.hide":
-      return { kind, channel: DEFAULT_DIALOGUE_CHANNEL };
+      return { kind };
+    case "dialogue.setWidth":
+      return { kind, widthPercent: DEFAULT_DIALOGUE_WIDTH_PERCENT };
     case "dialogue.setSpeaker":
       return { kind, text: "" };
     case "dialogue.revealText":
       return {
         kind,
-        channel: DEFAULT_DIALOGUE_CHANNEL,
         text: "",
         reveal: defaultRevealSpec(),
       };

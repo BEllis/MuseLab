@@ -64,6 +64,10 @@ function StagePropImage({
         opacity: prop.opacity,
         zIndex: prop.zIndex,
         pointerEvents: "none",
+        filter: prop.highlighted ? "brightness(1.18) saturate(1.08)" : undefined,
+        outline: prop.highlighted ? "3px solid rgba(255, 236, 160, 0.95)" : undefined,
+        outlineOffset: prop.highlighted ? "4px" : undefined,
+        transition: "transform 160ms ease, filter 160ms ease, outline-color 160ms ease",
       }}
     />
   );

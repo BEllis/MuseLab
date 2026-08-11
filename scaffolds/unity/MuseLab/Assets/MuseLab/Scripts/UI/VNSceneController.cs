@@ -36,6 +36,7 @@ namespace MuseLab.UI
         Button restartButton;
 
         bool promptComplete = true;
+        bool dialogueWantsPanel;
         RuntimeState currentState;
         string entryNodeId;
         string lastSceneNodeId;
@@ -186,11 +187,23 @@ namespace MuseLab.UI
                     ? propState.AssetId
                     : propState.AssetId;
                 image.sprite = AssetLoader.LoadSprite(export.RootPath, assetId);
-                var color = image.color;
-                color.a = propState.Opacity;
-                image.color = color;
+                image.color = propState.Highlighted
+                    ? new Color(1.18f, 1.18f, 1.05f, propState.Opacity)
+                    : new Color(1f, 1f, 1f, propState.Opacity);
                 image.gameObject.SetActive(propState.Visible);
                 image.transform.SetSiblingIndex(propState.ZIndex);
+                var outline = image.GetComponent<Outline>();
+                if (propState.Highlighted)
+                {
+                    if (outline == null) outline = image.gameObject.AddComponent<Outline>();
+                    outline.enabled = true;
+                    outline.effectColor = new Color(1f, 0.925f, 0.63f, 0.95f);
+                    outline.effectDistance = new Vector2(4f, -4f);
+                }
+                else if (outline != null)
+                {
+                    outline.enabled = false;
+                }
                 PositionProp(image.rectTransform, propState);
             }
 
@@ -203,12 +216,27 @@ namespace MuseLab.UI
             }
             foreach (var id in stale) propImages.Remove(id);
 
-            var dialogueVisible = !snapshot.DialogueChannels.TryGetValue(SceneDirector.DefaultDialogueChannel, out var shown) || shown;
-            if (dialoguePanel != null && currentState != null)
-            {
-                // Keep panel if dialogue text exists; scene ops can hide the channel.
-                if (!dialogueVisible) dialoguePanel.gameObject.SetActive(false);
-            }
+            SyncDialoguePanel();
+        }
+
+        void SyncDialoguePanel()
+        {
+            if (dialoguePanel == null) return;
+            var snapshot = sceneDirector?.GetSnapshot();
+            var visible = snapshot == null || snapshot.DialogueVisible;
+            dialoguePanel.gameObject.SetActive(visible && dialogueWantsPanel);
+            LayoutDialoguePanel(snapshot?.DialogueWidthPercent ?? SceneDirector.DefaultDialogueWidthPercent);
+        }
+
+        void LayoutDialoguePanel(int widthPercent)
+        {
+            var fraction = widthPercent / 100f;
+            var half = fraction / 2f;
+            dialoguePanel.anchorMin = new Vector2(0.5f - half, 0f);
+            dialoguePanel.anchorMax = new Vector2(0.5f + half, 0f);
+            dialoguePanel.pivot = new Vector2(0.5f, 0f);
+            dialoguePanel.offsetMin = Vector2.zero;
+            dialoguePanel.offsetMax = new Vector2(0f, MuseLabUiStyles.DialoguePanelHeight);
         }
 
         void ApplyBackgroundImage(Image image, SceneBackgroundState state)
@@ -237,7 +265,10 @@ namespace MuseLab.UI
             var size = stageRoot.rect.size;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(220, 360) * propState.Scale;
+            var scale = propState.Highlighted
+                ? propState.Scale * SceneDirector.HighlightScale
+                : propState.Scale;
+            rt.sizeDelta = new Vector2(220, 360) * scale;
             rt.anchoredPosition = new Vector2(
                 (float)((propState.X / StageCoords.Width) - 0.5) * size.x,
                 (float)((propState.Y / StageCoords.Height) - 0.5) * size.y);
@@ -325,7 +356,8 @@ namespace MuseLab.UI
             var hasDialogue = DialoguePlainText.HasVisibleText(html) || DialoguePlainText.HasVisibleText(speaker);
             var singleImplicitContinue = state.GetChoiceCount() == 1
                 && string.IsNullOrEmpty(state.GetChoice(0).GetOptionText());
-            dialoguePanel.gameObject.SetActive(hasDialogue || singleImplicitContinue || state.GetIsTerminalScene());
+            dialogueWantsPanel = hasDialogue || singleImplicitContinue || state.GetIsTerminalScene();
+            SyncDialoguePanel();
 
             if (!hasDialogue)
             {
@@ -437,11 +469,7 @@ namespace MuseLab.UI
             choiceLayout.childForceExpandWidth = true;
 
             dialoguePanel = CreateRect(stageRoot, "DialoguePanel");
-            dialoguePanel.anchorMin = Vector2.zero;
-            dialoguePanel.anchorMax = new Vector2(1, 0);
-            dialoguePanel.pivot = new Vector2(0.5f, 0);
-            dialoguePanel.offsetMin = Vector2.zero;
-            dialoguePanel.offsetMax = new Vector2(0, MuseLabUiStyles.DialoguePanelHeight);
+            LayoutDialoguePanel(SceneDirector.DefaultDialogueWidthPercent);
             var dialogueBg = dialoguePanel.gameObject.AddComponent<Image>();
             dialogueBg.sprite = UiSpriteFactory.CreateVerticalGradient(
                 4,

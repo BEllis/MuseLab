@@ -1,7 +1,7 @@
 import type { Asset, Project } from "../model/types";
 import type { SceneAction } from "./actions";
 import { isVectorInBounds, STAGE_HEIGHT, STAGE_WIDTH, type StagePosition } from "./positions";
-import { validateDialogueText } from "./dialogueText";
+import { validateDialogueTextIssues } from "./dialogueText";
 
 export type SceneActionIssue = {
   index: number;
@@ -192,20 +192,42 @@ export function validateSceneActions(
         }
         break;
       }
+      case "prop.highlight":
+        requireProp(index, action.id, "highlight");
+        break;
+      case "prop.unhighlight":
+        requireProp(index, action.id, "remove the highlight from");
+        break;
 
       case "dialogue.revealText": {
-        push(index, validateDialogueText(action.text, project));
+        for (const issue of validateDialogueTextIssues(action.text, project)) {
+          push(index, issue.message);
+        }
         if (action.reveal.mode === "charsOverTime" || action.reveal.mode === "wordsOverTime") {
           push(index, durationIssue(action.reveal.durationMs));
         }
         break;
       }
       case "dialogue.setSpeaker":
-        push(index, validateDialogueText(action.text, project));
+        for (const issue of validateDialogueTextIssues(action.text, project)) {
+          push(index, issue.message);
+        }
         break;
       case "dialogue.show":
+        if (action.characterId) {
+          push(index, assetIssue(project, action.characterId, "actor"));
+        }
+        break;
       case "dialogue.hide":
-        if (!action.channel) push(index, "Enter a dialogue channel name.");
+        break;
+      case "dialogue.setWidth":
+        if (
+          !Number.isInteger(action.widthPercent) ||
+          action.widthPercent < 1 ||
+          action.widthPercent > 100
+        ) {
+          push(index, "Dialogue width must be an integer from 1 to 100 percent.");
+        }
         break;
       case "dialogue.clear":
       case "dialogue.reset":

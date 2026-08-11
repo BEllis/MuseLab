@@ -79,4 +79,12 @@ public class MuseLabProp
     public void SetVariation(string id, string variationId)
     {
     }
+
+    public void Highlight(string id)
+    {
+    }
+
+    public void Unhighlight(string id)
+    {
+    }
 }

@@ -96,6 +96,7 @@ const noopTimingMethods = {
   speakerEnd: () => undefined,
   showDialogue: () => undefined,
   hideDialogue: () => undefined,
+  setDialogueWidth: () => undefined,
   reset: () => undefined,
   clear: () => undefined,
 };

@@ -166,5 +166,11 @@ namespace MuseLab.Bridge
                 Id = id,
                 VariationId = variationId,
             });
+
+        public override void Highlight(string id) =>
+            recorder.Scene(new SceneOp { Kind = SceneOpKind.PropHighlight, Id = id });
+
+        public override void Unhighlight(string id) =>
+            recorder.Scene(new SceneOp { Kind = SceneOpKind.PropUnhighlight, Id = id });
     }
 }

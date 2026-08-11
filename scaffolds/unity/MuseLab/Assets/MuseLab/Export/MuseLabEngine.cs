@@ -103,9 +103,13 @@ public abstract class IMuseLabPromptRenderer
 
 	public abstract void SpeakerEnd();
 
-	public abstract void ShowDialogue(string channel);
+	public abstract void ShowDialogue();
 
-	public abstract void HideDialogue(string channel);
+	public abstract void ShowDialogueAs(string characterId);
+
+	public abstract void HideDialogue();
+
+	public abstract void SetDialogueWidth(int widthPercent);
 
 	public abstract void Reset();
 
@@ -170,6 +174,10 @@ public abstract class IMuseLabProp
 	public abstract void SetZ(string id, int z);
 
 	public abstract void SetVariation(string id, string variationId);
+
+	public abstract void Highlight(string id);
+
+	public abstract void Unhighlight(string id);
 }
 
 public class RuntimeChoices

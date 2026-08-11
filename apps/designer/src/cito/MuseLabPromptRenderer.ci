@@ -48,11 +48,19 @@ public class MuseLabPromptRenderer
     {
     }
 
-    public void ShowDialogue(string channel)
+    public void ShowDialogue()
     {
     }
 
-    public void HideDialogue(string channel)
+    public void ShowDialogueAs(string characterId)
+    {
+    }
+
+    public void HideDialogue()
+    {
+    }
+
+    public void SetDialogueWidth(int widthPercent)
     {
     }
 

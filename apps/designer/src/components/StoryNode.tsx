@@ -4,6 +4,7 @@ import { useProjectStore } from "@/store/projectStore";
 import { useActiveStory } from "@/hooks/useActiveStory";
 import { SceneStagePreview } from "@/components/SceneStagePreview";
 import { getNodeDisplayName } from "@/core/model/nodeNames";
+import { openSceneNodePrompt } from "@/x6/openSceneNodePrompt";
 
 export type StoryNodeData = {
   type?: "start" | "scene" | "jump";
@@ -108,7 +109,15 @@ export function StoryNodeView({ node }: { node: Node }) {
   });
 
   return (
-    <div ref={rootRef} onClick={(e) => e.stopPropagation()}>
+    <div
+      ref={rootRef}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        openSceneNodePrompt(null, node.id, "edit");
+      }}
+    >
       <SceneNodeBody
         label={label}
         selected={selected}

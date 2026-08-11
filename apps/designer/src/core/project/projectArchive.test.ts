@@ -35,10 +35,10 @@ describe("projectArchive localization", () => {
       de: createEmptyLocalePrompts(),
     };
     setNodeActions(promptsByLocale.en, storyId, nodeId, [
-      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hello", reveal: { mode: "instant" } },
     ]);
     setNodeActions(promptsByLocale.de, storyId, nodeId, [
-      { kind: "dialogue.revealText", channel: "main", text: "Hallo", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hallo", reveal: { mode: "instant" } },
     ]);
 
     const archive = await packProjectArchive({ project, promptsByLocale });
@@ -59,12 +59,12 @@ describe("projectArchive localization", () => {
     expect(
       getNodeActionsForLocale(bundle.promptsByLocale, "en", restoredStoryId, nodeId)
     ).toEqual([
-      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hello", reveal: { mode: "instant" } },
     ]);
     expect(
       getNodeActionsForLocale(bundle.promptsByLocale, "de", restoredStoryId, nodeId)
     ).toEqual([
-      { kind: "dialogue.revealText", channel: "main", text: "Hallo", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hallo", reveal: { mode: "instant" } },
     ]);
   });
 
@@ -116,10 +116,10 @@ describe("projectArchive localization", () => {
 
     const promptsByLocale = { en: createEmptyLocalePrompts() };
     setNodeActions(promptsByLocale.en, firstStory!.id, firstStory!.nodes[0]!.id, [
-      { kind: "dialogue.revealText", channel: "main", text: "First", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "First", reveal: { mode: "instant" } },
     ]);
     setNodeActions(promptsByLocale.en, secondStory!.id, secondStory!.nodes[0]!.id, [
-      { kind: "dialogue.revealText", channel: "main", text: "Second", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Second", reveal: { mode: "instant" } },
     ]);
 
     const archive = await packProjectArchive({ project, promptsByLocale });
@@ -140,7 +140,7 @@ describe("projectArchive localization", () => {
         restoredFirst.nodes[0]!.id
       )
     ).toEqual([
-      { kind: "dialogue.revealText", channel: "main", text: "First", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "First", reveal: { mode: "instant" } },
     ]);
     expect(
       getNodeActionsForLocale(
@@ -150,7 +150,7 @@ describe("projectArchive localization", () => {
         restoredSecond.nodes[0]!.id
       )
     ).toEqual([
-      { kind: "dialogue.revealText", channel: "main", text: "Second", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Second", reveal: { mode: "instant" } },
     ]);
   });
 

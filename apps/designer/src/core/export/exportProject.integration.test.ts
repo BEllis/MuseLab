@@ -27,8 +27,8 @@ describe("exportProject integration", () => {
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
     setNodeActions(promptsByLocale.en, "story-main", "scene-main", [
       { kind: "bg.show", assetId: "muselab-default-backdrop" },
-      { kind: "dialogue.show", channel: "main" },
-      { kind: "dialogue.revealText", channel: "main", text: "Welcome", reveal: { mode: "instant" } },
+      { kind: "dialogue.show" },
+      { kind: "dialogue.revealText", text: "Welcome", reveal: { mode: "instant" } },
       { kind: "waitForContinue" },
     ]);
 

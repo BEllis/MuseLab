@@ -92,7 +92,6 @@ function createScriptFixtureBundle() {
     { kind: "dialogue.setSpeaker", text: "Maya" },
     {
       kind: "dialogue.revealText",
-      channel: "main",
       text: "Rain.",
       reveal: { mode: "instant" },
     },

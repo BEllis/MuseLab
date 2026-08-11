@@ -1,5 +1,4 @@
 import type { Project, SceneAction, StoryNode } from "@/core/model/types";
-import { DEFAULT_DIALOGUE_CHANNEL } from "@/core/scene/actions";
 import type { AssetDragData } from "@/utils/dragDrop";
 import { getDefaultExpressionId } from "./actorExpressions";
 
@@ -52,7 +51,7 @@ export function assetDropForNode(
         actions: [
           { kind: "prop.add", id, assetId: data.assetId, variationId },
           { kind: "prop.show", id, position: { kind: "slot", slot: "Centre" } },
-          { kind: "dialogue.show", channel: DEFAULT_DIALOGUE_CHANNEL },
+          { kind: "dialogue.show" },
         ],
       };
     }

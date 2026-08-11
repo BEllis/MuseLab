@@ -96,18 +96,24 @@ namespace MuseLab.Bridge
             recorder.UpdateSpeaker(speakerHtml);
         }
 
-        public override void ShowDialogue(string channel) =>
+        public override void ShowDialogue() =>
+            recorder.Scene(new SceneOp { Kind = SceneOpKind.DialogueShow });
+
+        public override void ShowDialogueAs(string characterId) =>
             recorder.Scene(new SceneOp
             {
                 Kind = SceneOpKind.DialogueShow,
-                Channel = channel,
+                CharacterId = characterId,
             });
 
-        public override void HideDialogue(string channel) =>
+        public override void HideDialogue() =>
+            recorder.Scene(new SceneOp { Kind = SceneOpKind.DialogueHide });
+
+        public override void SetDialogueWidth(int widthPercent) =>
             recorder.Scene(new SceneOp
             {
-                Kind = SceneOpKind.DialogueHide,
-                Channel = channel,
+                Kind = SceneOpKind.DialogueSetWidth,
+                WidthPercent = widthPercent,
             });
 
         public override void Reset()

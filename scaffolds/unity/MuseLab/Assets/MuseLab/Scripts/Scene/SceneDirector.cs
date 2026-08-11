@@ -18,6 +18,7 @@ namespace MuseLab.Scene
         public float Opacity = 1f;
         public int ZIndex = 100;
         public float Scale = 1f;
+        public bool Highlighted;
     }
 
     public class SceneBackgroundState
@@ -34,7 +35,9 @@ namespace MuseLab.Scene
         public SceneBackgroundState Background;
         public SceneBackgroundState OutgoingBackground;
         public List<ScenePropState> Props = new();
-        public Dictionary<string, bool> DialogueChannels = new();
+        public bool DialogueVisible = true;
+        public string DialogueCharacterId;
+        public int DialogueWidthPercent = SceneDirector.DefaultDialogueWidthPercent;
         public List<string> LoadedAssetKeys = new();
     }
 
@@ -50,16 +53,21 @@ namespace MuseLab.Scene
     public class SceneDirector
     {
         public const int DefaultPropZ = 100;
-        public const string DefaultDialogueChannel = "main";
+        public const float HighlightScale = 1.08f;
+        public const int DefaultDialogueWidthPercent = 50;
 
         readonly Dictionary<string, ScenePropState> props = new();
-        readonly Dictionary<string, bool> dialogueChannels = new();
         readonly AssetReferenceCounter assets;
         readonly MonoBehaviour host;
         readonly bool skipTransitions;
 
         SceneBackgroundState background;
         SceneBackgroundState outgoing;
+        bool dialogueVisible = true;
+        string dialogueCharacterId;
+        int dialogueWidthPercent = DefaultDialogueWidthPercent;
+        Coroutine backgroundTween;
+        int backgroundTweenGeneration;
 
         public event Action Changed;
 
@@ -89,8 +97,9 @@ namespace MuseLab.Scene
                 var z = a.ZIndex.CompareTo(b.ZIndex);
                 return z != 0 ? z : string.CompareOrdinal(a.Id, b.Id);
             });
-            foreach (var entry in dialogueChannels)
-                snapshot.DialogueChannels[entry.Key] = entry.Value;
+            snapshot.DialogueVisible = dialogueVisible;
+            snapshot.DialogueCharacterId = dialogueCharacterId;
+            snapshot.DialogueWidthPercent = dialogueWidthPercent;
             return snapshot;
         }
 
@@ -100,6 +109,7 @@ namespace MuseLab.Scene
             {
                 case SceneOpKind.BgShow:
                 {
+                    SettleBackgroundTransition();
                     var previous = background;
                     background = MakeBackground(op.AssetId, 1f, 0, 0);
                     ReleaseBackground(previous);
@@ -107,6 +117,7 @@ namespace MuseLab.Scene
                     yield break;
                 }
                 case SceneOpKind.BgClear:
+                    SettleBackgroundTransition();
                     ReleaseBackground(background);
                     ReleaseBackground(outgoing);
                     background = null;
@@ -115,20 +126,29 @@ namespace MuseLab.Scene
                     yield break;
                 case SceneOpKind.BgFade:
                 {
+                    SettleBackgroundTransition();
                     BeginBackgroundTransition(op.AssetId, 0, 0, 0f);
                     var incoming = background;
                     var outgoingBg = outgoing;
                     Notify();
-                    yield return Tween(op.DurationMs, progress =>
+                    if (skipTransitions)
                     {
-                        if (incoming != null) incoming.Opacity = progress;
-                        if (outgoingBg != null) outgoingBg.Opacity = 1f - progress;
-                    });
-                    FinishBackgroundTransition();
+                        yield return Tween(op.DurationMs, progress =>
+                        {
+                            if (incoming != null) incoming.Opacity = progress;
+                            if (outgoingBg != null) outgoingBg.Opacity = 1f - progress;
+                        });
+                        FinishBackgroundTransition();
+                        yield break;
+                    }
+
+                    var generation = backgroundTweenGeneration;
+                    backgroundTween = host.StartCoroutine(RunBackgroundFade(incoming, outgoingBg, op.DurationMs, generation));
                     yield break;
                 }
                 case SceneOpKind.BgSlideIn:
                 {
+                    SettleBackgroundTransition();
                     var offset = SlideOffset(op.Direction);
                     BeginBackgroundTransition(op.AssetId, offset.x, offset.y, 1f);
                     var incoming = background;
@@ -144,6 +164,7 @@ namespace MuseLab.Scene
                 }
                 case SceneOpKind.BgSlideOut:
                 {
+                    SettleBackgroundTransition();
                     var current = background;
                     if (current == null) yield break;
                     var offset = SlideOffset(op.Direction);
@@ -179,6 +200,7 @@ namespace MuseLab.Scene
                         Opacity = 1f,
                         ZIndex = DefaultPropZ,
                         Scale = 1f,
+                        Highlighted = false,
                     };
                     Notify();
                     yield break;
@@ -310,12 +332,34 @@ namespace MuseLab.Scene
                     Notify();
                     yield break;
                 }
+                case SceneOpKind.PropHighlight:
+                {
+                    var prop = RequireProp(op.Id, "highlight");
+                    prop.Highlighted = true;
+                    Notify();
+                    yield break;
+                }
+                case SceneOpKind.PropUnhighlight:
+                {
+                    var prop = RequireProp(op.Id, "remove the highlight from");
+                    prop.Highlighted = false;
+                    Notify();
+                    yield break;
+                }
                 case SceneOpKind.DialogueShow:
-                    dialogueChannels[op.Channel ?? DefaultDialogueChannel] = true;
+                    dialogueVisible = true;
+                    dialogueCharacterId = string.IsNullOrEmpty(op.CharacterId) ? null : op.CharacterId;
                     Notify();
                     yield break;
                 case SceneOpKind.DialogueHide:
-                    dialogueChannels[op.Channel ?? DefaultDialogueChannel] = false;
+                    dialogueVisible = false;
+                    Notify();
+                    yield break;
+                case SceneOpKind.DialogueSetWidth:
+                    if (op.WidthPercent < 1 || op.WidthPercent > 100)
+                        throw new SceneActionException(
+                            $"Dialogue width must be an integer from 1 to 100 percent, got {op.WidthPercent}.");
+                    dialogueWidthPercent = op.WidthPercent;
                     Notify();
                     yield break;
                 default:
@@ -339,12 +383,45 @@ namespace MuseLab.Scene
 
         public void Reset()
         {
+            CancelBackgroundTween();
             props.Clear();
             background = null;
             outgoing = null;
-            dialogueChannels.Clear();
+            dialogueVisible = true;
+            dialogueCharacterId = null;
+            dialogueWidthPercent = DefaultDialogueWidthPercent;
             assets.ReleaseAll();
             Notify();
+        }
+
+        IEnumerator RunBackgroundFade(
+            SceneBackgroundState incoming,
+            SceneBackgroundState outgoingBg,
+            int durationMs,
+            int generation)
+        {
+            yield return Tween(durationMs, progress =>
+            {
+                if (incoming != null) incoming.Opacity = progress;
+                if (outgoingBg != null) outgoingBg.Opacity = 1f - progress;
+            });
+            if (generation != backgroundTweenGeneration) yield break;
+            backgroundTween = null;
+            FinishBackgroundTransition();
+        }
+
+        void CancelBackgroundTween()
+        {
+            backgroundTweenGeneration++;
+            if (backgroundTween == null) return;
+            host.StopCoroutine(backgroundTween);
+            backgroundTween = null;
+        }
+
+        void SettleBackgroundTransition()
+        {
+            CancelBackgroundTween();
+            if (outgoing != null) FinishBackgroundTransition();
         }
 
         IEnumerator Tween(int durationMs, Action<float> onUpdate)
@@ -448,6 +525,7 @@ namespace MuseLab.Scene
                 Opacity = source.Opacity,
                 ZIndex = source.ZIndex,
                 Scale = source.Scale,
+                Highlighted = source.Highlighted,
             };
     }
 }

@@ -104,6 +104,24 @@ export function ActionPillEditor({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, gap: "8px", ...style }}>
+      {issues.length > 0 && (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            padding: "6px 8px",
+            borderRadius: 6,
+            background: "rgba(180, 83, 9, 0.12)",
+            color: "#b45309",
+            fontSize: "12px",
+            lineHeight: 1.4,
+          }}
+        >
+          {issues.length === 1
+            ? "1 action needs attention before this scene can run cleanly."
+            : `${issues.length} action issues need attention before this scene can run cleanly.`}
+        </p>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
         {KINDS_BY_GROUP.map(({ group, kinds }) => (
           <div key={group} style={{ position: "relative" }}>

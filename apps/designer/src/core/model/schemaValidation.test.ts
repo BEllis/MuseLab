@@ -176,7 +176,6 @@ describe("MuseLab JSON schemas", () => {
                     { kind: "dialogue.setSpeaker", text: "Narrator" },
                     {
                       kind: "dialogue.revealText",
-                      channel: "main",
                       text: "The rain hasn't stopped for three days.",
                       reveal: { mode: "instant" },
                     },
@@ -261,7 +260,6 @@ describe("MuseLab JSON schemas", () => {
                 { kind: "dialogue.setSpeaker", text: "Maya" },
                 {
                   kind: "dialogue.revealText",
-                  channel: "main",
                   text: "Hello",
                   reveal: { mode: "instant" },
                 },

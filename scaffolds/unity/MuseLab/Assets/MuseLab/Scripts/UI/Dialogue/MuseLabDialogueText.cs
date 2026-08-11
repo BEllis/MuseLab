@@ -16,6 +16,7 @@ namespace MuseLab.UI.Dialogue
 
         TMP_Text measureText;
         TMP_Text visibleText;
+        TMP_Text continueHint;
         RectTransform viewport;
         RectTransform textRect;
 
@@ -79,6 +80,23 @@ namespace MuseLab.UI.Dialogue
             Stretch(textRect);
 
             glyphEffects = visibleGo.AddComponent<DialogueGlyphEffects>();
+
+            var hintGo = new GameObject("ContinueHint", typeof(RectTransform), typeof(TextMeshProUGUI));
+            hintGo.transform.SetParent(transform, false);
+            continueHint = hintGo.GetComponent<TextMeshProUGUI>();
+            continueHint.fontSize = 13;
+            continueHint.color = MuseLabUiStyles.TextDark;
+            continueHint.alignment = TextAlignmentOptions.BottomRight;
+            continueHint.text = "Continue ››";
+            continueHint.raycastTarget = false;
+            continueHint.richText = false;
+            TmpFontHelper.ApplyDefaultFont(continueHint);
+            var hintRt = hintGo.GetComponent<RectTransform>();
+            hintRt.anchorMin = hintRt.anchorMax = new Vector2(1f, 0f);
+            hintRt.pivot = new Vector2(1f, 0f);
+            hintRt.anchoredPosition = new Vector2(-4f, 2f);
+            hintRt.sizeDelta = new Vector2(140f, 22f);
+            hintGo.SetActive(false);
         }
 
         static void ConfigureTmp(TMP_Text tmp)
@@ -117,11 +135,11 @@ namespace MuseLab.UI.Dialogue
 
         void RefreshHintDisplay()
         {
+            if (continueHint != null)
+                continueHint.gameObject.SetActive(showContinueHint);
             if (string.IsNullOrEmpty(currentMarkup)) return;
             var tmpString = tmpRenderer.BuildTmpString(document.Glyphs);
-            visibleText.text = showContinueHint
-                ? DialogueLayoutEngine.AppendInlineDialogueMoreHint(tmpString)
-                : tmpString;
+            visibleText.text = tmpString;
             visibleText.ForceMeshUpdate();
         }
 

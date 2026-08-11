@@ -344,15 +344,29 @@ const PROMPT_RENDERER_METHODS: ModuleMethod[] = [
   },
   {
     name: "ShowDialogue",
-    parameters: [{ name: "channel", type: "string" }],
+    parameters: [],
     returnType: "void",
-    description: "Show the dialogue box for a channel at this point in the prompt stream.",
+    description: "Show the dialogue box at this point in the prompt stream.",
+  },
+  {
+    name: "ShowDialogueAs",
+    parameters: [{ name: "characterId", type: "string" }],
+    returnType: "void",
+    description:
+      "Show the dialogue box and associate it with a character for later theming.",
   },
   {
     name: "HideDialogue",
-    parameters: [{ name: "channel", type: "string" }],
+    parameters: [],
     returnType: "void",
-    description: "Hide the dialogue box for a channel at this point in the prompt stream.",
+    description: "Hide the dialogue box at this point in the prompt stream.",
+  },
+  {
+    name: "SetDialogueWidth",
+    parameters: [{ name: "widthPercent", type: "int" }],
+    returnType: "void",
+    description:
+      "Set the dialogue box width as a percent of the stage (1-100). Default is 50.",
   },
   {
     name: "Reset",
@@ -610,6 +624,18 @@ const PROP_METHODS: ModuleMethod[] = [
     returnType: "void",
     description:
       "Swap the rendered variation or expression, preserving visibility, position, z layer, and opacity.",
+  },
+  {
+    name: "Highlight",
+    parameters: [{ name: "id", type: "string" }],
+    returnType: "void",
+    description: "Emphasize a prop with a glow and slight scale-up. Multiple props may be highlighted.",
+  },
+  {
+    name: "Unhighlight",
+    parameters: [{ name: "id", type: "string" }],
+    returnType: "void",
+    description: "Remove the highlight from a prop.",
   },
 ];
 

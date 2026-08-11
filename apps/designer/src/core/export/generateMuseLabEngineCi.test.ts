@@ -37,7 +37,7 @@ describe("generateMuseLabEngineCi", () => {
     const project = makeExportProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
     setNodeActions(promptsByLocale.en, "story-1", "scene-1", [
-      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hello", reveal: { mode: "instant" } },
     ]);
     setEdgeOptionText(promptsByLocale.en, "story-1", "edge-1", "Continue");
 

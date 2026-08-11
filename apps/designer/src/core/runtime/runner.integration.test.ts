@@ -68,10 +68,9 @@ describe("createRunner cito template integration", () => {
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
     setNodeActions(promptsByLocale.en, "story-1", "scene-a", [
       { kind: "dialogue.setSpeaker", text: "Ada" },
-      { kind: "dialogue.show", channel: "main" },
+      { kind: "dialogue.show" },
       {
         kind: "dialogue.revealText",
-        channel: "main",
         text: "Hello Ada!",
         reveal: { mode: "instant" },
       },

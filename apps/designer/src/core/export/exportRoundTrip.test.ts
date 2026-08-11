@@ -65,7 +65,7 @@ describe("export round-trip", () => {
     const project = makeRoundTripProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
     setNodeActions(promptsByLocale.en, "story-main", "scene-main", [
-      { kind: "dialogue.revealText", channel: "main", text: "Hello", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hello", reveal: { mode: "instant" } },
     ]);
 
     const ci = generateMuseLabEngineCi({ project, promptsByLocale });
@@ -81,7 +81,7 @@ describe("export round-trip", () => {
     const project = makeRoundTripProject();
     const promptsByLocale = createEmptyPromptsByLocale(project.locales);
     setNodeActions(promptsByLocale.en, "story-main", "scene-main", [
-      { kind: "dialogue.revealText", channel: "main", text: "Exported", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Exported", reveal: { mode: "instant" } },
     ]);
 
     const bundle = { project, promptsByLocale };
@@ -117,7 +117,7 @@ describe("export round-trip", () => {
         restoredSceneId!
       )
     ).toEqual([
-      { kind: "dialogue.revealText", channel: "main", text: "Exported", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Exported", reveal: { mode: "instant" } },
     ]);
   });
 });

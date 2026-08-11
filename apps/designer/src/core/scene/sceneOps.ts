@@ -10,13 +10,15 @@ export type SceneOp =
   | Extract<SceneAction, { kind: `bg.${string}` }>
   | Extract<SceneAction, { kind: `prop.${string}` }>
   | Extract<SceneAction, { kind: "dialogue.show" }>
-  | Extract<SceneAction, { kind: "dialogue.hide" }>;
+  | Extract<SceneAction, { kind: "dialogue.hide" }>
+  | Extract<SceneAction, { kind: "dialogue.setWidth" }>;
 
 export function isSceneOpKind(kind: string): boolean {
   return (
     kind.startsWith("bg.") ||
     kind.startsWith("prop.") ||
     kind === "dialogue.show" ||
-    kind === "dialogue.hide"
+    kind === "dialogue.hide" ||
+    kind === "dialogue.setWidth"
   );
 }

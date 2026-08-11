@@ -29,11 +29,10 @@ describe("compileSceneActions", () => {
       { kind: "bg.show", assetId: "bg-1" },
       { kind: "prop.add", id: "maya", assetId: "actor-1", variationId: "expr-happy" },
       { kind: "prop.show", id: "maya", position: { kind: "slot", slot: "Left" } },
-      { kind: "dialogue.show", channel: "main" },
+      { kind: "dialogue.show" },
       { kind: "dialogue.setSpeaker", text: "Maya" },
       {
         kind: "dialogue.revealText",
-        channel: "main",
         text: "Hello <b>world</b>",
         reveal: { mode: "instant" },
       },
@@ -44,7 +43,7 @@ describe("compileSceneActions", () => {
     expect(compiled.ciSource).toContain('bg.Show("bg-1");');
     expect(compiled.ciSource).toContain('prop.AddVariant("maya", "actor-1", "expr-happy");');
     expect(compiled.ciSource).toContain('prop.ShowAt("maya", "Left");');
-    expect(compiled.ciSource).toContain('prompter.ShowDialogue("main");');
+    expect(compiled.ciSource).toContain('prompter.ShowDialogue();');
     expect(compiled.ciSource).toContain("prompter.SpeakerBegin();");
     expect(compiled.ciSource).toContain('prompter.AddLiteral("Maya");');
     expect(compiled.ciSource).toContain("prompter.SpeakerEnd();");
@@ -52,6 +51,29 @@ describe("compileSceneActions", () => {
     expect(compiled.ciSource).toContain('prompter.AddLiteral("world")');
     expect(compiled.ciSource).toContain("format.BoldEnd()");
     expect(compiled.ciSource).toContain("prompter.WaitForContinue();");
+  });
+
+  it("compiles character-linked dialogue show and prop highlight", () => {
+    const actions: SceneAction[] = [
+      { kind: "prop.add", id: "maya", assetId: "actor-1" },
+      { kind: "prop.highlight", id: "maya" },
+      { kind: "dialogue.show", characterId: "actor-1" },
+      { kind: "dialogue.hide" },
+      { kind: "prop.unhighlight", id: "maya" },
+    ];
+    const compiled = compileSceneActions(actions, project);
+    expect(compiled.ciSource).toContain('prop.Highlight("maya");');
+    expect(compiled.ciSource).toContain('prompter.ShowDialogueAs("actor-1");');
+    expect(compiled.ciSource).toContain("prompter.HideDialogue();");
+    expect(compiled.ciSource).toContain('prop.Unhighlight("maya");');
+  });
+
+  it("compiles dialogue width", () => {
+    const compiled = compileSceneActions(
+      [{ kind: "dialogue.setWidth", widthPercent: 75 }],
+      project
+    );
+    expect(compiled.ciSource).toContain("prompter.SetDialogueWidth(75);");
   });
 
   it("uses vector overloads for XY positions", () => {
@@ -67,7 +89,6 @@ describe("compileSceneActions", () => {
     const actions: SceneAction[] = [
       {
         kind: "dialogue.revealText",
-        channel: "main",
         text: 'Hello, @rt.GetString("name")! @if (rt.GetBool("metMaya")) { <b>Welcome back.</b> }',
         reveal: { mode: "instant" },
       },

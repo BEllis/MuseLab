@@ -94,7 +94,7 @@ describe("node actions", () => {
     const prompts = createEmptyLocalePrompts();
     const actions: SceneAction[] = [
       { kind: "dialogue.setSpeaker", text: "Alex" },
-      { kind: "dialogue.revealText", channel: "main", text: "Hi", reveal: { mode: "instant" } },
+      { kind: "dialogue.revealText", text: "Hi", reveal: { mode: "instant" } },
     ];
     setNodeActions(prompts, storyId, "n1", actions);
     setEdgeOptionText(prompts, storyId, "e1", "Continue");

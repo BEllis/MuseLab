@@ -21,8 +21,11 @@ namespace MuseLab.Scene
         PropSetPosition,
         PropSetZ,
         PropSetVariation,
+        PropHighlight,
+        PropUnhighlight,
         DialogueShow,
         DialogueHide,
+        DialogueSetWidth,
     }
 
     public enum PositionKind
@@ -54,9 +57,10 @@ namespace MuseLab.Scene
         public string Id;
         public string VariationId;
         public string Direction;
-        public string Channel;
+        public string CharacterId;
         public int DurationMs;
         public int Z;
+        public int WidthPercent;
         public StagePosition Position;
         public bool HasPosition;
     }

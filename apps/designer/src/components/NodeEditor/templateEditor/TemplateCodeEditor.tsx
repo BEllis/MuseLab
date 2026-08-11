@@ -128,6 +128,8 @@ export function TemplateCodeEditor({
         ...buildEditorExtensions(mode),
         autocompletion({
           activateOnTyping: true,
+          activateOnCompletion: (completion) =>
+            typeof completion.apply === "string" && completion.apply.endsWith("."),
           override: [
             (context) =>
               templateCompletionSource(buildTemplateCompletionModules(projectRef.current))(context),

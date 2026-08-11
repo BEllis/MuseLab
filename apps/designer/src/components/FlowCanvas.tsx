@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Graph, Keyboard, MiniMap, Selection } from "@antv/x6";
-import { getDefaultLocale } from "@/core/locale/prompts";
 import { isSceneNode } from "@/core/model/nodeTypes";
 import { selectActiveStory, useProjectStore } from "@/store/projectStore";
-import { useSceneEditorPreviewStore } from "@/store/sceneEditorPreviewStore";
 import { ADD_NODE_MENU_OPTIONS, AddNodeMenu } from "./AddNodeMenu";
 import type { StoryNodeType } from "@/core/model/types";
 import { PlayButton } from "./PlayButton";
@@ -19,6 +17,7 @@ import {
 } from "@/utils/nodeOverlap";
 import { createGraphOptions } from "@/x6/graphOptions";
 import { bindGraphEvents, bindGraphKeyboard, type ConnectionDropOnBlank } from "@/x6/graphEvents";
+import { openSceneNodePrompt } from "@/x6/openSceneNodePrompt";
 import {
   CONNECTION_DROP_LABELS,
   type ConnectionDropAction,
@@ -211,6 +210,13 @@ export function FlowCanvas() {
         clientY: e.clientY,
         graphPoint,
       });
+    });
+
+    graph.on("node:dblclick", ({ node }) => {
+      setContextMenu(null);
+      setConnectionDropMenu(null);
+      setBlankAddMenu(null);
+      openSceneNodePrompt(graph, node.id, "edit");
     });
 
     graph.on("node:contextmenu", ({ e, node }) => {
@@ -431,26 +437,7 @@ export function FlowCanvas() {
   const openSceneNodePromptFromContextMenu = useCallback(
     (mode: "view" | "edit") => {
       if (!contextMenu || contextMenu.type !== "node") return;
-
-      const store = useProjectStore.getState();
-      const story = selectActiveStory(store.project, store.activeStoryId);
-      const node = story.nodes.find((entry) => entry.id === contextMenu.id);
-      if (!node || !isSceneNode(node)) return;
-
-      const locale = getDefaultLocale(store.project);
-
-      store.setSelection([node.id], []);
-      graphRef.current?.cleanSelection();
-      const cell = graphRef.current?.getCellById(node.id);
-      if (cell) graphRef.current?.select(cell);
-
-      const previewStore = useSceneEditorPreviewStore.getState();
-      if (mode === "view") {
-        previewStore.showPreview({ locale, editingActions: false });
-      } else {
-        previewStore.showActionEditor(locale);
-      }
-
+      openSceneNodePrompt(graphRef.current, contextMenu.id, mode);
       setContextMenu(null);
     },
     [contextMenu]

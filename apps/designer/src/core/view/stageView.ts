@@ -1,3 +1,4 @@
+import { DEFAULT_DIALOGUE_WIDTH_PERCENT, PROP_HIGHLIGHT_SCALE } from "@/core/scene/actions";
 import type { SceneSnapshot } from "@/core/scene/sceneDirector";
 import type { SceneSummary } from "@/core/scene/sceneSummary";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "@/core/scene/positions";
@@ -13,6 +14,7 @@ export type StageViewProp = {
   zIndex: number;
   opacity: number;
   scale: number;
+  highlighted: boolean;
 };
 
 export type StageViewBackground = {
@@ -28,12 +30,17 @@ export type StageView = {
   /** Kept mounted during a background transition so both layers can render. */
   outgoingBackground: StageViewBackground | null;
   props: StageViewProp[];
+  dialogueVisible: boolean;
+  dialogueCharacterId?: string;
+  dialogueWidthPercent: number;
 };
 
 export const EMPTY_STAGE_VIEW: StageView = {
   background: null,
   outgoingBackground: null,
   props: [],
+  dialogueVisible: true,
+  dialogueWidthPercent: DEFAULT_DIALOGUE_WIDTH_PERCENT,
 };
 
 function toPercent(x: number, y: number): { leftPercent: number; topPercent: number } {
@@ -68,8 +75,12 @@ export function stageViewFromSnapshot(snapshot: SceneSnapshot): StageView {
         ...toPercent(prop.x, prop.y),
         zIndex: prop.zIndex,
         opacity: prop.opacity,
-        scale: prop.scale,
+        scale: prop.highlighted ? prop.scale * PROP_HIGHLIGHT_SCALE : prop.scale,
+        highlighted: prop.highlighted,
       })),
+    dialogueVisible: snapshot.dialogueVisible,
+    dialogueCharacterId: snapshot.dialogueCharacterId,
+    dialogueWidthPercent: snapshot.dialogueWidthPercent,
   };
 }
 
@@ -93,6 +104,9 @@ export function stageViewFromSummary(summary: SceneSummary): StageView {
       zIndex: prop.zIndex,
       opacity: 1,
       scale: 1,
+      highlighted: false,
     })),
+    dialogueVisible: true,
+    dialogueWidthPercent: DEFAULT_DIALOGUE_WIDTH_PERCENT,
   };
 }

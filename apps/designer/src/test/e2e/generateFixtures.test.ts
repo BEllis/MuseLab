@@ -38,10 +38,9 @@ describe("generate e2e fixtures", () => {
     const edge = addEdge(playableProject, playableStoryId, startId, scene.id);
     const playablePrompts = createEmptyPromptsByLocale(playableProject.locales);
     setNodeActions(playablePrompts.en, playableStoryId, scene.id, [
-      { kind: "dialogue.show", channel: "main" },
+      { kind: "dialogue.show" },
       {
         kind: "dialogue.revealText",
-        channel: "main",
         text: "Welcome to MuseLab",
         reveal: { mode: "instant" },
       },

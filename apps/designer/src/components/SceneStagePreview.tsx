@@ -204,7 +204,8 @@ export function SceneStagePreview({
   useEffect(() => {
     setPromptComplete(!usePromptExecutor);
   }, [html, promptInstructions, usePromptExecutor]);
-  const showCaptionPanel = hasDialogueContent;
+  const dialogueVisible = resolvedStageView.dialogueVisible;
+  const showCaptionPanel = dialogueVisible && hasDialogueContent;
   const choiceAreaBottom =
     showCaptionPanel && showChoiceButtons
       ? compact
@@ -333,11 +334,13 @@ export function SceneStagePreview({
 
         {showCaptionPanel && (
           <div
+            data-dialogue-character={resolvedStageView.dialogueCharacterId || undefined}
             style={{
               position: "absolute",
               bottom: 0,
-              left: 0,
-              right: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: `${resolvedStageView.dialogueWidthPercent}%`,
               height: compact ? `${DIALOGUE_PANEL_FRACTION * 100}%` : DIALOGUE_PANEL_HEIGHT,
               zIndex: 1,
               display: "flex",
@@ -381,9 +384,10 @@ export function SceneStagePreview({
                     isRevealing={!isComplete && isRevealing}
                     isAwaitingContinue={!isComplete && isAwaitingContinue}
                     showContinueHint={
-                      (singleChoice || (showContinue && !compact && isComplete)) &&
-                      isComplete &&
-                      !hasChoiceButtons
+                      (!compact && isAwaitingContinue) ||
+                      ((singleChoice || (showContinue && !compact && isComplete)) &&
+                        isComplete &&
+                        !hasChoiceButtons)
                     }
                     interactive={!compact}
                     onActivate={() => {
@@ -431,7 +435,7 @@ export function SceneStagePreview({
               />
             )}
 
-            {!compact && choices.length === 0 && !showContinue && (
+            {!compact && choices.length === 0 && !showContinue && onRestart && (
               <div
                 style={{
                   display: "flex",
@@ -440,28 +444,23 @@ export function SceneStagePreview({
                   flexWrap: "wrap",
                 }}
               >
-                <p style={{ margin: 0, padding: "8px 0", color: "#334155", fontSize: "14px" }}>
-                  End of story.
-                </p>
-                {onRestart && (
-                  <button
-                    type="button"
-                    onClick={onRestart}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "14px",
-                      fontFamily: "inherit",
-                      cursor: "pointer",
-                      background: "#1e5a8a",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "8px",
-                      boxShadow: "0 2px 8px rgba(30, 90, 138, 0.3)",
-                    }}
-                  >
-                    Restart
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={onRestart}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    background: "#1e5a8a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    boxShadow: "0 2px 8px rgba(30, 90, 138, 0.3)",
+                  }}
+                >
+                  Restart
+                </button>
               </div>
             )}
           </div>
@@ -657,8 +656,7 @@ function DialogueCaptionBox({
     return () => observer.disconnect();
   }, [measureLines]);
   const canPaginate = linePaginationEnabled && hasMoreToPaginate;
-  const showMoreHint = canPaginate || isAwaitingContinue;
-  const showInlineMoreHint = !compact && showMoreHint && !showContinueHint;
+  const showInlineMoreHint = !compact && canPaginate && !showContinueHint;
   const displayDialogueHtml = showInlineMoreHint
     ? appendInlineDialogueMoreHint(dialogueHtml)
     : dialogueHtml;

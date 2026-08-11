@@ -300,15 +300,36 @@ function ActionBody({
           )}
         </>
       );
+    case "prop.highlight":
+    case "prop.unhighlight":
+      return (
+        <PropIdField
+          value={action.id}
+          onChange={(id) => onChange({ ...action, id })}
+          knownIds={knownPropIds}
+        />
+      );
 
     case "dialogue.show":
-    case "dialogue.hide":
       return (
-        <TextField
-          value={action.channel}
-          onChange={(channel) => onChange({ ...action, channel })}
-          placeholder="channel"
-          width="110px"
+        <AssetField
+          project={project}
+          types={["actor"]}
+          value={action.characterId ?? ""}
+          onChange={(characterId) =>
+            onChange({ ...action, characterId: characterId || undefined })
+          }
+          placeholder="character (optional)"
+        />
+      );
+    case "dialogue.hide":
+      return null;
+    case "dialogue.setWidth":
+      return (
+        <NumberField
+          label="width %"
+          value={action.widthPercent}
+          onChange={(widthPercent) => onChange({ ...action, widthPercent })}
         />
       );
     case "dialogue.setSpeaker":
